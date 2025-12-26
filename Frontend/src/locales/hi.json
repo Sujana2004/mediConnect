@@ -1,0 +1,132 @@
+{
+  "navbar": {
+    "home": "होम",
+    "symptomChecker": "लक्षण जांच",
+    "doctors": "डॉक्टर्स",
+    "medicines": "दवाएं",
+    "emergency": "आपातकाल",
+    "healthRecords": "स्वास्थ्य रिकॉर्ड",
+    "dashboard": "डैशबोर्ड",
+    "profile": "प्रोफाइल",
+    "login": "लॉगिन",
+    "register": "रजिस्टर",
+    "logout": "लॉगआउट",
+    "ruralHealth": "ग्रामीण स्वास्थ्य",
+    "patient": "मरीज",
+    "doctor": "डॉक्टर",
+    "settings": "सेटिंग्स"
+  },
+
+  "footer": {
+    "symptomChecker": "लक्षण जांच",
+    "findDoctor": "डॉक्टर ढूंढें",
+    "medicineSearch": "दवा खोज",
+    "emergency": "आपातकाल",
+    "healthRecords": "स्वास्थ्य रिकॉर्ड",
+    "videoConsultation": "वीडियो परामर्श",
+    "aiChatbot": "एआई चैटबॉट",
+    "digitalRecords": "डिजिटल रिकॉर्ड",
+    "medicineDelivery": "दवा वितरण",
+    "emergencyServices": "आपातकालीन सेवाएं",
+    "quickLinks": "त्वरित लिंक",
+    "services": "सेवाएं",
+    "contactUs": "संपर्क करें",
+    "emergencyHelp": "आपातकालीन सहायता",
+    "sosButton": "एसओएस आपातकाल",
+    "governmentInitiative": "सरकारी पहल",
+    "privacyPolicy": "गोपनीयता नीति",
+    "terms": "सेवा की शर्तें",
+    "disclaimer": "अस्वीकरण",
+    "importantNote": "चिकित्सा आपात स्थिति के लिए तुरंत 108 पर कॉल करें",
+    "tagline": "एआई-संचालित ग्रामीण स्वास्थ्य सहायता",
+    "description": "प्रौद्योगिकी के माध्यम से ग्रामीण समुदायों को गुणवत्तापूर्ण स्वास्थ्य सेवा से जोड़ना",
+    "address": "स्वास्थ्य मंत्रालय, भारत सरकार"
+  },
+
+  "login": {
+    "title": "मेडिकनेक्ट में वापस स्वागत है",
+    "subtitle": "अपने स्वास्थ्य डैशबोर्ड तक पहुंचने के लिए साइन इन करें",
+    "email": "ईमेल पता",
+    "password": "पासवर्ड",
+    "signIn": "साइन इन",
+    "signingIn": "साइन इन हो रहा है...",
+    "noAccount": "खाता नहीं है?",
+    "createAccount": "खाता बनाएं",
+    "forgotPassword": "पासवर्ड भूल गए?",
+    "patient": "मरीज",
+    "doctor": "डॉक्टर",
+    "roleRequired": "कृपया भूमिका चुनें",
+    "emailRequired": "ईमेल आवश्यक है",
+    "emailInvalid": "अमान्य ईमेल पता",
+    "passwordRequired": "पासवर्ड आवश्यक है",
+    "passwordMin": "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए",
+    "roleInvalid": "अमान्य भूमिका चयनित",
+    "governmentVerified": "सरकारी सत्यापित प्लेटफॉर्म • सुरक्षित और निजी",
+    "verifiedDoctors": "5000+ सत्यापित डॉक्टर",
+    "secureData": "सुरक्षित डेटा एन्क्रिप्शन",
+    "freeService": "मुफ्त सरकारी सेवा",
+    "emergencyAccess": "आपातकालीन पहुंच",
+    "findDoctor": "डॉक्टर ढूंढें"
+  },
+
+  "register": {
+    "title": "मेडिकनेक्ट में शामिल हों - ग्रामीण स्वास्थ्य पहल",
+    "subtitle": "अपने स्वास्थ्य की देखभाल शुरू करने के लिए एक मुफ्त खाता बनाएं",
+    "name": "पूरा नाम",
+    "email": "ईमेल पता",
+    "password": "पासवर्ड",
+    "confirmPassword": "पासवर्ड की पुष्टि करें",
+    "role": "भूमिका चुनें",
+    "patient": "मरीज",
+    "doctor": "डॉक्टर",
+    "register": "रजिस्टर करें",
+    "registering": "रजिस्टर हो रहा है...",
+    "haveAccount": "पहले से ही एक खाता है?",
+    "signIn": "साइन इन करें",
+
+    "selectRole": "अपनी भूमिका चुनें",
+    "patientDesc": "स्वास्थ्य सेवा, परामर्श और रिकॉर्ड तक पहुंचें",
+    "doctorDesc": "ग्रामीण मरीजों को टेलीमेडिसिन सेवाएं प्रदान करें",
+
+    "fullName": "पूरा नाम",
+    "phone": "फोन नंबर",
+    "address": "पूरा पता",
+    "dob": "जन्म तिथि",
+    "aadhaar": "आधार नंबर",
+    "medicalLicense": "मेडिकल लाइसेंस नंबर",
+    "specialization": "विशेषज्ञता",
+    "selectSpecialization": "विशेषज्ञता चुनें",
+
+    "agreeTerms": "मैं सहमत हूँ",
+    "terms": "सेवा की शर्तें",
+    "and": "और",
+    "privacy": "गोपनीयता नीति",
+    "createAccount": "खाता बनाएं",
+
+    "creatingAccount": "खाता बनाया जा रहा है...",
+    "alreadyHaveAccount": "पहले से ही एक खाता है?",
+    "governmentVerified": "सरकारी सत्यापित • सुरक्षित पंजीकरण",
+
+    "nameMin": "नाम कम से कम 2 अक्षरों का होना चाहिए",
+    "nameRequired": "नाम आवश्यक है",
+    "emailRequired": "ईमेल आवश्यक है",
+    "emailInvalid": "अमान्य ईमेल पता",
+
+    "phoneRequired": "फोन नंबर आवश्यक है",
+    "phoneInvalid": "अमान्य फोन नंबर",
+
+    "addressRequired": "पूरा पता आवश्यक है",
+    "addressMin": "पता कम से कम 10 अक्षरों का होना चाहिए",
+
+    "dobRequired": "जन्म तिथि आवश्यक है",
+    "dobInvalid": "जन्म तिथि भविष्य में होनी चाहिए",
+
+    "passwordRequired": "पासवर्ड आवश्यक है",
+    "passwordMin": "पासवर्ड कम से कम 6 अक्षरों का होना चाहिए",
+
+    "confirmPasswordRequired": "पासवर्ड की पुष्टि आवश्यक है",
+    "passwordsMustMatch": "पासवर्ड मेल खाने चाहिए",
+
+    "roleRequired": "कृपया भूमिका चुनें"
+  }
+}
