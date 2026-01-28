@@ -2,5 +2,13 @@ from django.apps import AppConfig
 
 
 class EmergencyConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
-    name = "emergency"
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'apps.emergency'
+    verbose_name = 'Emergency Services'
+
+    def ready(self):
+        """Import signals when app is ready."""
+        try:
+            import apps.emergency.signals  # noqa: F401
+        except ImportError:
+            pass

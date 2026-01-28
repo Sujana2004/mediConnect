@@ -22,6 +22,10 @@ PyJWT==2.9.0
 psycopg2-binary==2.9.10
 dj-database-url==2.3.0
 
+# Supabase Storage (for Health Records)
+supabase==2.3.4
+storage3==0.7.0
+
 # -------------------------------------------
 # REDIS & CACHING
 # -------------------------------------------
@@ -60,8 +64,22 @@ spacy==3.8.3
 # -------------------------------------------
 # AZURE SERVICES
 # -------------------------------------------
-azure-cognitiveservices-speech==1.42.0
+# azure-cognitiveservices-speech==1.42.0
+#Http requests
 requests==2.32.3
+# openai>=1.0.0
+# azure-cognitiveservices-speech>=1.32.0
+
+#Ai service (free)
+groq>=0.4.0
+
+#Translation (free)
+deep-translator>=1.11.4
+
+# -------------------------------------------
+# APScheduler (Task Scheduling) Lightweight and more robust than raw daemon threads
+# -------------------------------------------
+apscheduler==3.10.4
 
 # -------------------------------------------
 # FILE HANDLING

@@ -58,6 +58,7 @@ tmp/
 # FIREBASE
 # ==================================================
 firebase-adminsdk*.json
+firebase-credentials.json
 
 # ==================================================
 # TESTING / COVERAGE
