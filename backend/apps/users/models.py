@@ -36,11 +36,13 @@ class UserManager(BaseUserManager):
     def create_superuser(self, phone, password=None, **extra_fields):
         """
         Create and save a SuperUser with the given phone and password.
+        Admins don't need phone OTP verification - they use password login.
         """
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_active', True)
         extra_fields.setdefault('role', User.Role.ADMIN)
+        extra_fields.setdefault('is_phone_verified', True)  # ✅ Auto-verified for admins
         
         if extra_fields.get('is_staff') is not True:
             raise ValueError(_('Superuser must have is_staff=True.'))
@@ -49,6 +51,21 @@ class UserManager(BaseUserManager):
         
         return self.create_user(phone, password, **extra_fields)
 
+    def create_admin(self, phone, password=None, **extra_fields):
+        """
+        Create an admin user (staff but not superuser).
+        Admins use password login, no phone OTP needed.
+        """
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', False)
+        extra_fields.setdefault('is_active', True)
+        extra_fields.setdefault('role', User.Role.ADMIN)
+        extra_fields.setdefault('is_phone_verified', True)
+        
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError(_('Admin must have is_staff=True.'))
+        
+        return self.create_user(phone, password, **extra_fields)
 
 # ============================================
 # VALIDATORS
@@ -211,6 +228,14 @@ class User(AbstractUser):
     @property
     def is_admin_user(self):
         return self.role == self.Role.ADMIN
+    
+    @property
+    def requires_phone_verification(self):
+        """
+        Only Patients and Doctors need phone verification via Firebase OTP.
+        Admins use password-based authentication.
+        """
+        return self.role in [self.Role.PATIENT, self.Role.DOCTOR]
     
     def update_last_active(self):
         """Update the last active timestamp."""
@@ -710,24 +735,13 @@ class DoctorLeave(models.Model):
 class AdminProfile(models.Model):
     """
     Extended profile for Admin role.
+    Admins use username/password login (no phone verification needed).
     """
-    
-    class AdminLevel(models.TextChoices):
-        SUPER = 'super', _('Super Admin')
-        DISTRICT = 'district', _('District Admin')
-        SUPPORT = 'support', _('Support Admin')
     
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
         related_name='admin_profile'
-    )
-    
-    admin_level = models.CharField(
-        _('Admin Level'),
-        max_length=20,
-        choices=AdminLevel.choices,
-        default=AdminLevel.SUPPORT
     )
     
     department = models.CharField(
@@ -744,11 +758,9 @@ class AdminProfile(models.Model):
     # Permissions
     can_manage_doctors = models.BooleanField(default=True)
     can_manage_patients = models.BooleanField(default=True)
-    can_verify_doctors = models.BooleanField(default=False)
+    can_verify_doctors = models.BooleanField(default=True)
     can_view_reports = models.BooleanField(default=True)
-    can_manage_content = models.BooleanField(default=False)
-    can_manage_admins = models.BooleanField(default=False)
-    can_access_system_settings = models.BooleanField(default=False)
+    can_manage_content = models.BooleanField(default=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -759,7 +771,7 @@ class AdminProfile(models.Model):
         verbose_name_plural = _('Admin Profiles')
     
     def __str__(self):
-        return f"Admin: {self.user.phone} ({self.get_admin_level_display()})"
+        return f"Admin: {self.user.phone}"
 
 
 # ============================================

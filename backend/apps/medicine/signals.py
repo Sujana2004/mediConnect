@@ -37,7 +37,7 @@ def prescription_post_save(sender, instance, created, **kwargs):
     if created:
         logger.info(
             f"Prescription created: {instance.id} - '{instance.title}' "
-            f"for user {instance.user.phone_number}"
+            f"for user {instance.user.phone}"
         )
 
 
@@ -103,7 +103,7 @@ def reminder_post_save(sender, instance, created, **kwargs):
     if created:
         logger.info(
             f"Reminder created: {instance.id} - '{instance.medicine_name}' "
-            f"for user {instance.user.phone_number}"
+            f"for user {instance.user.phone}"
         )
         
         # Generate logs for today if applicable
@@ -174,6 +174,6 @@ def cleanup_user_medicine_data(sender, instance, **kwargs):
     Note: This is handled by CASCADE, but log for monitoring.
     """
     logger.info(
-        f"User deleted: {instance.phone_number}. "
+        f"User deleted: {instance.phone}. "
         f"Associated medicine data will be cleaned up."
     )

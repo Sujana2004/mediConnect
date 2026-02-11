@@ -50,7 +50,7 @@ def sos_alert_post_save(sender, instance, created, **kwargs):
     if created:
         logger.info(
             f"SOS ALERT CREATED: ID={instance.id}, "
-            f"User={instance.user.phone_number}, "
+            f"User={instance.user.phone}, "
             f"Type={instance.emergency_type}, "
             f"Location={instance.location_address or 'Unknown'}"
         )
@@ -59,7 +59,7 @@ def sos_alert_post_save(sender, instance, created, **kwargs):
         if old_status and old_status != instance.status:
             logger.info(
                 f"SOS ALERT STATUS CHANGED: ID={instance.id}, "
-                f"User={instance.user.phone_number}, "
+                f"User={instance.user.phone}, "
                 f"Status={old_status} -> {instance.status}"
             )
 
@@ -77,7 +77,7 @@ def emergency_contact_post_save(sender, instance, created, **kwargs):
     if created:
         logger.info(
             f"Emergency contact added: {instance.name} "
-            f"for user {instance.user.phone_number}"
+            f"for user {instance.user.phone}"
         )
 
 
@@ -89,7 +89,7 @@ def emergency_contact_post_delete(sender, instance, **kwargs):
     """
     logger.info(
         f"Emergency contact deleted: {instance.name} "
-        f"for user {instance.user.phone_number}"
+        f"for user {instance.user.phone}"
     )
 
 
@@ -105,7 +105,7 @@ def location_cache_post_save(sender, instance, created, **kwargs):
     """
     if created:
         logger.debug(
-            f"Location cache created for user {instance.user.phone_number}"
+            f"Location cache created for user {instance.user.phone}"
         )
 
 
@@ -120,6 +120,6 @@ def cleanup_user_emergency_data(sender, instance, **kwargs):
     Note: This is handled by CASCADE, but log for monitoring.
     """
     logger.info(
-        f"User deleted: {instance.phone_number}. "
+        f"User deleted: {instance.phone}. "
         f"Associated emergency data will be cleaned up."
     )

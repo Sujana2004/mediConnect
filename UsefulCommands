@@ -1,0 +1,32 @@
+# Server
+python manage.py runserver
+
+# Database
+python manage.py makemigrations
+python manage.py migrate
+
+# Create admin
+python manage.py createsuperuser
+
+# check files
+python manage.py check
+
+# Load sample data
+python manage.py load_all_medical_data
+python manage.py load_chatbot_data
+python manage.py load_notification_templates
+python manage.py load_emergency_data
+python manage.py load_medicine_data
+python manage.py create_test_users
+python manage.py load_sample_appointments
+
+# ML Models
+python manage.py train_models
+
+# Health checks (no auth)
+curl http://localhost:8000/api/v1/chatbot/health/
+curl http://localhost:8000/api/v1/diagnosis/health/
+
+# Swagger docs
+http://localhost:8000/swagger/
+http://localhost:8000/redoc/
