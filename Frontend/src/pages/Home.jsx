@@ -25,11 +25,11 @@ const Home = () => {
 
   const services = [
     {
-      icon: <Video className="h-10 w-10 text-blue-600" />,
+      icon: <Video className="h-10 w-10 text-primary-600" />,
       title: t('home.videoConsultation'),
       description: t('home.videoConsultationDesc'),
       link: '/consultation',
-      color: 'bg-blue-50 border-blue-200',
+      color: 'bg-primary-50 border-primary-200',
     },
     {
       icon: <Stethoscope className="h-10 w-10 text-green-600" />,
@@ -85,7 +85,7 @@ const Home = () => {
   return (
     <div className="relative">
       {/* Hero Section */}
-      <div className="relative bg-gradient-to-r from-blue-600 to-teal-600 text-white overflow-hidden">
+      <div className="relative bg-gradient-to-r from-primary-600 to-primary-500 text-white overflow-hidden">
         <div className="absolute inset-0 bg-black opacity-20"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -95,15 +95,15 @@ const Home = () => {
               </div>
               <h1 className="text-5xl font-bold leading-tight">
                 {t('home.heroTitle')}
-                <span className="block text-teal-300">{t('home.heroSubtitle')}</span>
+                <span className="block text-primary-300">{t('home.heroSubtitle')}</span>
               </h1>
-              <p className="text-xl text-blue-100">
+              <p className="text-xl text-primary-100">
                 {t('home.heroDescription')}
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
                   to="/register"
-                  className="inline-flex items-center justify-center px-8 py-3 text-lg font-medium bg-white text-blue-700 rounded-lg hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl"
+                  className="inline-flex items-center justify-center px-8 py-3 text-lg font-medium bg-white text-primary-700 rounded-lg hover:bg-primary-50 transition-all shadow-lg hover:shadow-xl"
                 >
                   {t('home.getStarted')}
                   <ChevronRight className="ml-2 h-5 w-5" />
@@ -118,7 +118,7 @@ const Home = () => {
               <div className="flex items-center space-x-4">
                 <button
                   onClick={() => setShowVideo(true)}
-                  className="inline-flex items-center text-white hover:text-teal-200"
+                  className="inline-flex items-center text-white hover:text-primary-200"
                 >
                   <PlayCircle className="h-6 w-6 mr-2" />
                   {t('home.watchDemo')}
@@ -176,7 +176,7 @@ const Home = () => {
                 {service.title}
               </h3>
               <p className="text-gray-600 mb-4">{service.description}</p>
-              <div className="flex items-center text-blue-600 font-medium">
+              <div className="flex items-center text-primary-600 font-medium">
                 {t('home.getStarted')}
                 <ChevronRight className="ml-2 h-4 w-4" />
               </div>
@@ -239,8 +239,8 @@ const Home = () => {
                   "{t(`home.testimonial${i}`)}"
                 </p>
                 <div className="flex items-center">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                    <Users className="h-6 w-6 text-blue-600" />
+                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                    <Users className="h-6 w-6 text-primary-600" />
                   </div>
                   <div className="ml-3">
                     <p className="font-semibold">{t(`home.user${i}`)}</p>
@@ -254,18 +254,18 @@ const Home = () => {
       </div>
 
       {/* CTA Section */}
-      <div className="bg-gradient-to-r from-blue-500 to-teal-500 text-white py-16">
+      <div className="bg-gradient-to-r from-primary-500 to-primary-400 text-white py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold mb-4">
             {t('home.readyToStart')}
           </h2>
-          <p className="text-xl mb-8 text-blue-100">
+          <p className="text-xl mb-8 text-primary-100">
             {t('home.joinMillions')}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/register"
-              className="bg-white text-blue-600 px-8 py-3 rounded-lg font-bold hover:bg-blue-50 transition-colors shadow-lg"
+              className="bg-white text-primary-600 px-8 py-3 rounded-lg font-bold hover:bg-primary-50 transition-colors shadow-lg"
             >
               {t('home.createFreeAccount')}
             </Link>
@@ -276,7 +276,7 @@ const Home = () => {
               {t('home.loginExisting')}
             </Link>
           </div>
-          <p className="mt-6 text-sm text-blue-200">
+          <p className="mt-6 text-sm text-primary-200">
             {t('home.freeForever')}
           </p>
         </div>

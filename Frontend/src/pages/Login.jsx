@@ -70,12 +70,12 @@ const Login = () => {
   });
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-teal-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center">
-            <div className="bg-blue-600 p-3 rounded-full">
+            <div className="bg-primary-600 p-3 rounded-full">
               <Heart className="h-10 w-10 text-white" />
             </div>
           </div>
@@ -104,15 +104,15 @@ const Login = () => {
                 onClick={() => formik.setFieldValue('role', 'patient')}
                 className={`p-4 border-2 rounded-lg flex flex-col items-center justify-center transition-all ${
                   formik.values.role === 'patient'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-blue-300'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-200 hover:border-primary-300'
                 }`}
               >
                 <User className={`h-8 w-8 mb-2 ${
-                  formik.values.role === 'patient' ? 'text-blue-600' : 'text-gray-400'
+                  formik.values.role === 'patient' ? 'text-primary-600' : 'text-gray-400'
                 }`} />
                 <span className={`font-medium ${
-                  formik.values.role === 'patient' ? 'text-blue-700' : 'text-gray-700'
+                  formik.values.role === 'patient' ? 'text-primary-700' : 'text-gray-700'
                 }`}>
                   {t('login.patient')}
                 </span>
@@ -123,15 +123,15 @@ const Login = () => {
                 onClick={() => formik.setFieldValue('role', 'doctor')}
                 className={`p-4 border-2 rounded-lg flex flex-col items-center justify-center transition-all ${
                   formik.values.role === 'doctor'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-blue-300'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-200 hover:border-primary-300'
                 }`}
               >
                 <Stethoscope className={`h-8 w-8 mb-2 ${
-                  formik.values.role === 'doctor' ? 'text-blue-600' : 'text-gray-400'
+                  formik.values.role === 'doctor' ? 'text-primary-600' : 'text-gray-400'
                 }`} />
                 <span className={`font-medium ${
-                  formik.values.role === 'doctor' ? 'text-blue-700' : 'text-gray-700'
+                  formik.values.role === 'doctor' ? 'text-primary-700' : 'text-gray-700'
                 }`}>
                   {t('login.doctor')}
                 </span>
@@ -158,7 +158,7 @@ const Login = () => {
                   className={`pl-10 block w-full px-3 py-3 border ${
                     formik.touched.email && formik.errors.email
                       ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                      : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                      : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                   } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
                   placeholder="user@example.com"
                 />
@@ -176,7 +176,7 @@ const Login = () => {
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-sm text-blue-600 hover:text-blue-500"
+                  className="text-sm text-primary-600 hover:text-primary-500"
                 >
                   {t('login.forgotPassword')}
                 </Link>
@@ -196,7 +196,7 @@ const Login = () => {
                   className={`pl-10 pr-10 block w-full px-3 py-3 border ${
                     formik.touched.password && formik.errors.password
                       ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                      : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                      : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                   } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
                   placeholder="••••••••"
                 />
@@ -222,7 +222,7 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors ${
+                className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors ${
                   isLoading ? 'opacity-70 cursor-not-allowed' : ''
                 }`}
               >
@@ -238,8 +238,8 @@ const Login = () => {
             </div>
 
             {/* Government Badge */}
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
-              <p className="text-xs text-blue-800">
+            <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg text-center">
+              <p className="text-xs text-primary-800">
                 {t('login.governmentVerified')}
               </p>
             </div>
@@ -251,7 +251,7 @@ const Login = () => {
               {t('login.noAccount')}{' '}
               <Link
                 to="/register"
-                className="font-medium text-blue-600 hover:text-blue-500"
+                className="font-medium text-primary-600 hover:text-primary-500"
               >
                 {t('login.createAccount')}
               </Link>
@@ -269,7 +269,7 @@ const Login = () => {
               </Link>
               <Link
                 to="/doctors"
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
               >
                 {t('login.findDoctor')}
               </Link>

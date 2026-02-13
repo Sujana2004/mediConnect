@@ -266,7 +266,7 @@ const MedicineSearch = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder={t('MedicineSearch')}
-                  className="pl-10 block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="pl-10 block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
             </div>
@@ -283,7 +283,7 @@ const MedicineSearch = () => {
                     onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
                     placeholder={t('medicine.pincode')}
                     maxLength="6"
-                    className="pl-10 block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="pl-10 block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   />
                 </div>
               </div>
@@ -310,7 +310,7 @@ const MedicineSearch = () => {
                   <select
                     value={filters.category}
                     onChange={(e) => setFilters({...filters, category: e.target.value})}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                   >
                     <option value="">{t('AllCategories')}</option>
                     {categories.map(cat => (
@@ -327,7 +327,7 @@ const MedicineSearch = () => {
                   <select
                     value={filters.availability}
                     onChange={(e) => setFilters({...filters, availability: e.target.value})}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                   >
                     <option value="">{t('medicine.all')}</option>
                     <option value="in_stock">{t('InStock')}</option>
@@ -343,7 +343,7 @@ const MedicineSearch = () => {
                   <select
                     value={filters.prescription}
                     onChange={(e) => setFilters({...filters, prescription: e.target.value})}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                   >
                     <option value="">{t('medicine.all')}</option>
                     <option value="required">{t('PrescriptionRequired')}</option>

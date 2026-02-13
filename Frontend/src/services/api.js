@@ -52,8 +52,8 @@ api.interceptors.response.use(
         case 401:
           // Unauthorized - clear storage and redirect to login
           clearStorage();
-          if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
+          if (window.location.pathname !== '/') {
+            window.location.href = '/';
           }
           break;
           

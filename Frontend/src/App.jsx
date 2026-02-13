@@ -1,15 +1,39 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
 import i18n from './i18n';
-import { AuthProvider } from './context/AuthContext.jsx';
+import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import PrivateRoute from './components/common/PrivateRoute.jsx';
 import Navbar from './components/common/Navbar.jsx';
 import Footer from './components/common/Footer.jsx';
 import Loader from './components/common/Loader.jsx';
 
+function AuthGate() {
+  const { user, loading } = useAuth();
+  if (loading) return <Loader />;
+  if (user) {
+    return <Navigate to={user.role === 'doctor' ? '/doctor-dashboard' : '/patient-dashboard'} replace />;
+  }
+  return <AuthFlow />;
+}
+
+function AppLayout({ children }) {
+  const location = useLocation();
+  const isPatientApp = location.pathname === '/patient-dashboard';
+  const isAuthFlow = location.pathname === '/';
+  const hideNavFooter = isPatientApp || isAuthFlow;
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {!hideNavFooter && <Navbar />}
+      <main className="flex-grow">{children}</main>
+      {!hideNavFooter && <Footer />}
+    </div>
+  );
+}
+
 // Lazy load pages for better performance
 const Home = lazy(() => import('./pages/Home'));
+const AuthFlow = lazy(() => import('./pages/auth/AuthFlow'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const PatientDashboard = lazy(() => import('./pages/PatientDashboard'));
@@ -27,15 +51,14 @@ const Profile = lazy(() => import('./pages/Profile'));
 function App() {
   return (
     <I18nextProvider i18n={i18n}>
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AuthProvider>
-          <div className="min-h-screen flex flex-col bg-gray-50">
-            <Navbar />
-            <main className="flex-grow">
-              <Suspense fallback={<Loader />}>
-                <Routes>
-                  {/* Public Routes */}
-                  <Route path="/" element={<Home />} />
+          <AppLayout>
+            <Suspense fallback={<Loader />}>
+              <Routes>
+                  {/* Auth gate: "/" shows AuthFlow when not logged in, else redirects to dashboard */}
+                  <Route path="/" element={<AuthGate />} />
+                  <Route path="/home" element={<Home />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
 
@@ -70,7 +93,7 @@ function App() {
                     </PrivateRoute>
                   } />
                     <Route path="/doctors/:id" element={
-                      <PrivateRoute allowedRoles={['patient', 'doctor']}>
+                      <PrivateRoute allowedRoles={['patient']}>
                         <DoctorProfile />
                       </PrivateRoute>
                     } />
@@ -103,10 +126,8 @@ function App() {
                   {/* Catch all route */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
-              </Suspense>
-            </main>
-            <Footer />
-          </div>
+            </Suspense>
+          </AppLayout>
         </AuthProvider>
       </Router>
     </I18nextProvider>

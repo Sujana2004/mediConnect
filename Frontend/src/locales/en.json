@@ -66,6 +66,24 @@
     "emergencyAccess": "Emergency Access",
     "findDoctor": "Find Doctor"
   },
+  "authFlow": {
+    "loginWithPhone": "Login with Phone Number",
+    "createAccount": "Create New Account",
+    "changeLanguage": "Change Language",
+    "enterPhone": "Enter your phone number",
+    "phoneInvalid": "Please enter a valid 10-digit mobile number",
+    "verifyOtp": "Verify OTP",
+    "resendOtp": "Resend OTP",
+    "selectRole": "Select Your Role",
+    "patientReg": "Patient Registration",
+    "doctorReg": "Doctor Registration",
+    "step": "Step",
+    "of": "of",
+    "back": "Back",
+    "next": "Next",
+    "getStarted": "Get Started",
+    "skip": "Skip"
+  },
   "register": {
     "title": "Join MediConnect - Rural Health Initiative",
     "subtitle": "Create your account to access AI-powered healthcare",

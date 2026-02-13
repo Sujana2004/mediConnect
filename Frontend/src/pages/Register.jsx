@@ -121,12 +121,12 @@ const Register = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-teal-50 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center">
-            <div className="bg-blue-600 p-3 rounded-full">
+            <div className="bg-primary-600 p-3 rounded-full">
               <Heart className="h-10 w-10 text-white" />
             </div>
           </div>
@@ -140,7 +140,7 @@ const Register = () => {
 
         <div className="bg-white shadow-xl rounded-lg overflow-hidden border border-gray-200">
           {/* Role Selection */}
-          <div className="p-6 bg-blue-50 border-b">
+          <div className="p-6 bg-primary-50 border-b">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               {t('register.selectRole')}
             </h2>
@@ -154,15 +154,15 @@ const Register = () => {
                 }}
                 className={`p-6 rounded-lg border-2 flex flex-col items-center transition-all ${
                   formik.values.role === 'patient'
-                    ? 'border-blue-500 bg-white shadow-md'
-                    : 'border-gray-200 hover:border-blue-300 hover:bg-white'
+                    ? 'border-primary-500 bg-white shadow-md'
+                    : 'border-gray-200 hover:border-primary-300 hover:bg-white'
                 }`}
               >
                 <User className={`h-12 w-12 mb-3 ${
-                  formik.values.role === 'patient' ? 'text-blue-600' : 'text-gray-400'
+                  formik.values.role === 'patient' ? 'text-primary-600' : 'text-gray-400'
                 }`} />
                 <h3 className={`text-lg font-semibold ${
-                  formik.values.role === 'patient' ? 'text-blue-700' : 'text-gray-700'
+                  formik.values.role === 'patient' ? 'text-primary-700' : 'text-gray-700'
                 }`}>
                   {t('register.patient')}
                 </h3>
@@ -179,15 +179,15 @@ const Register = () => {
                 }}
                 className={`p-6 rounded-lg border-2 flex flex-col items-center transition-all ${
                   formik.values.role === 'doctor'
-                    ? 'border-blue-500 bg-white shadow-md'
-                    : 'border-gray-200 hover:border-blue-300 hover:bg-white'
+                    ? 'border-primary-500 bg-white shadow-md'
+                    : 'border-gray-200 hover:border-primary-300 hover:bg-white'
                 }`}
               >
                 <Stethoscope className={`h-12 w-12 mb-3 ${
-                  formik.values.role === 'doctor' ? 'text-blue-600' : 'text-gray-400'
+                  formik.values.role === 'doctor' ? 'text-primary-600' : 'text-gray-400'
                 }`} />
                 <h3 className={`text-lg font-semibold ${
-                  formik.values.role === 'doctor' ? 'text-blue-700' : 'text-gray-700'
+                  formik.values.role === 'doctor' ? 'text-primary-700' : 'text-gray-700'
                 }`}>
                   {t('register.doctor')}
                 </h3>
@@ -229,7 +229,7 @@ const Register = () => {
                       className={`pl-10 block w-full px-3 py-2 border ${
                         formik.touched.name && formik.errors.name
                           ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                          : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                          : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                       } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
                       placeholder="John Doe"
                     />
@@ -258,7 +258,7 @@ const Register = () => {
                       className={`pl-10 block w-full px-3 py-2 border ${
                         formik.touched.email && formik.errors.email
                           ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                          : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                          : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                       } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
                       placeholder="user@example.com"
                     />
@@ -287,7 +287,7 @@ const Register = () => {
                       className={`pl-10 block w-full px-3 py-2 border ${
                         formik.touched.phone && formik.errors.phone
                           ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                          : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                          : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                       } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
                       placeholder="9876543210"
                     />
@@ -316,7 +316,7 @@ const Register = () => {
                       className={`pl-10 block w-full px-3 py-2 border ${
                         formik.touched.dateOfBirth && formik.errors.dateOfBirth
                           ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                          : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                          : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                       } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
                     />
                   </div>
@@ -344,7 +344,7 @@ const Register = () => {
                       className={`pl-10 block w-full px-3 py-2 border ${
                         formik.touched.address && formik.errors.address
                           ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                          : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                          : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                       } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
                       placeholder="Full address with pincode"
                     />
@@ -374,7 +374,7 @@ const Register = () => {
                         className={`pl-10 block w-full px-3 py-2 border ${
                           formik.touched.aadhaarNumber && formik.errors.aadhaarNumber
                             ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                            : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                            : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                         } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
                         placeholder="12-digit Aadhaar number"
                       />
@@ -406,7 +406,7 @@ const Register = () => {
                           className={`pl-10 block w-full px-3 py-2 border ${
                             formik.touched.licenseNumber && formik.errors.licenseNumber
                               ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                              : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                              : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                           } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
                           placeholder="MCI-XXXXX"
                         />
@@ -429,7 +429,7 @@ const Register = () => {
                         className={`block w-full px-3 py-2 border ${
                           formik.touched.specialization && formik.errors.specialization
                             ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                            : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                            : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                         } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
                       >
                         <option value="">{t('register.selectSpecialization')}</option>
@@ -463,7 +463,7 @@ const Register = () => {
                       className={`pl-10 pr-10 block w-full px-3 py-2 border ${
                         formik.touched.password && formik.errors.password
                           ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                          : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                          : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                       } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
                       placeholder="••••••••"
                     />
@@ -503,7 +503,7 @@ const Register = () => {
                       className={`pl-10 pr-10 block w-full px-3 py-2 border ${
                         formik.touched.confirmPassword && formik.errors.confirmPassword
                           ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                          : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                          : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
                       } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
                       placeholder="••••••••"
                     />
@@ -532,15 +532,15 @@ const Register = () => {
                   name="terms"
                   type="checkbox"
                   required
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
+                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded mt-1"
                 />
                 <label htmlFor="terms" className="ml-2 block text-sm text-gray-700">
                   {t('register.agreeTerms')}{' '}
-                  <Link to="/terms" className="text-blue-600 hover:text-blue-500">
+                  <Link to="/terms" className="text-primary-600 hover:text-primary-500">
                     {t('register.terms')}
                   </Link>{' '}
                   {t('register.and')}{' '}
-                  <Link to="/privacy" className="text-blue-600 hover:text-blue-500">
+                  <Link to="/privacy" className="text-primary-600 hover:text-primary-500">
                     {t('register.privacy')}
                   </Link>
                 </label>
@@ -551,7 +551,7 @@ const Register = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors ${
+                  className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors ${
                     isLoading ? 'opacity-70 cursor-not-allowed' : ''
                   }`}
                 >
@@ -572,7 +572,7 @@ const Register = () => {
                   {t('register.alreadyHaveAccount')}{' '}
                   <Link
                     to="/login"
-                    className="font-medium text-blue-600 hover:text-blue-500"
+                    className="font-medium text-primary-600 hover:text-primary-500"
                   >
                     {t('register.signIn')}
                   </Link>
@@ -582,14 +582,14 @@ const Register = () => {
           </div>
 
           {/* Government Verification Info */}
-          <div className="px-6 py-4 bg-blue-50 border-t">
+          <div className="px-6 py-4 bg-primary-50 border-t">
             <div className="flex items-center justify-center space-x-2">
               <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
                 <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
               </div>
-              <p className="text-sm text-blue-800">
+              <p className="text-sm text-primary-800">
                 {t('register.governmentVerified')}
               </p>
             </div>

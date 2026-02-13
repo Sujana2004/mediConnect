@@ -54,7 +54,7 @@ const Footer = () => {
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
               <div className="bg-white p-2 rounded-lg">
-                <Stethoscope className="h-6 w-6 text-blue-600" />
+                <Stethoscope className="h-6 w-6 text-primary-600" />
               </div>
               <div>
                 <h2 className="text-xl font-bold">MediConnect</h2>
@@ -71,7 +71,7 @@ const Footer = () => {
                 <a
                   key={index}
                   href={social.url}
-                  className="bg-gray-800 p-2 rounded-full hover:bg-blue-600 transition-colors"
+                  className="bg-gray-800 p-2 rounded-full hover:bg-primary-600 transition-colors"
                 >
                   {social.icon}
                 </a>
@@ -119,12 +119,12 @@ const Footer = () => {
             <ul className="space-y-3">
               {contactInfo.map((info, index) => (
                 <li key={index} className="flex items-start space-x-2">
-                  <div className="text-blue-400 mt-0.5">{info.icon}</div>
+                  <div className="text-primary-400 mt-0.5">{info.icon}</div>
                   <span className="text-gray-300 text-sm">{info.text}</span>
                 </li>
               ))}
             </ul>
-            <div className="mt-6 p-4 bg-blue-900/50 rounded-lg">
+            <div className="mt-6 p-4 bg-primary-900/50 rounded-lg">
               <div className="flex items-center space-x-2">
                 <Heart className="h-5 w-5 text-red-400" />
                 <span className="text-sm font-medium">

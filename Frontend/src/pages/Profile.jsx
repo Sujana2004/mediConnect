@@ -395,12 +395,12 @@ const Profile = () => {
 
   const renderNotifications = () => (
     <div className="space-y-6">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
         <div className="flex items-center">
-          <Bell className="h-5 w-5 text-blue-600 mr-3" />
+          <Bell className="h-5 w-5 text-primary-600 mr-3" />
           <div>
-            <h4 className="font-bold text-blue-900">{t('profile.notificationSettings')}</h4>
-            <p className="text-blue-700 text-sm">{t('profile.notificationDescription')}</p>
+            <h4 className="font-bold text-primary-900">{t('profile.notificationSettings')}</h4>
+            <p className="text-primary-700 text-sm">{t('profile.notificationDescription')}</p>
           </div>
         </div>
       </div>
@@ -419,7 +419,7 @@ const Profile = () => {
             <button
               onClick={() => setNotifications({...notifications, [key]: !value})}
               className={`relative inline-flex h-6 w-11 items-center rounded-full ${
-                value ? 'bg-blue-600' : 'bg-gray-200'
+                value ? 'bg-primary-600' : 'bg-gray-200'
               }`}
             >
               <span
@@ -458,7 +458,7 @@ const Profile = () => {
             </div>
             <button
               onClick={() => setShowChangePassword(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"
             >
               {t('profile.change')}
             </button>
@@ -510,7 +510,7 @@ const Profile = () => {
                   <button
                     onClick={handleSaveProfile}
                     disabled={saving}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center"
                   >
                     {saving ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -523,7 +523,7 @@ const Profile = () => {
               ) : (
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center"
                 >
                   <Edit2 className="h-4 w-4 mr-2" />
                   {t('profile.editProfile')}
@@ -540,17 +540,17 @@ const Profile = () => {
             <div className="bg-white rounded-xl shadow-lg border p-6 mb-6">
               <div className="text-center">
                 <div className="relative inline-block mb-4">
-                  <div className="w-32 h-32 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-                    <User className="h-16 w-16 text-blue-600" />
+                  <div className="w-32 h-32 bg-primary-100 rounded-full flex items-center justify-center mx-auto">
+                    <User className="h-16 w-16 text-primary-600" />
                   </div>
                   {isEditing && (
-                    <button className="absolute bottom-2 right-2 p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700">
+                    <button className="absolute bottom-2 right-2 p-2 bg-primary-600 text-white rounded-full hover:bg-primary-700">
                       <Camera className="h-4 w-4" />
                     </button>
                   )}
                 </div>
                 <h3 className="text-xl font-bold text-gray-900">{profileData?.name}</h3>
-                <div className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium mt-2">
+                <div className="inline-flex items-center px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm font-medium mt-2">
                   {user?.role === 'doctor' ? (
                     <>
                       <Stethoscope className="h-3 w-3 mr-1" />
@@ -584,7 +584,7 @@ const Profile = () => {
                   <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center">
                       <div className="p-2 bg-white rounded-lg mr-3">
-                        <div className="text-blue-600">{stat.icon}</div>
+                        <div className="text-primary-600">{stat.icon}</div>
                       </div>
                       <span className="text-gray-700">{stat.label}</span>
                     </div>
@@ -606,7 +606,7 @@ const Profile = () => {
                     onClick={() => setActiveTab(tab)}
                     className={`flex-1 py-4 text-sm font-medium ${
                       activeTab === tab
-                        ? 'text-blue-600 border-b-2 border-blue-600'
+                        ? 'text-primary-600 border-b-2 border-primary-600'
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
@@ -618,7 +618,7 @@ const Profile = () => {
               <div className="p-6">
                 {isLoading ? (
                   <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
                   </div>
                 ) : activeTab === 'personal' ? (
                   renderPersonalInfo()
@@ -739,7 +739,7 @@ const Profile = () => {
                 </button>
                 <button
                   onClick={handleChangePassword}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
                 >
                   {t('profile.updatePassword')}
                 </button>

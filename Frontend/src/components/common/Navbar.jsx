@@ -138,12 +138,12 @@ const Navbar = () => {
             {/* Logo Section */}
             <div className="flex items-center">
               <Link to="/" className="flex items-center space-x-3">
-                <div className="bg-gradient-to-r from-blue-600 to-teal-600 p-2 rounded-xl">
+                <div className="bg-gradient-to-r from-primary-600 to-primary-500 p-2 rounded-xl">
                   <Stethoscope className="h-6 w-6 text-white" />
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">MediConnect</h1>
-                  <p className="text-xs text-blue-600 font-medium">
+                  <p className="text-xs text-primary-600 font-medium">
                     {t('navbar.ruralHealth')}
                   </p>
                 </div>
@@ -160,7 +160,7 @@ const Navbar = () => {
                     isActive(link.path, link.exact)
                       ? link.emergency
                         ? 'bg-red-50 text-red-700'
-                        : 'bg-blue-50 text-blue-700'
+                        : 'bg-primary-50 text-primary-700'
                       : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
@@ -214,7 +214,7 @@ const Navbar = () => {
                               <div className="flex items-start">
                                 <div className="flex-shrink-0">
                                   {notification.type === 'appointment' && (
-                                    <Calendar className="h-5 w-5 text-blue-500" />
+                                    <Calendar className="h-5 w-5 text-primary-500" />
                                   )}
                                   {notification.type === 'medicine' && (
                                     <Pill className="h-5 w-5 text-green-500" />
@@ -252,7 +252,7 @@ const Navbar = () => {
                     className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50"
                   >
                     <div className="relative">
-                      <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-teal-500 rounded-full flex items-center justify-center text-white font-bold">
+                      <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-primary-400 rounded-full flex items-center justify-center text-white font-bold">
                         {getInitials(user?.name || 'User')}
                       </div>
                       <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
@@ -270,13 +270,13 @@ const Navbar = () => {
                     <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border py-2 z-10">
                       <div className="px-4 py-3 border-b">
                         <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-teal-500 rounded-full flex items-center justify-center text-white font-bold">
+                          <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-primary-400 rounded-full flex items-center justify-center text-white font-bold">
                             {getInitials(user?.name || 'User')}
                           </div>
                           <div>
                             <p className="font-semibold text-gray-900">{user?.name}</p>
                             <p className="text-sm text-gray-500">{user?.email}</p>
-                            <span className="inline-block mt-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                            <span className="inline-block mt-1 px-2 py-1 text-xs bg-primary-100 text-primary-800 rounded-full">
                               {user?.role === 'patient' ? t('navbar.patient') : t('navbar.doctor')}
                             </span>
                           </div>
@@ -326,13 +326,13 @@ const Navbar = () => {
                 <div className="flex items-center space-x-3">
                   <Link
                     to="/login"
-                    className="px-4 py-2 text-blue-600 hover:text-blue-700 font-medium"
+                    className="px-4 py-2 text-primary-600 hover:text-primary-700 font-medium"
                   >
                     {t('navbar.login')}
                   </Link>
                   <Link
                     to="/register"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
                   >
                     {t('navbar.register')}
                   </Link>
@@ -369,7 +369,7 @@ const Navbar = () => {
                     isActive(link.path, link.exact)
                       ? link.emergency
                         ? 'bg-red-50 text-red-700'
-                        : 'bg-blue-50 text-blue-700'
+                        : 'bg-primary-50 text-primary-700'
                       : 'text-gray-700 hover:bg-gray-50'
                   }`}
                   onClick={() => setIsMenuOpen(false)}
@@ -429,13 +429,13 @@ const Navbar = () => {
             {isAuthenticated && (
               <div className="border-t px-4 py-3 bg-gray-50">
                 <div className="flex items-center">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-teal-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-primary-400 rounded-full flex items-center justify-center text-white font-bold mr-3">
                     {getInitials(user?.name || 'User')}
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-900">{user?.name}</p>
                     <p className="text-xs text-gray-500">{user?.email}</p>
-                    <span className="inline-block mt-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                    <span className="inline-block mt-1 px-2 py-1 text-xs bg-primary-100 text-primary-800 rounded-full">
                       {user?.role === 'patient' ? t('navbar.patient') : t('navbar.doctor')}
                     </span>
                   </div>

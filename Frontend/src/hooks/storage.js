@@ -37,6 +37,23 @@ export const removeUserData = () => {
 
 export const clearStorage = () => {
   removeToken();
+  removeRefreshToken();
   removeUserRole();
   removeUserData();
 };
+
+// Auth flow: onboarding completed (first-time users)
+const ONBOARDING_KEY = 'mediconnect_onboarding_completed';
+export const getOnboardingCompleted = () => localStorage.getItem(ONBOARDING_KEY) === 'true';
+export const setOnboardingCompleted = (value) => {
+  if (value) localStorage.setItem(ONBOARDING_KEY, 'true');
+  else localStorage.removeItem(ONBOARDING_KEY);
+};
+
+// Optional: access/refresh tokens (spec)
+export const getRefreshToken = () => localStorage.getItem('mediconnect_refresh_token');
+export const setRefreshToken = (token) => {
+  if (token) localStorage.setItem('mediconnect_refresh_token', token);
+  else localStorage.removeItem('mediconnect_refresh_token');
+};
+export const removeRefreshToken = () => localStorage.removeItem('mediconnect_refresh_token');

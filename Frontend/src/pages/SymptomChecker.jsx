@@ -206,7 +206,7 @@ const SymptomChecker = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={tt('symptomChecker.searchSymptoms')}
-          className="pl-10 block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="pl-10 block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
         />
         <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
           <Filter className="h-5 w-5 text-gray-400" />
@@ -224,7 +224,7 @@ const SymptomChecker = () => {
                 onClick={() => toggleSymptom(symptom.id)}
                 className={`flex items-center justify-between w-full p-3 rounded-lg ${
                   selectedSymptoms.includes(symptom.id)
-                    ? 'bg-blue-50 border border-blue-200'
+                    ? 'bg-primary-50 border border-primary-200'
                     : 'hover:bg-gray-50'
                 }`}
               >
@@ -248,7 +248,7 @@ const SymptomChecker = () => {
         {symptomCategories.map(category => (
           <div key={category.id} className="bg-white border rounded-xl p-4">
             <div className="flex items-center mb-3">
-              <div className="p-2 bg-blue-50 rounded-lg mr-3">
+              <div className="p-2 bg-primary-50 rounded-lg mr-3">
                 {category.icon}
               </div>
               <h3 className="text-lg font-semibold text-gray-900">{category.name}</h3>
@@ -260,8 +260,8 @@ const SymptomChecker = () => {
                   onClick={() => toggleSymptom(symptom.id)}
                   className={`flex items-center justify-between p-3 rounded-lg min-h-[44px] ${
                     selectedSymptoms.includes(symptom.id)
-                      ? 'bg-blue-50 border border-blue-200 whitespace-normal text-sm'
-                      : 'border border-gray-200 hover:border-blue-300 whitespace-normal text-sm'
+                      ? 'bg-primary-50 border border-primary-200 whitespace-normal text-sm'
+                      : 'border border-gray-200 hover:border-primary-300 whitespace-normal text-sm'
                   }`}
                 >
                   <span className="break-words max-w-[75%]">{symptom.name}</span>
@@ -298,7 +298,7 @@ const SymptomChecker = () => {
               onChange={(e) => setAge(e.target.value)}
               min="0"
               max="120"
-              className="block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               placeholder="e.g., 30"
             />
             <span className="absolute right-3 top-3 text-gray-500">years</span>
@@ -317,8 +317,8 @@ const SymptomChecker = () => {
                 onClick={() => setGender(g)}
                 className={`py-3 rounded-lg border ${
                   gender === g
-                    ? 'bg-blue-50 border-blue-500 text-blue-700'
-                    : 'border-gray-300 hover:border-blue-300'
+                    ? 'bg-primary-50 border-primary-500 text-primary-700'
+                    : 'border-gray-300 hover:border-primary-300'
                 }`}
               >
                 {tt(`symptomChecker.${g}`)}
@@ -335,7 +335,7 @@ const SymptomChecker = () => {
           <select
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
-            className="block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           >
             <option value="">{tt('symptomChecker.selectDuration')}</option>
             <option value="hours">{tt('symptomChecker.hours')}</option>
@@ -362,8 +362,8 @@ const SymptomChecker = () => {
                 onClick={() => setSeverity(s.value)}
                 className={`py-3 rounded-lg border ${
                   severity === s.value
-                    ? `border-blue-500 ${s.color}`
-                    : 'border-gray-300 hover:border-blue-300'
+                    ? `border-primary-500 ${s.color}`
+                    : 'border-gray-300 hover:border-primary-300'
                 }`}
               >
                 <span className="text-sm whitespace-normal">{s.label}</span>
@@ -374,8 +374,8 @@ const SymptomChecker = () => {
       </div>
 
       {/* Selected Symptoms Summary */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-        <h3 className="font-semibold text-blue-900 mb-3">
+      <div className="bg-primary-50 border border-primary-200 rounded-xl p-6">
+        <h3 className="font-semibold text-primary-900 mb-3">
           {tt('SelectedSymptoms')} ({selectedSymptoms.length})
         </h3>
         <div className="flex flex-wrap gap-2">
@@ -384,12 +384,12 @@ const SymptomChecker = () => {
             return (
               <span
                 key={symptomId}
-                className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-blue-300 text-blue-700 text-sm max-w-full break-words"
+                className="inline-flex items-center px-3 py-1 rounded-full bg-white border border-primary-300 text-primary-700 text-sm max-w-full break-words"
               >
                 {symptom?.name}
                 <button
                   onClick={() => toggleSymptom(symptomId)}
-                  className="ml-2 text-blue-500 hover:text-blue-700"
+                  className="ml-2 text-primary-500 hover:text-primary-700"
                 >
                   ×
                 </button>
@@ -447,7 +447,7 @@ const SymptomChecker = () => {
                   <h4 className="text-xl font-bold text-gray-900">{condition.name}</h4>
                   <div className="flex items-center mt-1">
                     <span className="text-sm text-gray-500">{t('symptomChecker.probability')}:</span>
-                    <span className="ml-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                    <span className="ml-2 px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm font-medium">
                       {condition.probability}
                     </span>
                   </div>
@@ -478,15 +478,15 @@ const SymptomChecker = () => {
 
         {/* Next Steps */}
         {analysisResult?.nextSteps && (
-          <div className="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-blue-900 mb-4">
+          <div className="mt-8 bg-primary-50 border border-primary-200 rounded-xl p-6">
+            <h3 className="text-lg font-semibold text-primary-900 mb-4">
               {t('NextSteps')}
             </h3>
             <div className="space-y-3">
               {analysisResult.nextSteps.map((step, index) => (
                 <div key={index} className="flex items-center">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                    <span className="text-blue-700 font-bold">{index + 1}</span>
+                  <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">
+                    <span className="text-primary-700 font-bold">{index + 1}</span>
                   </div>
                   <span>{step}</span>
                 </div>
@@ -497,11 +497,11 @@ const SymptomChecker = () => {
 
         {/* Action Buttons */}
         <div className="mt-8 flex flex-col sm:flex-row gap-4">
-          <button className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+          <button className="flex-1 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium">
             <MessageSquare className="inline-block h-5 w-5 mr-2" />
             {t('chatWithDoctor')}
           </button>
-          <button className="flex-1 py-3 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 font-medium">
+          <button className="flex-1 py-3 border border-primary-600 text-primary-600 rounded-lg hover:bg-primary-50 font-medium">
             <Video className="inline-block h-5 w-5 mr-2" />
             {t('videoConsultation')}
           </button>
@@ -539,7 +539,7 @@ const SymptomChecker = () => {
                 <div className="flex items-center">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                     step >= stepNum
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-primary-600 text-white'
                       : 'bg-gray-200 text-gray-400'
                   }`}>
                     {stepNum}
@@ -552,7 +552,7 @@ const SymptomChecker = () => {
                 </div>
                 {stepNum < 3 && (
                   <div className={`flex-1 h-1 mx-4 ${
-                    step > stepNum ? 'bg-blue-600' : 'bg-gray-200'
+                    step > stepNum ? 'bg-primary-600' : 'bg-gray-200'
                   }`} />
                 )}
               </React.Fragment>
@@ -594,8 +594,8 @@ const SymptomChecker = () => {
                 disabled={isAnalyzing}
                 className={`px-6 py-3 rounded-lg font-medium flex items-center ${
                   isAnalyzing
-                    ? 'bg-blue-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700'
+                    ? 'bg-primary-400 cursor-not-allowed'
+                    : 'bg-primary-600 hover:bg-primary-700'
                 } text-white`}
               >
                 {isAnalyzing ? (

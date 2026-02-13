@@ -5,8 +5,10 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 // English translations
 import enTranslations from './locales/en.json';
 
-// Hindi translations (you'll need to create this file)
+// Hindi translations
 import hiTranslations from './locales/hi.json';
+// Telugu translations
+import teTranslations from './locales/te.json';
 
 i18n
   // detect user language
@@ -26,6 +28,9 @@ i18n
       },
       hi: {
         translation: hiTranslations
+      },
+      te: {
+        translation: teTranslations
       }
     },
     detection: {
