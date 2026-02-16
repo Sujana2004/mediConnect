@@ -1,302 +1,293 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useFormik } from 'formik';
-import * as Yup from 'yup';
+// src/components/auth/Login.jsx
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
-import { 
-  Eye, 
-  EyeOff, 
-  Mail, 
-  Lock, 
-  User, 
-  Stethoscope,
+import {
+  Phone,
   Heart,
   AlertCircle,
+  ArrowRight,
+  Shield,
+  Loader2,
+  HelpCircle,
+  User,
+  Stethoscope,
   CheckCircle,
-  Shield
 } from 'lucide-react';
 
 const Login = ({ onSuccess, redirectPath }) => {
   const { t } = useTranslation();
-  const { login } = useAuth();
-  const [showPassword, setShowPassword] = useState(false);
-  const [loginError, setLoginError] = useState('');
+  const navigate = useNavigate();
+  const { sendOtp, isAuthenticated, user } = useAuth();
+
+  // State
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState('');
+  const [touched, setTouched] = useState(false);
 
-  const validationSchema = Yup.object({
-    email: Yup.string()
-      .email(t('login.emailInvalid'))
-      .required(t('login.emailRequired')),
-    password: Yup.string()
-      .min(6, t('login.passwordMin'))
-      .required(t('login.passwordRequired')),
-    role: Yup.string()
-      .oneOf(['patient', 'doctor'], t('login.roleInvalid'))
-      .required(t('login.roleRequired')),
-  });
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const homePath = user.role === 'doctor' ? '/doctor/home' : '/patient/home';
+      navigate(homePath, { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
 
-  const formik = useFormik({
-    initialValues: {
-      email: '',
-      password: '',
-      role: 'patient',
-    },
-    validationSchema,
-    onSubmit: async (values) => {
-      setIsLoading(true);
-      setLoginError('');
-      
-      const result = await login(values.email, values.password, values.role);
-      
-      if (!result.success) {
-        setLoginError(result.error);
-        setIsLoading(false);
-      } else if (onSuccess) {
-        onSuccess();
+  // Validate phone number
+  const validatePhone = (phone) => {
+    const digits = phone.replace(/\D/g, '');
+
+    if (!digits) {
+      return t('login.phoneRequired', 'Phone number is required');
+    }
+
+    if (digits.length !== 10) {
+      return t('login.phoneInvalidLength', 'Enter a valid 10-digit mobile number');
+    }
+
+    if (!/^[6-9]/.test(digits)) {
+      return t('login.phoneInvalidStart', 'Mobile number must start with 6, 7, 8, or 9');
+    }
+
+    return '';
+  };
+
+  const validationError = touched ? validatePhone(phoneNumber) : '';
+  const isValid = !validatePhone(phoneNumber);
+
+  // Format phone number for display (XXX XXX XXXX)
+  const formatPhoneDisplay = (value) => {
+    const digits = value.replace(/\D/g, '').slice(0, 10);
+
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+    return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+  };
+
+  const handlePhoneChange = (e) => {
+    const formatted = formatPhoneDisplay(e.target.value);
+    setPhoneNumber(formatted);
+    setError('');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setTouched(true);
+
+    if (!isValid) return;
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const result = await sendOtp(phoneNumber.replace(/\s/g, ''));
+
+      if (result.success) {
+        // Navigate to OTP screen with phone number
+        navigate('/verify-otp', {
+          state: { phoneNumber: phoneNumber.replace(/\s/g, '') },
+        });
+
+        if (onSuccess) {
+          onSuccess();
+        }
+      } else {
+        setError(result.error || t('login.otpSendFailed', 'Failed to send OTP. Please try again.'));
       }
-    },
-  });
+    } catch (err) {
+      setError(t('login.genericError', 'Something went wrong. Please try again.'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const handleDemoLogin = (role, email) => {
-    formik.setValues({
-      email: email,
-      password: 'demo123',
-      role: role
-    });
+  // Demo login handler (development only)
+  const handleDemoLogin = (phone) => {
+    setPhoneNumber(formatPhoneDisplay(phone));
+    setTouched(false);
+    setError('');
   };
 
   return (
     <div className="w-full">
+      {/* Header */}
       <div className="text-center mb-6">
         <div className="flex justify-center mb-4">
           <div className="bg-gradient-to-r from-blue-500 to-teal-500 p-3 rounded-full">
-            <Heart className="h-8 w-8 text-white" />
+            <Heart className="h-8 w-8 text-white" aria-hidden="true" />
           </div>
         </div>
         <h2 className="text-2xl font-bold text-gray-900">
-          {t('login.title')}
+          {t('login.title', 'Welcome to MediConnect')}
         </h2>
         <p className="text-gray-600 text-sm mt-2">
-          {t('login.subtitle')}
+          {t('login.subtitle', 'Enter your mobile number to continue')}
         </p>
       </div>
 
-      {/* Demo Login Buttons */}
-      <div className="mb-6">
-        <p className="text-sm text-gray-600 mb-3 text-center">
-          Try demo login:
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => handleDemoLogin('patient', 'patient@demo.com')}
-            className="px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 text-sm font-medium"
-          >
-            Patient Demo
-          </button>
-          <button
-            onClick={() => handleDemoLogin('doctor', 'doctor@demo.com')}
-            className="px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 text-sm font-medium"
-          >
-            Doctor Demo
-          </button>
-        </div>
-      </div>
-
-      {loginError && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start">
-          <AlertCircle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
-          <span className="text-red-700 text-sm">{loginError}</span>
-        </div>
-      )}
-
-      <form className="space-y-5" onSubmit={formik.handleSubmit}>
-        {/* Role Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            {t('login.loginAs')}
-          </label>
+      {/* Demo Login Buttons (Development Only) */}
+      {import.meta.env.DEV && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-sm text-yellow-800 mb-3 text-center font-medium">
+            🧪 Development Mode - Demo Numbers
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => formik.setFieldValue('role', 'patient')}
-              className={`p-4 border-2 rounded-xl flex flex-col items-center justify-center transition-all ${
-                formik.values.role === 'patient'
-                  ? 'border-blue-500 bg-blue-50 shadow-sm'
-                  : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-              }`}
+              onClick={() => handleDemoLogin('9876543210')}
+              className="px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 text-sm font-medium transition-colors"
             >
-              <User className={`h-6 w-6 mb-2 ${
-                formik.values.role === 'patient' ? 'text-blue-600' : 'text-gray-400'
-              }`} />
-              <span className={`font-medium text-sm ${
-                formik.values.role === 'patient' ? 'text-blue-700' : 'text-gray-700'
-              }`}>
-                {t('login.patient')}
-              </span>
+              <User className="h-4 w-4 inline mr-1" />
+              Patient Demo
             </button>
-
             <button
               type="button"
-              onClick={() => formik.setFieldValue('role', 'doctor')}
-              className={`p-4 border-2 rounded-xl flex flex-col items-center justify-center transition-all ${
-                formik.values.role === 'doctor'
-                  ? 'border-blue-500 bg-blue-50 shadow-sm'
-                  : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-              }`}
+              onClick={() => handleDemoLogin('9876543211')}
+              className="px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 text-sm font-medium transition-colors"
             >
-              <Stethoscope className={`h-6 w-6 mb-2 ${
-                formik.values.role === 'doctor' ? 'text-blue-600' : 'text-gray-400'
-              }`} />
-              <span className={`font-medium text-sm ${
-                formik.values.role === 'doctor' ? 'text-blue-700' : 'text-gray-700'
-              }`}>
-                {t('login.doctor')}
-              </span>
+              <Stethoscope className="h-4 w-4 inline mr-1" />
+              Doctor Demo
             </button>
           </div>
-          {formik.touched.role && formik.errors.role && (
-            <p className="mt-2 text-sm text-red-600">{formik.errors.role}</p>
-          )}
         </div>
+      )}
 
-        {/* Email Field */}
+      {/* Error Alert */}
+      {error && (
+        <div
+          className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start"
+          role="alert"
+        >
+          <AlertCircle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" aria-hidden="true" />
+          <span className="text-red-700 text-sm">{error}</span>
+        </div>
+      )}
+
+      <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+        {/* Phone Input */}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-            {t('login.email')}
+          <label
+            htmlFor="phone"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
+            {t('login.phoneLabel', 'Mobile Number')}
           </label>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Mail className="h-5 w-5 text-gray-400" />
+            {/* Country Code */}
+            <div className="absolute inset-y-0 left-0 flex items-center">
+              <div className="h-full flex items-center pl-3 pr-2 bg-gray-50 border-r border-gray-300 rounded-l-lg">
+                <span className="text-gray-600 font-medium text-sm">🇮🇳 +91</span>
+              </div>
             </div>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
-              value={formik.values.email}
-              className={`pl-10 block w-full px-4 py-3 border ${
-                formik.touched.email && formik.errors.email
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
-              placeholder="user@example.com"
-            />
-          </div>
-          {formik.touched.email && formik.errors.email && (
-            <p className="mt-2 text-sm text-red-600">{formik.errors.email}</p>
-          )}
-        </div>
 
-        {/* Password Field */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              {t('login.password')}
-            </label>
-            <Link
-              to="/forgot-password"
-              className="text-sm text-blue-600 hover:text-blue-500"
-            >
-              {t('login.forgotPassword')}
-            </Link>
-          </div>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Lock className="h-5 w-5 text-gray-400" />
+            {/* Phone Input */}
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel"
+              autoFocus
+              value={phoneNumber}
+              onChange={handlePhoneChange}
+              onBlur={() => setTouched(true)}
+              placeholder="XXX XXX XXXX"
+              aria-invalid={!!validationError}
+              aria-describedby={validationError ? 'phone-error' : 'phone-hint'}
+              className={`
+                block w-full pl-24 pr-12 py-3
+                border rounded-lg shadow-sm
+                text-base font-medium tracking-wide
+                placeholder-gray-400
+                focus:outline-none focus:ring-2 focus:ring-offset-1
+                transition-colors
+                ${validationError
+                  ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                  : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                }
+              `}
+            />
+
+            {/* Phone Icon */}
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+              <Phone
+                className={`h-5 w-5 ${validationError ? 'text-red-400' : 'text-gray-400'}`}
+                aria-hidden="true"
+              />
             </div>
-            <input
-              id="password"
-              name="password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="current-password"
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
-              value={formik.values.password}
-              className={`pl-10 pr-10 block w-full px-4 py-3 border ${
-                formik.touched.password && formik.errors.password
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              } rounded-lg shadow-sm placeholder-gray-400 focus:outline-none sm:text-sm`}
-              placeholder="••••••••"
-            />
-            <button
-              type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center"
-              onClick={() => setShowPassword(!showPassword)}
-            >
-              {showPassword ? (
-                <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-500" />
-              ) : (
-                <Eye className="h-5 w-5 text-gray-400 hover:text-gray-500" />
-              )}
-            </button>
           </div>
-          {formik.touched.password && formik.errors.password && (
-            <p className="mt-2 text-sm text-red-600">{formik.errors.password}</p>
-          )}
-        </div>
 
-        {/* Remember Me & Terms */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <input
-              id="remember-me"
-              name="remember-me"
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
-              {t('login.rememberMe')}
-            </label>
-          </div>
+          {/* Validation Error */}
+          {validationError && (
+            <p id="phone-error" className="mt-2 text-sm text-red-600" role="alert">
+              {validationError}
+            </p>
+          )}
+
+          {/* Hint */}
+          {!validationError && (
+            <p id="phone-hint" className="mt-2 text-xs text-gray-500">
+              {t('login.phoneHint', 'We will send you a 6-digit OTP for verification')}
+            </p>
+          )}
         </div>
 
         {/* Submit Button */}
         <div>
           <button
             type="submit"
-            disabled={isLoading}
-            className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all ${
-              isLoading ? 'opacity-70 cursor-not-allowed' : ''
-            }`}
+            disabled={isLoading || !isValid}
+            className={`
+              w-full flex items-center justify-center gap-2
+              py-3 px-4 border border-transparent rounded-lg shadow-sm
+              text-sm font-medium text-white
+              bg-gradient-to-r from-blue-600 to-teal-600
+              hover:from-blue-700 hover:to-teal-700
+              focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+              transition-all
+              ${(isLoading || !isValid) ? 'opacity-70 cursor-not-allowed' : ''}
+            `}
           >
             {isLoading ? (
-              <div className="flex items-center">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                {t('login.signingIn')}
-              </div>
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                {t('login.sendingOtp', 'Sending OTP...')}
+              </>
             ) : (
-              t('login.signIn')
+              <>
+                {t('login.continue', 'Continue')}
+                <ArrowRight className="h-5 w-5" aria-hidden="true" />
+              </>
             )}
           </button>
         </div>
 
+        {/* reCAPTCHA Container (invisible) */}
+        <div id="recaptcha-container"></div>
+
         {/* Government Badge */}
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
           <div className="flex items-center justify-center">
-            <Shield className="h-4 w-4 text-blue-600 mr-2" />
+            <Shield className="h-4 w-4 text-blue-600 mr-2" aria-hidden="true" />
             <p className="text-xs text-blue-800">
-              {t('login.governmentVerified')}
+              {t('login.governmentVerified', 'Government Verified Healthcare Platform')}
             </p>
           </div>
         </div>
       </form>
 
-      {/* Registration Link */}
-      <div className="mt-6 text-center">
-        <p className="text-sm text-gray-600">
-          {t('login.noAccount')}{' '}
-          <Link
-            to="/register"
-            className="font-medium text-blue-600 hover:text-blue-500"
-          >
-            {t('login.createAccount')}
+      {/* Terms */}
+      <div className="mt-4 text-center">
+        <p className="text-xs text-gray-500 leading-relaxed">
+          {t('login.termsText', 'By continuing, you agree to our')}{' '}
+          <Link to="/terms" className="text-blue-600 hover:underline">
+            {t('login.termsLink', 'Terms of Service')}
+          </Link>{' '}
+          {t('login.and', 'and')}{' '}
+          <Link to="/privacy" className="text-blue-600 hover:underline">
+            {t('login.privacyLink', 'Privacy Policy')}
           </Link>
         </p>
       </div>
@@ -306,15 +297,15 @@ const Login = ({ onSuccess, redirectPath }) => {
         <div className="grid grid-cols-2 gap-4 text-center">
           <Link
             to="/emergency"
-            className="text-sm text-red-600 hover:text-red-700 font-medium"
+            className="text-sm text-red-600 hover:text-red-700 font-medium transition-colors"
           >
-            {t('login.emergencyAccess')}
+            🚨 {t('login.emergencyAccess', 'Emergency')}
           </Link>
           <Link
-            to="/doctors"
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            to="/find-doctors"
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
           >
-            {t('login.findDoctor')}
+            🔍 {t('login.findDoctor', 'Find Doctor')}
           </Link>
         </div>
       </div>
@@ -322,14 +313,27 @@ const Login = ({ onSuccess, redirectPath }) => {
       {/* Security Info */}
       <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
         <div className="flex items-start">
-          <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
+          <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" aria-hidden="true" />
           <div>
-            <p className="text-sm font-medium text-gray-900">Secure Login</p>
+            <p className="text-sm font-medium text-gray-900">
+              {t('login.secureLogin', 'Secure Login')}
+            </p>
             <p className="text-xs text-gray-600 mt-1">
-              Your data is protected with 256-bit encryption and never shared with third parties.
+              {t('login.securityInfo', 'Your data is protected with 256-bit encryption and never shared with third parties.')}
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Help Link */}
+      <div className="mt-4 text-center">
+        <Link
+          to="/help"
+          className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-blue-600 transition-colors"
+        >
+          <HelpCircle className="h-4 w-4" aria-hidden="true" />
+          {t('login.needHelp', 'Need help logging in?')}
+        </Link>
       </div>
     </div>
   );

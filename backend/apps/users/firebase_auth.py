@@ -18,20 +18,16 @@ _firebase_app = None
 # Mock tokens for development (when Firebase credentials not available)
 MOCK_TOKENS = {
     'test_patient_token': {
-        'phone_number': '+919999999901',
+        'phone_number': '+916304955729',
         'uid': 'mock_uid_patient_001'
     },
     'test_patient_token_2': {
-        'phone_number': '+919999999902',
+        'phone_number': '+919345220391',
         'uid': 'mock_uid_patient_002'
     },
     'test_doctor_token': {
-        'phone_number': '+919999999903',
+        'phone_number': '+917035315906',
         'uid': 'mock_uid_doctor_001'
-    },
-    'test_admin_token': {
-        'phone_number': '+919999999904',
-        'uid': 'mock_uid_admin_001'
     },
 }
 

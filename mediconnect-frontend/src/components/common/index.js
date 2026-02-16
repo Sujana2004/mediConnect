@@ -1,0 +1,20 @@
+// Export all common components
+export { default as Button } from './Button';
+export { default as Input } from './Input';
+export { default as TextArea } from './TextArea';
+export { default as Select } from './Select';
+export { default as Card } from './Card';
+export { default as Modal } from './Modal';
+export { default as Loader } from './Loader';
+export { default as Avatar } from './Avatar';
+export { default as Badge } from './Badge';
+export { default as EmptyState } from './EmptyState';
+export { default as Toast } from './Toast';
+export { default as VoiceButton } from './VoiceButton';
+export { default as LanguageSwitcher } from './LanguageSwitcher';
+export { default as PhoneInput } from './PhoneInput';
+export { default as OTPInput } from './OTPInput';
+export { default as SearchInput } from './SearchInput';
+export { default as DatePicker } from './DatePicker';
+export { default as TimePicker } from './TimePicker';
+export { default as Tabs } from './Tabs';
