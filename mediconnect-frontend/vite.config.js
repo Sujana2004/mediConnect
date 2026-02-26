@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react({
@@ -10,79 +9,66 @@ export default defineConfig({
       },
     }),
   ],
-  
-  // Add this to fix lucide-react issues
+
   optimizeDeps: {
-    include: ['lucide-react'],
+    include: ['react', 'react-dom', 'lucide-react'],
   },
-  
+
   build: {
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // Node modules chunking
           if (id.includes('node_modules')) {
-            // Firebase - large, separate chunk
-            if (id.includes('firebase')) {
+            // Firebase
+            if (id.includes('/firebase/') || id.includes('@firebase')) {
               return 'vendor-firebase';
             }
-            
-            // ⚠️ IMPORTANT: Check lucide-react BEFORE react
-            // Icons - must be checked before generic 'react' check
+
+            // Lucide icons
             if (id.includes('lucide-react')) {
               return 'vendor-icons';
             }
-            
-            // React ecosystem (checked AFTER lucide-react)
+
+            // React and React-dependent libraries
             if (
-              id.includes('node_modules/react/') || 
-              id.includes('node_modules/react-dom/') || 
-              id.includes('node_modules/react-router')
+              id.includes('/react/') ||
+              id.includes('/react-dom/') ||
+              id.includes('react-router') ||
+              id.includes('/scheduler/') ||
+              id.includes('framer-motion') ||
+              id.includes('zustand') ||
+              id.includes('@tanstack') ||
+              id.includes('react-hook-form') ||
+              id.includes('@hookform') ||
+              id.includes('@remix-run')
             ) {
               return 'vendor-react';
             }
-            
-            // State management
-            if (id.includes('zustand') || id.includes('@tanstack/react-query')) {
-              return 'vendor-state';
-            }
-            
-            // UI/Animation
-            if (id.includes('framer-motion')) {
-              return 'vendor-motion';
-            }
-            
-            // Date utilities
+
+            // Standalone utilities
             if (id.includes('date-fns')) {
-              return 'vendor-date';
+              return 'vendor-utils';
             }
-            
-            // Form handling
-            if (id.includes('react-hook-form') || id.includes('hookform') || id.includes('zod')) {
-              return 'vendor-forms';
+
+            if (id.includes('zod')) {
+              return 'vendor-utils';
             }
-            
-            // HTTP/API
+
             if (id.includes('axios')) {
-              return 'vendor-http';
+              return 'vendor-utils';
             }
-            
-            // All other vendor modules
+
             return 'vendor-misc';
           }
         },
       },
     },
-    // Suppress warnings for slightly larger chunks
-    chunkSizeWarningLimit: 550,
-    
-    // Add this for better compatibility
+    chunkSizeWarningLimit: 800,
     commonjsOptions: {
       transformMixedEsModules: true,
     },
   },
-  
-  // Add resolve alias for lucide-react
+
   resolve: {
     alias: {
       'lucide-react': 'lucide-react/dist/esm/lucide-react',
