@@ -40,7 +40,7 @@ SECURE_HSTS_PRELOAD = True
 
 
 # =============================================================================
-# DATABASE (Supabase PostgreSQL)
+# DATABASE (Supabase PostgreSQL with Connection Pooler)
 # =============================================================================
 
 DATABASE_URL = config('DATABASE_URL', default='')
@@ -49,12 +49,21 @@ if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
-            conn_max_age=600,
+            conn_max_age=0,  # Important: Set to 0 for transaction pooler
             conn_health_checks=True,
             ssl_require=True,
         )
     }
-    print("📦 Database: Supabase PostgreSQL")
+    
+    # For Supabase Transaction Pooler, we need these settings
+    DATABASES['default']['OPTIONS'] = {
+        'sslmode': 'require',
+    }
+    
+    # Disable server-side cursors for transaction pooler
+    DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
+    
+    print("📦 Database: Supabase PostgreSQL (Pooler)")
 else:
     raise Exception("DATABASE_URL environment variable is required in production!")
 
