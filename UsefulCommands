@@ -5,6 +5,9 @@ python manage.py runserver
 python manage.py makemigrations
 python manage.py migrate
 
+# Install spacy model separately instead of from requirements.txt(only for development, in production we will use the spacy model from requirements.txt)
+python -m spacy download en_core_web_sm
+
 # Create admin
 python manage.py createsuperuser
 
@@ -30,3 +33,9 @@ curl http://localhost:8000/api/v1/diagnosis/health/
 # Swagger docs
 http://localhost:8000/swagger/
 http://localhost:8000/redoc/
+
+# In frontend
+npm run dev
+
+for cleaaring cache in vite
+Remove-Item -Recurse -Force node_modules\.vite  

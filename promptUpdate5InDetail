@@ -1,0 +1,1962 @@
+📋 MEDICONNECT - COMPLETE PROJECT CONTEXT
+Updated: January 2025 | Version 2.0
+===================================================================================
+EXECUTIVE SUMMARY
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                 │
+│   PROJECT NAME:    MediConnect                                                  │
+│   PROJECT TYPE:    Progressive Web App (PWA) - Healthcare Platform             │
+│   TARGET USERS:    Rural/Village population in India                            │
+│   LANGUAGES:       Telugu (te), Hindi (hi), English (en)                        │
+│   COST MODEL:      100% FREE tier services                                      │
+│                                                                                 │
+│   BACKEND:         Django 4.2+ with Django REST Framework                       │
+│   FRONTEND:        React 18+ with Vite (PWA) - NOT STARTED                      │
+│   DATABASE:        PostgreSQL (local) / Supabase (production)                   │
+│   STORAGE:         Supabase Storage (FREE 1GB)                                  │
+│                                                                                 │
+│   PROGRESS:        Backend 90% Complete (9/10 apps)                             │
+│                    Frontend 0% (not started)                                    │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+PROJECT PHILOSOPHY
+===================================================================================
+🎯 Core Mission
+MediConnect bridges the healthcare gap for India's rural population by providing:
+
+Accessible healthcare via mobile phones (no computer needed)
+Offline functionality for areas with poor connectivity
+Voice-based interaction for illiterate/semi-literate users
+Multi-language support (Telugu, Hindi, English)
+Family helper feature allowing literate family members to operate on behalf of patients
+✅ ALWAYS DO
+Principle	Implementation
+Phone-only authentication	Firebase Phone Auth (no email required)
+FREE services only	All services have $0 cost
+Multi-language	Telugu, Hindi, English in all user-facing content
+Voice support	Web Speech API for input/output
+Offline-first	PWA with service workers, IndexedDB
+Simple UI	Large buttons, icons, minimal text
+Low bandwidth	Compressed assets, lazy loading
+❌ NEVER DO
+Avoid	Reason
+Email requirements	Rural users don't have email
+Paid services (Twilio, AWS)	Must be 100% free
+English-only content	Most users speak Telugu/Hindi
+Complex forms	Users may be illiterate
+Docker	Developer unfamiliar
+Heavy data usage	Limited mobile data
+Small touch targets	Difficult for elderly users
+===================================================================================
+TARGET USER PERSONAS
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  PERSONA 1: RURAL PATIENT (Primary User)                                        │
+│  ─────────────────────────────────────────                                      │
+│  Name: Lakshmi, 55 years old                                                    │
+│  Location: Small village in Telangana                                           │
+│  Education: Never attended school                                               │
+│  Language: Telugu only                                                          │
+│  Phone: Basic Android smartphone (₹5,000)                                       │
+│  Internet: Intermittent 2G/3G, often offline                                    │
+│  Health: Diabetes, hypertension                                                 │
+│  Usage: Needs daughter to help navigate apps                                    │
+│                                                                                 │
+│  NEEDS:                                                                         │
+│  • Voice-based symptom description                                              │
+│  • Medicine reminders with audio                                                │
+│  • Easy emergency SOS button                                                    │
+│  • Works even when internet is down                                             │
+│                                                                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  PERSONA 2: FAMILY HELPER                                                       │
+│  ────────────────────────                                                       │
+│  Name: Priya, 28 years old (Lakshmi's daughter)                                │
+│  Education: 12th pass                                                           │
+│  Language: Telugu, basic Hindi, some English                                    │
+│  Role: Operates the app for her mother                                          │
+│                                                                                 │
+│  NEEDS:                                                                         │
+│  • Manage multiple family member profiles                                       │
+│  • Book appointments on behalf of mother                                        │
+│  • View mother's prescriptions and reminders                                    │
+│  • Receive notifications for mother's appointments                             │
+│                                                                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  PERSONA 3: RURAL DOCTOR                                                        │
+│  ───────────────────────                                                        │
+│  Name: Dr. Ramesh, 45 years old                                                │
+│  Location: Primary Health Center (PHC)                                          │
+│  Education: MBBS                                                                │
+│  Languages: Telugu, Hindi, English                                              │
+│  Patients: 50-100 per day                                                       │
+│                                                                                 │
+│  NEEDS:                                                                         │
+│  • Quick patient queue management                                               │
+│  • Video consultations for follow-ups                                          │
+│  • Access to patient health history                                             │
+│  • Easy prescription writing                                                    │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+TECHNOLOGY STACK - COMPLETE
+===================================================================================
+🖥️ FRONTEND (PWA) - Not Started Yet
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  TECHNOLOGY         │  VERSION    │  PURPOSE                    │  STATUS      │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  React.js           │  18+        │  UI Framework               │  ⏳ Pending  │
+│  Vite               │  Latest     │  Build tool (fast)          │  ⏳ Pending  │
+│  React Router       │  6+         │  Navigation                 │  ⏳ Pending  │
+│  Axios              │  Latest     │  API calls                  │  ⏳ Pending  │
+│  React Query        │  v5         │  Data fetching & caching    │  ⏳ Pending  │
+│  Tailwind CSS       │  3+         │  Styling                    │  ⏳ Pending  │
+│  Workbox            │  Latest     │  PWA Service Worker         │  ⏳ Pending  │
+│  i18next            │  Latest     │  Internationalization       │  ⏳ Pending  │
+│  React Hook Form    │  Latest     │  Form handling              │  ⏳ Pending  │
+│  Zustand            │  Latest     │  State management           │  ⏳ Pending  │
+│  Web Speech API     │  Browser    │  Voice input/output (FREE)  │  ⏳ Pending  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+🔧 BACKEND FRAMEWORK
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  TECHNOLOGY                    │  VERSION  │  PURPOSE              │  STATUS   │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  Python                        │  3.10+    │  Programming language │  ✅ Done  │
+│  Django                        │  4.2+     │  Web framework        │  ✅ Done  │
+│  Django REST Framework         │  3.14+    │  REST API             │  ✅ Done  │
+│  djangorestframework-simplejwt │  5+       │  JWT Authentication   │  ✅ Done  │
+│  drf-yasg                      │  Latest   │  Swagger Docs         │  ✅ Done  │
+│  django-cors-headers           │  4+       │  CORS handling        │  ✅ Done  │
+│  firebase-admin                │  6+       │  Firebase integration │  ✅ Done  │
+│  groq                          │  0.4+     │  FREE AI (Llama 3)    │  ✅ Done  │
+│  deep-translator               │  1.11+    │  FREE Translation     │  ✅ Done  │
+│  apscheduler                   │  3.10+    │  Background tasks     │  ✅ Done  │
+│  supabase                      │  Latest   │  Storage client       │  ✅ Done  │
+│  scikit-learn                  │  Latest   │  ML models            │  ✅ Done  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+💰 FREE SERVICES STACK (All $0 Cost)
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  SERVICE              │  PROVIDER           │  FREE LIMIT          │  USED FOR │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  AI Chatbot           │  Groq (Llama 3)     │  30 req/min          │  Chatbot  │
+│  Translation          │  Google Translate   │  Unlimited*          │  Multi-lang│
+│  Voice I/O            │  Web Speech API     │  Browser-based       │  Voice    │
+│  Push Notifications   │  Firebase FCM       │  Unlimited           │  Alerts   │
+│  Phone Auth           │  Firebase Auth      │  10K verif/month     │  Login    │
+│  Video Calls          │  Jitsi Meet         │  Unlimited           │  Consult  │
+│  Database             │  Supabase           │  500MB               │  Data     │
+│  File Storage         │  Supabase Storage   │  1GB                 │  Documents│
+│  Backend Hosting      │  Render             │  750 hrs/month       │  API      │
+│  Frontend Hosting     │  Vercel             │  Unlimited           │  PWA      │
+│  Caching              │  Upstash Redis      │  10K cmd/day         │  Cache    │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+* Google Translate via deep-translator library (no API key needed)
+🤖 ML/AI COMPONENTS
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  COMPONENT              │  LIBRARY/MODEL           │  PURPOSE                   │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  Disease Prediction     │  scikit-learn (RF)       │  Random Forest classifier  │
+│  Disease Prediction     │  scikit-learn (MLP)      │  Neural Network ensemble   │
+│  Severity Assessment    │  scikit-learn (GB)       │  Gradient Boosting         │
+│  Symptom Extraction     │  Custom NLP + Fuzzy      │  Text to symptoms          │
+│  Chatbot Intelligence   │  Groq API (Llama 3)      │  Conversational AI         │
+│  Voice Input            │  Web Speech API          │  Speech-to-Text            │
+│  Voice Output           │  Web Speech API          │  Text-to-Speech            │
+│  Translation            │  deep-translator         │  Language conversion       │
+│  Language Detection     │  Custom (Unicode)        │  Detect te/hi/en           │
+│  Intent Detection       │  Custom (Keywords)       │  Classify user intent      │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+PROJECT STRUCTURE
+===================================================================================
+text
+
+mediconnect/                              # 👈 ROOT PROJECT FOLDER
+│
+├── backend/                              # Django Backend (90% Complete)
+│   │
+│   ├── mediconnect/                      # ⚠️ Django config folder (NOT "config"!)
+│   │   ├── __init__.py
+│   │   ├── settings/
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py                   # Common settings
+│   │   │   ├── development.py            # Dev: DEBUG=True, local PostgreSQL
+│   │   │   └── production.py             # Prod: DEBUG=False, Supabase
+│   │   ├── urls.py                       # Main URL routing
+│   │   ├── wsgi.py
+│   │   └── asgi.py
+│   │
+│   ├── apps/                             # All Django apps
+│   │   ├── __init__.py
+│   │   │
+│   │   ├── users/                        # ✅ COMPLETE - Authentication
+│   │   │   ├── models.py                 # User, PatientProfile, DoctorProfile
+│   │   │   ├── serializers.py
+│   │   │   ├── views.py
+│   │   │   ├── urls.py
+│   │   │   ├── admin.py
+│   │   │   └── services/
+│   │   │       └── firebase_service.py
+│   │   │
+│   │   ├── diagnosis/                    # ✅ COMPLETE - AI Symptom Checker
+│   │   │   ├── models.py                 # Symptom, Disease, DiagnosisSession
+│   │   │   ├── serializers.py
+│   │   │   ├── views.py
+│   │   │   ├── urls.py
+│   │   │   ├── services/
+│   │   │   │   ├── symptom_service.py
+│   │   │   │   ├── prediction_service.py
+│   │   │   │   └── nlp_service.py
+│   │   │   ├── models_ml/                # Trained ML models (.pkl files)
+│   │   │   └── management/commands/
+│   │   │       └── train_models.py
+│   │   │
+│   │   ├── chatbot/                      # ✅ COMPLETE - AI Chat Assistant
+│   │   │   ├── models.py                 # ChatSession, Message, FAQ, HealthTip
+│   │   │   ├── serializers.py
+│   │   │   ├── views.py
+│   │   │   ├── urls.py
+│   │   │   └── services/
+│   │   │       ├── groq_service.py       # FREE Llama 3 AI
+│   │   │       ├── free_translation_service.py
+│   │   │       ├── language_service.py
+│   │   │       ├── intent_service.py
+│   │   │       └── chat_service.py
+│   │   │
+│   │   ├── notifications/                # ✅ COMPLETE - Push Notifications
+│   │   │   ├── models.py                 # Template, Preference, DeviceToken, etc.
+│   │   │   ├── serializers.py
+│   │   │   ├── views.py
+│   │   │   ├── urls.py
+│   │   │   └── services/
+│   │   │       └── fcm_service.py        # Firebase Cloud Messaging
+│   │   │
+│   │   ├── emergency/                    # ✅ COMPLETE - SOS & First Aid
+│   │   │   ├── models.py                 # SOSAlert, EmergencyContact, FirstAidGuide
+│   │   │   ├── serializers.py
+│   │   │   ├── views.py
+│   │   │   ├── urls.py
+│   │   │   └── services/
+│   │   │       ├── sos_service.py
+│   │   │       └── location_service.py
+│   │   │
+│   │   ├── medicine/                     # ✅ COMPLETE - Prescriptions & Reminders
+│   │   │   ├── models.py                 # Medicine, Prescription, Reminder, etc.
+│   │   │   ├── serializers.py
+│   │   │   ├── views.py
+│   │   │   ├── urls.py
+│   │   │   ├── scheduler.py              # APScheduler background jobs
+│   │   │   └── services/
+│   │   │       ├── prescription_service.py
+│   │   │       └── reminder_service.py
+│   │   │
+│   │   ├── appointments/                 # ✅ COMPLETE - Booking & Queue
+│   │   │   ├── models.py                 # Schedule, Slot, Appointment, Queue
+│   │   │   ├── serializers.py
+│   │   │   ├── views.py
+│   │   │   ├── urls.py
+│   │   │   ├── scheduler.py              # APScheduler background jobs
+│   │   │   └── services/
+│   │   │       ├── schedule_service.py
+│   │   │       ├── slot_service.py
+│   │   │       ├── appointment_service.py
+│   │   │       ├── queue_service.py
+│   │   │       └── reminder_service.py
+│   │   │
+│   │   ├── consultation/                 # ✅ COMPLETE - Video Calls
+│   │   │   ├── models.py                 # Consultation, Room, Note, Prescription
+│   │   │   ├── serializers.py
+│   │   │   ├── views.py
+│   │   │   ├── urls.py
+│   │   │   ├── scheduler.py              # APScheduler background jobs
+│   │   │   └── services/
+│   │   │       ├── jitsi_service.py      # FREE Jitsi Meet
+│   │   │       ├── consultation_service.py
+│   │   │       └── notification_service.py
+│   │   │
+│   │   ├── health_records/               # ✅ COMPLETE - Medical History
+│   │   │   ├── models.py                 # HealthProfile, Condition, Document, etc.
+│   │   │   ├── serializers.py
+│   │   │   ├── views.py
+│   │   │   ├── urls.py
+│   │   │   ├── admin.py
+│   │   │   ├── signals.py
+│   │   │   └── services/
+│   │   │       ├── health_profile_service.py
+│   │   │       ├── medical_records_service.py
+│   │   │       ├── document_service.py
+│   │   │       ├── sharing_service.py
+│   │   │       ├── analytics_service.py
+│   │   │       └── supabase_storage.py   # Supabase file storage
+│   │   │
+│   │   └── sync/                         # ⏳ PENDING - Offline Support
+│   │
+│   ├── data/                             # CSV datasets for ML training
+│   │   ├── symptoms.csv
+│   │   ├── diseases.csv
+│   │   └── symptom_disease_mapping.csv
+│   │
+│   ├── media/                            # Uploaded files (local dev)
+│   │   └── health_records/
+│   │       └── documents/
+│   │
+│   ├── logs/                             # Application logs
+│   ├── manage.py
+│   ├── requirements.txt
+│   └── .env                              # Environment variables
+│
+├── frontend/                             # ⏳ React PWA (NOT STARTED)
+│   ├── public/
+│   │   ├── manifest.json                 # PWA manifest
+│   │   ├── sw.js                         # Service worker
+│   │   └── icons/                        # App icons
+│   ├── src/
+│   │   ├── components/                   # Reusable UI components
+│   │   ├── pages/                        # Page components
+│   │   ├── services/                     # API services
+│   │   ├── hooks/                        # Custom React hooks
+│   │   ├── stores/                       # Zustand state stores
+│   │   ├── i18n/                         # Translation files (te, hi, en)
+│   │   ├── utils/                        # Helper functions
+│   │   └── App.jsx
+│   ├── package.json
+│   └── vite.config.js
+│
+└── docs/                                 # Documentation
+    └── api/                              # API documentation
+===================================================================================
+COMPLETED APPS - DETAILED
+===================================================================================
+1️⃣ USERS APP ✅ Complete
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  APP: apps/users/                                                               │
+│  PURPOSE: Authentication and user management                                    │
+│  STATUS: ✅ COMPLETE                                                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  FEATURES:                                                                      │
+│  ────────                                                                       │
+│  ✅ Firebase phone-based registration (no email)                               │
+│  ✅ OTP verification via SMS                                                   │
+│  ✅ JWT token authentication (access + refresh)                                │
+│  ✅ Patient profile with health info                                           │
+│  ✅ Doctor profile with qualifications                                         │
+│  ✅ Doctor verification workflow (admin approval)                              │
+│  ✅ Family Helper feature (manage on behalf of patient)                        │
+│  ✅ FCM token storage for push notifications                                   │
+│  ✅ Language preference (te/hi/en)                                             │
+│                                                                                 │
+│  MODELS:                                                                        │
+│  ───────                                                                        │
+│  • User (custom) - phone, role, first_name, last_name, preferred_language      │
+│  • PatientProfile - date_of_birth, gender, blood_group, address                │
+│  • DoctorProfile - specialization, qualification, license_number              │
+│  • FamilyHelper - helper can manage patient's account                          │
+│                                                                                 │
+│  ⚠️ IMPORTANT FIELD NAMES:                                                     │
+│  • Phone field is 'phone' (NOT 'phone_number')                                 │
+│  • Role field is 'role' with values: 'patient' or 'doctor'                     │
+│                                                                                 │
+│  KEY ENDPOINTS (~15):                                                           │
+│  ────────────────────                                                           │
+│  POST /api/v1/auth/register/patient/     - Register patient                    │
+│  POST /api/v1/auth/register/doctor/      - Register doctor                     │
+│  POST /api/v1/auth/verify-otp/           - Verify Firebase OTP                 │
+│  POST /api/v1/auth/login/                - Login with Firebase token           │
+│  POST /api/v1/auth/logout/               - Logout (blacklist token)            │
+│  POST /api/v1/auth/token/refresh/        - Refresh JWT token                   │
+│  GET  /api/v1/auth/profile/              - Get current user profile            │
+│  PUT  /api/v1/auth/profile/              - Update profile                      │
+│  GET  /api/v1/auth/doctors/              - List verified doctors               │
+│  POST /api/v1/auth/helpers/              - Add family helper                   │
+│  GET  /api/v1/auth/helpers/              - List my helpers                     │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+2️⃣ DIAGNOSIS APP ✅ Complete
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  APP: apps/diagnosis/                                                           │
+│  PURPOSE: AI-powered symptom checker and disease prediction                     │
+│  STATUS: ✅ COMPLETE                                                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  FEATURES:                                                                      │
+│  ────────                                                                       │
+│  ✅ Natural language symptom input ("I have headache and fever")               │
+│  ✅ NLP-based symptom extraction                                               │
+│  ✅ Fuzzy matching for typos ("hedache" → "headache")                          │
+│  ✅ Multi-language input (Telugu, Hindi, English)                              │
+│  ✅ ML disease prediction (ensemble of RF + NN)                                │
+│  ✅ Severity assessment (mild/moderate/severe)                                 │
+│  ✅ Top 3 probable diseases with confidence %                                  │
+│  ✅ Diagnosis history per user                                                 │
+│                                                                                 │
+│  ML MODELS (in models_ml/):                                                     │
+│  ──────────────────────────                                                     │
+│  • disease_predictor_rf.pkl    - Random Forest classifier                      │
+│  • disease_predictor_nn.pkl    - Neural Network (MLP)                          │
+│  • severity_model.pkl          - Gradient Boosting for severity                │
+│  • symptom_list.pkl            - 132 symptoms with keywords                    │
+│  • disease_label_encoder.pkl   - 41 diseases                                   │
+│                                                                                 │
+│  MODELS:                                                                        │
+│  ───────                                                                        │
+│  • Symptom - name, keywords, category                                          │
+│  • Disease - name, description, symptoms, severity_base                        │
+│  • DiagnosisSession - user, symptoms, predictions, severity                    │
+│                                                                                 │
+│  KEY ENDPOINTS (~10):                                                           │
+│  ────────────────────                                                           │
+│  POST /api/v1/diagnosis/diagnose/           - Text-based diagnosis             │
+│  POST /api/v1/diagnosis/diagnose-symptoms/  - Symptom list diagnosis           │
+│  GET  /api/v1/diagnosis/history/            - User's diagnosis history         │
+│  GET  /api/v1/diagnosis/history/{id}/       - Specific diagnosis detail        │
+│  GET  /api/v1/diagnosis/symptoms/           - List all symptoms                │
+│  GET  /api/v1/diagnosis/symptoms/search/    - Search symptoms                  │
+│  GET  /api/v1/diagnosis/diseases/           - List all diseases                │
+│  GET  /api/v1/diagnosis/diseases/{id}/      - Disease detail                   │
+│  GET  /api/v1/diagnosis/health/             - Health check                     │
+│                                                                                 │
+│  SAMPLE REQUEST:                                                                │
+│  ───────────────                                                                │
+│  POST /api/v1/diagnosis/diagnose/                                              │
+│  {                                                                              │
+│    "text": "నాకు జ్వరం మరియు తలనొప్పి ఉంది",  // Telugu input                 │
+│    "language": "te"                                                            │
+│  }                                                                              │
+│                                                                                 │
+│  SAMPLE RESPONSE:                                                               │
+│  ────────────────                                                               │
+│  {                                                                              │
+│    "success": true,                                                            │
+│    "data": {                                                                   │
+│      "detected_symptoms": ["fever", "headache"],                               │
+│      "predictions": [                                                          │
+│        {"disease": "Common Cold", "confidence": 0.75},                         │
+│        {"disease": "Viral Fever", "confidence": 0.68},                         │
+│        {"disease": "Flu", "confidence": 0.52}                                  │
+│      ],                                                                        │
+│      "severity": "mild",                                                       │
+│      "recommendation": "Rest and stay hydrated. See doctor if persists."      │
+│    }                                                                           │
+│  }                                                                              │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+3️⃣ CHATBOT APP ✅ Complete
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  APP: apps/chatbot/                                                             │
+│  PURPOSE: AI-powered health assistant with multi-language support               │
+│  STATUS: ✅ COMPLETE                                                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  FEATURES:                                                                      │
+│  ────────                                                                       │
+│  ✅ Groq AI integration (Llama 3 - FREE, 30 req/min)                           │
+│  ✅ Google Translate via deep-translator (FREE, no API key)                    │
+│  ✅ Automatic language detection (Unicode ranges)                              │
+│  ✅ Intent detection (symptoms, appointment, emergency, medicine, etc.)        │
+│  ✅ Multi-language responses (English, Telugu, Hindi)                          │
+│  ✅ Chat session management                                                    │
+│  ✅ FAQ system with multi-language content                                     │
+│  ✅ Health tips with categories                                                │
+│  ✅ Quick reply suggestions                                                    │
+│  ✅ Conversation feedback (thumbs up/down)                                     │
+│                                                                                 │
+│  SERVICES:                                                                      │
+│  ─────────                                                                      │
+│  • groq_service.py - Llama 3 AI chat (FREE)                                    │
+│  • free_translation_service.py - Google Translate (FREE)                       │
+│  • language_service.py - Unicode-based language detection                      │
+│  • intent_service.py - Keyword + pattern matching                              │
+│  • chat_service.py - Main orchestration                                        │
+│                                                                                 │
+│  MODELS:                                                                        │
+│  ───────                                                                        │
+│  • ChatSession - user, language, created_at                                    │
+│  • Message - session, role, content, intent                                    │
+│  • FAQ - question_en, question_te, question_hi, answer_en, etc.                │
+│  • HealthTip - category, content_en, content_te, content_hi                    │
+│  • QuickReply - text_en, text_te, text_hi, action                              │
+│                                                                                 │
+│  KEY ENDPOINTS (22):                                                            │
+│  ───────────────────                                                            │
+│  POST /api/v1/chatbot/session/start/     - Start new chat session              │
+│  POST /api/v1/chatbot/message/           - Send message, get AI response       │
+│  GET  /api/v1/chatbot/sessions/          - List user's sessions                │
+│  GET  /api/v1/chatbot/sessions/{id}/     - Get session with messages           │
+│  DELETE /api/v1/chatbot/sessions/{id}/   - Delete session                      │
+│  GET  /api/v1/chatbot/faq/               - Get FAQs in user's language         │
+│  GET  /api/v1/chatbot/faq/search/        - Search FAQs                         │
+│  GET  /api/v1/chatbot/health-tips/       - Get health tips                     │
+│  GET  /api/v1/chatbot/health-tips/daily/ - Get daily health tip                │
+│  GET  /api/v1/chatbot/suggestions/       - Get quick reply suggestions         │
+│  POST /api/v1/chatbot/detect-language/   - Detect text language                │
+│  POST /api/v1/chatbot/translate/         - Translate text                      │
+│  POST /api/v1/chatbot/feedback/          - Submit message feedback             │
+│  GET  /api/v1/chatbot/health/            - Health check                        │
+│                                                                                 │
+│  INTENT TYPES:                                                                  │
+│  ─────────────                                                                  │
+│  • symptoms - User describing health issues                                    │
+│  • appointment - Booking/checking appointments                                 │
+│  • emergency - Urgent health situations                                        │
+│  • medicine - Medicine info/reminders                                          │
+│  • doctor - Finding/consulting doctors                                         │
+│  • general - General health queries                                            │
+│  • greeting - Hello/Hi type messages                                           │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+4️⃣ NOTIFICATIONS APP ✅ Complete
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  APP: apps/notifications/                                                       │
+│  PURPOSE: Push notifications via Firebase FCM                                   │
+│  STATUS: ✅ COMPLETE                                                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  FEATURES:                                                                      │
+│  ────────                                                                       │
+│  ✅ Firebase FCM push notifications (FREE, unlimited)                          │
+│  ✅ In-app notification storage                                                │
+│  ✅ Multi-language templates (English, Telugu, Hindi)                          │
+│  ✅ User notification preferences                                              │
+│  ✅ Quiet hours support (don't disturb at night)                               │
+│  ✅ Scheduled notifications                                                    │
+│  ✅ Multiple notification types                                                │
+│  ✅ Device token management (multiple devices)                                 │
+│  ✅ Delivery logging                                                           │
+│                                                                                 │
+│  NOTIFICATION TYPES:                                                            │
+│  ───────────────────                                                            │
+│  • appointment_reminder - Upcoming appointment                                 │
+│  • appointment_confirmed - Appointment confirmed                               │
+│  • appointment_cancelled - Appointment cancelled                               │
+│  • medicine_reminder - Time to take medicine                                   │
+│  • consultation_starting - Video call starting                                 │
+│  • sos_alert - Emergency SOS triggered                                         │
+│  • health_tip - Daily health tip                                               │
+│  • lab_report_ready - Lab results available                                    │
+│  • prescription_ready - New prescription                                       │
+│                                                                                 │
+│  MODELS (6):                                                                    │
+│  ──────────                                                                     │
+│  • NotificationTemplate - type, title_en, title_te, body_en, body_te          │
+│  • UserNotificationPreference - user, enabled types, quiet hours              │
+│  • DeviceToken - user, fcm_token, device_type, is_active                       │
+│  • Notification - user, type, title, body, read, data                          │
+│  • ScheduledNotification - user, type, scheduled_for, sent                     │
+│  • NotificationLog - notification, device, status, error                       │
+│                                                                                 │
+│  KEY ENDPOINTS (22):                                                            │
+│  ───────────────────                                                            │
+│  POST /api/v1/notifications/device/register/     - Register FCM token          │
+│  POST /api/v1/notifications/device/unregister/   - Unregister device           │
+│  GET  /api/v1/notifications/devices/             - List user's devices         │
+│  GET  /api/v1/notifications/preferences/         - Get preferences             │
+│  PUT  /api/v1/notifications/preferences/update/  - Update preferences          │
+│  GET  /api/v1/notifications/                     - List notifications          │
+│  GET  /api/v1/notifications/unread-count/        - Get unread count            │
+│  POST /api/v1/notifications/mark-read/           - Mark as read                │
+│  POST /api/v1/notifications/mark-all-read/       - Mark all as read            │
+│  DELETE /api/v1/notifications/{id}/              - Delete notification         │
+│  POST /api/v1/notifications/test/                - Send test notification      │
+│  GET  /api/v1/notifications/health/              - Health check                │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+5️⃣ EMERGENCY APP ✅ Complete
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  APP: apps/emergency/                                                           │
+│  PURPOSE: SOS alerts, emergency contacts, first aid guides                      │
+│  STATUS: ✅ COMPLETE                                                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  FEATURES:                                                                      │
+│  ────────                                                                       │
+│  ✅ One-tap SOS alert trigger                                                  │
+│  ✅ Emergency contact management (up to 10)                                    │
+│  ✅ GPS location sharing with contacts                                         │
+│  ✅ Nearby hospitals/clinics finder                                            │
+│  ✅ Nearby ambulance services                                                  │
+│  ✅ Emergency helplines (108, 112, 100, 101)                                   │
+│  ✅ First aid guides (multi-language)                                          │
+│  ✅ SOS status tracking (triggered → acknowledged → resolved)                  │
+│  ✅ FCM notifications to emergency contacts                                    │
+│  ✅ Location caching for offline/quick access                                  │
+│                                                                                 │
+│  SOS FLOW:                                                                      │
+│  ─────────                                                                      │
+│  1. Patient triggers SOS (one tap)                                             │
+│  2. System captures GPS location                                               │
+│  3. Sends FCM to all emergency contacts                                        │
+│  4. Shows nearby hospitals and ambulances                                      │
+│  5. Contact acknowledges (optional)                                            │
+│  6. Patient or contact resolves SOS                                            │
+│                                                                                 │
+│  MODELS (6):                                                                    │
+│  ──────────                                                                     │
+│  • EmergencyContact - user, name, phone, relationship, priority                │
+│  • EmergencyService - name, type, phone, location, 24x7                        │
+│  • SOSAlert - user, location, status, triggered_at, resolved_at                │
+│  • FirstAidGuide - condition, steps_en, steps_te, steps_hi, severity           │
+│  • EmergencyHelpline - name, number, description, available_24x7               │
+│  • UserLocationCache - user, latitude, longitude, cached_at                    │
+│                                                                                 │
+│  KEY ENDPOINTS (30):                                                            │
+│  ───────────────────                                                            │
+│  POST /api/v1/emergency/sos/trigger/         - Trigger SOS alert               │
+│  POST /api/v1/emergency/sos/quick-trigger/   - Quick SOS (minimal data)        │
+│  GET  /api/v1/emergency/sos/active/          - Get active SOS                  │
+│  POST /api/v1/emergency/sos/{id}/cancel/     - Cancel SOS                      │
+│  POST /api/v1/emergency/sos/{id}/resolve/    - Resolve SOS                     │
+│  POST /api/v1/emergency/sos/{id}/acknowledge/- Acknowledge (by contact)        │
+│  GET  /api/v1/emergency/contacts/            - List emergency contacts         │
+│  POST /api/v1/emergency/contacts/            - Add contact                     │
+│  PUT  /api/v1/emergency/contacts/{id}/       - Update contact                  │
+│  DELETE /api/v1/emergency/contacts/{id}/     - Delete contact                  │
+│  POST /api/v1/emergency/services/nearby/     - Find nearby services            │
+│  GET  /api/v1/emergency/first-aid/           - List first aid guides           │
+│  GET  /api/v1/emergency/first-aid/{id}/      - First aid detail                │
+│  GET  /api/v1/emergency/first-aid/critical/  - Critical guides only            │
+│  GET  /api/v1/emergency/helplines/           - List helplines                  │
+│  GET  /api/v1/emergency/helplines/important/ - Important helplines             │
+│  GET  /api/v1/emergency/quick-sos-data/      - Pre-loaded SOS data             │
+│  GET  /api/v1/emergency/health/              - Health check                    │
+│                                                                                 │
+│  SAMPLE SOS TRIGGER:                                                            │
+│  ───────────────────                                                            │
+│  POST /api/v1/emergency/sos/trigger/                                           │
+│  {                                                                              │
+│    "latitude": 17.385044,                                                      │
+│    "longitude": 78.486671,                                                     │
+│    "emergency_type": "medical"                                                 │
+│  }                                                                              │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+6️⃣ MEDICINE APP ✅ Complete
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  APP: apps/medicine/                                                            │
+│  PURPOSE: Medicine info, prescriptions, and reminders                           │
+│  STATUS: ✅ COMPLETE                                                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  FEATURES:                                                                      │
+│  ────────                                                                       │
+│  ✅ Medicine database (search by name, generic, brand)                         │
+│  ✅ Generic alternatives with price comparison                                 │
+│  ✅ Drug interaction checker                                                   │
+│  ✅ User prescription management                                               │
+│  ✅ Prescription medicines tracking                                            │
+│  ✅ Medicine reminders (flexible scheduling)                                   │
+│  ✅ Reminder notifications via FCM                                             │
+│  ✅ Adherence tracking (taken/skipped/missed)                                  │
+│  ✅ Background task scheduler (APScheduler)                                    │
+│  ✅ Multi-language support                                                     │
+│                                                                                 │
+│  MODELS (8):                                                                    │
+│  ──────────                                                                     │
+│  • Medicine - name, generic_name, brand, category, price                       │
+│  • MedicineAlternative - medicine, alternative, price_difference               │
+│  • DrugInteraction - medicine1, medicine2, severity, description               │
+│  • UserPrescription - user, doctor, date, is_active                            │
+│  • PrescriptionMedicine - prescription, medicine, dosage, frequency            │
+│  • MedicineReminder - user, medicine, times, days, is_active                   │
+│  • ReminderLog - reminder, scheduled_time, status, taken_at                    │
+│  • MedicineSearchHistory - user, query, results_count                          │
+│                                                                                 │
+│  SCHEDULER JOBS (APScheduler):                                                  │
+│  ─────────────────────────────                                                  │
+│  • send_notifications (every 5 min) - Send FCM for due reminders               │
+│  • mark_missed (every 5 min) - Mark past reminders as missed                   │
+│  • generate_daily_logs (daily 00:05) - Create next day's logs                  │
+│  • expire_prescriptions (daily 00:10) - Expire old prescriptions               │
+│                                                                                 │
+│  KEY ENDPOINTS (46):                                                            │
+│  ───────────────────                                                            │
+│  POST /api/v1/medicine/medicines/search/           - Search medicines          │
+│  GET  /api/v1/medicine/medicines/{id}/             - Medicine detail           │
+│  GET  /api/v1/medicine/medicines/{id}/alternatives/- Generic alternatives      │
+│  GET  /api/v1/medicine/medicines/{id}/interactions/- Drug interactions         │
+│  POST /api/v1/medicine/medicines/check-interactions/- Check multiple           │
+│  GET  /api/v1/medicine/prescriptions/              - List prescriptions        │
+│  POST /api/v1/medicine/prescriptions/              - Create prescription       │
+│  GET  /api/v1/medicine/prescriptions/active/       - Active prescriptions      │
+│  GET  /api/v1/medicine/prescriptions/{id}/         - Prescription detail       │
+│  GET  /api/v1/medicine/reminders/                  - List reminders            │
+│  POST /api/v1/medicine/reminders/                  - Create reminder           │
+│  GET  /api/v1/medicine/reminders/today/            - Today's reminders         │
+│  GET  /api/v1/medicine/reminders/upcoming/         - Upcoming reminders        │
+│  GET  /api/v1/medicine/reminders/adherence/        - Adherence stats           │
+│  POST /api/v1/medicine/reminder-logs/{id}/taken/   - Mark as taken             │
+│  POST /api/v1/medicine/reminder-logs/{id}/skipped/ - Mark as skipped           │
+│  GET  /api/v1/medicine/quick-data/                 - Dashboard data            │
+│  GET  /api/v1/medicine/health/                     - Health check              │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+7️⃣ APPOINTMENTS APP ✅ Complete
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  APP: apps/appointments/                                                        │
+│  PURPOSE: Doctor schedules, booking, and queue management                       │
+│  STATUS: ✅ COMPLETE                                                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  FEATURES:                                                                      │
+│  ────────                                                                       │
+│  ✅ Doctor weekly schedule management                                          │
+│  ✅ Schedule exceptions (leaves, holidays, modified hours)                     │
+│  ✅ Automatic time slot generation                                             │
+│  ✅ Appointment booking with validation                                        │
+│  ✅ Appointment lifecycle management                                           │
+│  ✅ Rescheduling and cancellation                                              │
+│  ✅ Patient queue management                                                   │
+│  ✅ Queue actions (call, start, complete, skip, requeue)                       │
+│  ✅ Appointment reminders (24h, 1h before)                                     │
+│  ✅ Background scheduler for automation                                        │
+│  ✅ Multi-language notifications                                               │
+│  ✅ Dashboard quick data                                                       │
+│                                                                                 │
+│  APPOINTMENT LIFECYCLE:                                                         │
+│  ─────────────────────                                                          │
+│  pending → confirmed → checked_in → in_progress → completed                    │
+│              ↓                                                                  │
+│          cancelled                          → no_show                          │
+│                                                                                 │
+│  MODELS (6):                                                                    │
+│  ──────────                                                                     │
+│  • DoctorSchedule - doctor, day_of_week, start_time, end_time, slot_duration   │
+│  • ScheduleException - doctor, date, exception_type, reason                    │
+│  • TimeSlot - doctor, date, start_time, end_time, is_available                 │
+│  • Appointment - patient, doctor, slot, status, reason, notes                  │
+│  • AppointmentQueue - appointment, position, called_at, status                 │
+│  • AppointmentReminder - appointment, reminder_type, sent_at                   │
+│                                                                                 │
+│  SCHEDULER JOBS (APScheduler):                                                  │
+│  ─────────────────────────────                                                  │
+│  • send_pending_reminders (every 5 min) - Send reminders                       │
+│  • auto_confirm_appointments (every 30 min) - Auto-confirm pending             │
+│  • mark_no_shows (every 15 min) - Mark past as no-show                         │
+│  • generate_daily_slots (daily 00:15) - Generate slots for week                │
+│  • cleanup_old_data (daily 02:00) - Delete old slots/reminders                 │
+│                                                                                 │
+│  KEY ENDPOINTS (45+):                                                           │
+│  ────────────────────                                                           │
+│                                                                                 │
+│  SCHEDULES:                                                                     │
+│  GET  /api/v1/appointments/schedules/                - Doctor's schedules      │
+│  POST /api/v1/appointments/schedules/                - Create schedule         │
+│  GET  /api/v1/appointments/schedules/weekly/         - Weekly view             │
+│  POST /api/v1/appointments/schedules/bulk_update/    - Bulk update             │
+│                                                                                 │
+│  SLOTS:                                                                         │
+│  GET  /api/v1/appointments/slots/                    - List slots              │
+│  GET  /api/v1/appointments/available-slots/{dr_id}/  - Available slots         │
+│  POST /api/v1/appointments/generate-slots/           - Generate slots          │
+│                                                                                 │
+│  APPOINTMENTS:                                                                  │
+│  GET  /api/v1/appointments/appointments/             - List appointments       │
+│  POST /api/v1/appointments/appointments/             - Book appointment        │
+│  GET  /api/v1/appointments/appointments/{id}/        - Appointment detail      │
+│  POST /api/v1/appointments/appointments/{id}/confirm/    - Confirm             │
+│  POST /api/v1/appointments/appointments/{id}/cancel/     - Cancel              │
+│  POST /api/v1/appointments/appointments/{id}/reschedule/ - Reschedule          │
+│  POST /api/v1/appointments/appointments/{id}/check_in/   - Check in            │
+│  POST /api/v1/appointments/appointments/{id}/start/      - Start               │
+│  POST /api/v1/appointments/appointments/{id}/complete/   - Complete            │
+│  GET  /api/v1/appointments/appointments/today/           - Today's             │
+│  GET  /api/v1/appointments/appointments/upcoming/        - Upcoming            │
+│                                                                                 │
+│  QUEUE:                                                                         │
+│  GET  /api/v1/appointments/queue/                    - Current queue           │
+│  GET  /api/v1/appointments/queue/waiting/            - Waiting patients        │
+│  POST /api/v1/appointments/queue/call_next/          - Call next patient       │
+│  GET  /api/v1/appointments/queue/stats/              - Queue stats             │
+│  GET  /api/v1/appointments/queue/my_status/          - Patient's status        │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+8️⃣ CONSULTATION APP ✅ Complete
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  APP: apps/consultation/                                                        │
+│  PURPOSE: Video/Audio consultations via Jitsi Meet                              │
+│  STATUS: ✅ COMPLETE                                                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  FEATURES:                                                                      │
+│  ────────                                                                       │
+│  ✅ Video/Audio consultations using Jitsi Meet (FREE)                          │
+│  ✅ Jitsi room creation and management                                         │
+│  ✅ Patient waiting room with lobby                                            │
+│  ✅ Doctor controls (start/end consultation)                                   │
+│  ✅ Consultation notes (SOAP format)                                           │
+│  ✅ Prescription writing during consultation                                   │
+│  ✅ File attachments (reports, images)                                         │
+│  ✅ Patient feedback with ratings                                              │
+│  ✅ Integration with Appointments app                                          │
+│  ✅ Integration with Medicine app (auto-create prescriptions)                  │
+│  ✅ Multi-language notifications                                               │
+│  ✅ Background scheduler                                                       │
+│                                                                                 │
+│  CONSULTATION FLOW:                                                             │
+│  ──────────────────                                                             │
+│  1. SCHEDULE: Create from appointment or directly                              │
+│     → Creates Jitsi room → Status: 'scheduled' → Notifies patient              │
+│                                                                                 │
+│  2. WAITING: Patient joins waiting room                                        │
+│     → Status: 'waiting_room' → Notifies doctor                                 │
+│                                                                                 │
+│  3. START: Doctor starts consultation                                          │
+│     → Status: 'in_progress' → Room: 'active' → Notifies patient                │
+│                                                                                 │
+│  4. DURING: Both in Jitsi room                                                 │
+│     → Doctor adds notes/prescriptions → Both can upload files                  │
+│                                                                                 │
+│  5. END: Doctor ends consultation                                              │
+│     → Status: 'completed' → Creates prescription → Notifies patient            │
+│                                                                                 │
+│  6. FEEDBACK: Patient submits rating                                           │
+│                                                                                 │
+│  JITSI CONFIGURATION:                                                           │
+│  ────────────────────                                                           │
+│  • Domain: meet.jit.si (FREE public server)                                    │
+│  • No API key required                                                         │
+│  • Room format: mediconnect-{hash}-{timestamp}                                 │
+│  • Room expiry: 2 hours                                                        │
+│  • Features: Video, Audio, Chat, Screen Share, Lobby                           │
+│                                                                                 │
+│  MODELS (6):                                                                    │
+│  ──────────                                                                     │
+│  • ConsultationRoom - room_name, room_url, status, created_at, expires_at      │
+│  • Consultation - patient, doctor, appointment, room, status, diagnosis        │
+│  • ConsultationNote - consultation, note_type (SOAP), content, is_private      │
+│  • ConsultationPrescription - consultation, medicine, dosage, instructions     │
+│  • ConsultationAttachment - consultation, file, uploaded_by                    │
+│  • ConsultationFeedback - consultation, rating, comment                        │
+│                                                                                 │
+│  SCHEDULER JOBS (APScheduler):                                                  │
+│  ─────────────────────────────                                                  │
+│  • send_consultation_reminders (every 5 min) - Remind 15 min before            │
+│  • mark_no_show_consultations (every 10 min) - Mark no-shows                   │
+│  • expire_consultation_rooms (every 30 min) - Expire old rooms                 │
+│  • cleanup_old_consultation_data (daily 03:00) - Delete old rooms              │
+│                                                                                 │
+│  KEY ENDPOINTS (40+):                                                           │
+│  ────────────────────                                                           │
+│                                                                                 │
+│  CONSULTATIONS:                                                                 │
+│  GET  /api/v1/consultation/consultations/              - List                  │
+│  POST /api/v1/consultation/consultations/              - Create                │
+│  POST /api/v1/consultation/consultations/from-appointment/ - From appt         │
+│  GET  /api/v1/consultation/consultations/{id}/         - Detail                │
+│  POST /api/v1/consultation/consultations/{id}/join/    - Get room URL          │
+│  POST /api/v1/consultation/consultations/{id}/join-waiting-room/ - Join        │
+│  POST /api/v1/consultation/consultations/{id}/start/   - Doctor starts         │
+│  POST /api/v1/consultation/consultations/{id}/end/     - Doctor ends           │
+│  POST /api/v1/consultation/consultations/{id}/cancel/  - Cancel                │
+│  GET  /api/v1/consultation/consultations/upcoming/     - Upcoming              │
+│  GET  /api/v1/consultation/consultations/today/        - Today's (doctor)      │
+│  GET  /api/v1/consultation/consultations/waiting/      - Waiting patients      │
+│                                                                                 │
+│  NOTES (SOAP):                                                                  │
+│  GET  /api/v1/consultation/consultations/{id}/notes/   - List notes            │
+│  POST /api/v1/consultation/consultations/{id}/notes/   - Add note              │
+│                                                                                 │
+│  PRESCRIPTIONS:                                                                 │
+│  GET  /api/v1/consultation/consultations/{id}/prescriptions/      - List       │
+│  POST /api/v1/consultation/consultations/{id}/prescriptions/      - Add        │
+│  POST /api/v1/consultation/.../prescriptions/bulk-create/         - Bulk       │
+│                                                                                 │
+│  ATTACHMENTS:                                                                   │
+│  GET  /api/v1/consultation/consultations/{id}/attachments/  - List             │
+│  POST /api/v1/consultation/consultations/{id}/attachments/  - Upload           │
+│                                                                                 │
+│  FEEDBACK:                                                                      │
+│  POST /api/v1/consultation/consultations/{id}/feedback/     - Add              │
+│  GET  /api/v1/consultation/doctors/{id}/feedback-summary/   - Summary          │
+│                                                                                 │
+│  CONFIG:                                                                        │
+│  GET  /api/v1/consultation/jitsi/config/               - Jitsi config          │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+9️⃣ HEALTH RECORDS APP ✅ Complete
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  APP: apps/health_records/                                                      │
+│  PURPOSE: Medical history, documents, and record sharing                        │
+│  STATUS: ✅ COMPLETE                                                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  FEATURES:                                                                      │
+│  ────────                                                                       │
+│  ✅ Extended health profile (blood group, BMI, allergies, conditions)          │
+│  ✅ Medical condition tracking (active, resolved, chronic)                     │
+│  ✅ Document uploads to Supabase Storage (FREE 1GB)                            │
+│  ✅ Structured lab reports with test results                                   │
+│  ✅ Vaccination records with schedule                                          │
+│  ✅ Allergy tracking (with severity levels)                                    │
+│  ✅ Family medical history                                                     │
+│  ✅ Hospitalization records                                                    │
+│  ✅ Vital signs tracking with trends                                           │
+│  ✅ Record sharing with doctors (temporary/permanent)                          │
+│  ✅ Health timeline and analytics                                              │
+│  ✅ Health score calculation                                                   │
+│  ✅ Auto-sync allergies/conditions to profile                                  │
+│  ✅ Critical vital alerts via notifications                                    │
+│                                                                                 │
+│  SUPABASE STORAGE:                                                              │
+│  ─────────────────                                                              │
+│  • FREE tier: 1GB storage, 2GB bandwidth/month                                 │
+│  • File types: PDF, JPG, JPEG, PNG, DOC, DOCX                                  │
+│  • Max file size: 10MB                                                         │
+│  • Signed URLs with configurable expiry                                        │
+│  • Fallback to local storage if not configured                                 │
+│                                                                                 │
+│  MODELS (10):                                                                   │
+│  ───────────                                                                    │
+│  • HealthProfile - blood_group, height, weight, allergies[], conditions[]      │
+│  • MedicalCondition - name, status, severity, is_chronic, diagnosed_date       │
+│  • MedicalDocument - file_path, document_type, title, storage_type             │
+│  • LabReport - report_name, lab_type, results[], overall_status                │
+│  • VaccinationRecord - vaccine_name, dose_number, next_due_date                │
+│  • Allergy - allergen, allergy_type, severity, reaction                        │
+│  • FamilyMedicalHistory - relation, condition, age_at_diagnosis                │
+│  • Hospitalization - hospital, admission_date, reason, procedures[]            │
+│  • VitalSign - bp, heart_rate, temperature, oxygen, blood_sugar                │
+│  • SharedRecord - patient, doctor, share_type, expires_at                      │
+│                                                                                 │
+│  KEY ENDPOINTS (75+):                                                           │
+│  ────────────────────                                                           │
+│                                                                                 │
+│  HEALTH PROFILE:                                                                │
+│  GET  /api/v1/health-records/profile/                  - Get profile           │
+│  POST /api/v1/health-records/profile/                  - Update profile        │
+│  GET  /api/v1/health-records/profile/summary/          - Summary               │
+│  GET  /api/v1/health-records/profile/critical-info/    - Critical info         │
+│  POST /api/v1/health-records/profile/sync-allergies/   - Sync allergies        │
+│                                                                                 │
+│  CONDITIONS:                                                                    │
+│  GET  /api/v1/health-records/conditions/               - List                  │
+│  POST /api/v1/health-records/conditions/               - Create                │
+│  GET  /api/v1/health-records/conditions/active/        - Active only           │
+│  GET  /api/v1/health-records/conditions/chronic/       - Chronic only          │
+│  POST /api/v1/health-records/conditions/{id}/resolve/  - Mark resolved         │
+│                                                                                 │
+│  DOCUMENTS (Supabase Storage):                                                  │
+│  GET  /api/v1/health-records/documents/                - List                  │
+│  POST /api/v1/health-records/documents/                - Upload                │
+│  GET  /api/v1/health-records/documents/{id}/download-url/ - Signed URL         │
+│  GET  /api/v1/health-records/documents/storage-stats/  - Storage usage         │
+│                                                                                 │
+│  LAB REPORTS:                                                                   │
+│  GET  /api/v1/health-records/lab-reports/              - List                  │
+│  GET  /api/v1/health-records/lab-reports/abnormal/     - Abnormal only         │
+│  GET  /api/v1/health-records/lab-reports/trends/       - Test trends           │
+│                                                                                 │
+│  VACCINATIONS:                                                                  │
+│  GET  /api/v1/health-records/vaccinations/             - List                  │
+│  GET  /api/v1/health-records/vaccinations/pending/     - Due/overdue           │
+│  GET  /api/v1/health-records/vaccinations/schedule/    - Full schedule         │
+│                                                                                 │
+│  ALLERGIES:                                                                     │
+│  GET  /api/v1/health-records/allergies/                - List                  │
+│  GET  /api/v1/health-records/allergies/critical/       - Severe/life-threat    │
+│  GET  /api/v1/health-records/allergies/drug/           - Drug allergies        │
+│                                                                                 │
+│  VITALS:                                                                        │
+│  GET  /api/v1/health-records/vitals/                   - List                  │
+│  POST /api/v1/health-records/vitals/                   - Record                │
+│  GET  /api/v1/health-records/vitals/latest/            - Latest                │
+│  GET  /api/v1/health-records/vitals/trends/            - Trends                │
+│  GET  /api/v1/health-records/vitals/statistics/        - Stats                 │
+│                                                                                 │
+│  SHARING (Patient ↔ Doctor):                                                   │
+│  POST /api/v1/health-records/sharing/                  - Share with doctor     │
+│  GET  /api/v1/health-records/sharing/my-shares/        - My shares             │
+│  GET  /api/v1/health-records/sharing/accessible-patients/ - Doctor view        │
+│  GET  /api/v1/health-records/sharing/patient/{id}/records/ - Access records    │
+│                                                                                 │
+│  ANALYTICS:                                                                     │
+│  GET  /api/v1/health-records/analytics/timeline/       - Health timeline       │
+│  GET  /api/v1/health-records/analytics/score/          - Health score          │
+│  GET  /api/v1/health-records/analytics/summary/        - Full summary          │
+│  GET  /api/v1/health-records/analytics/quick-data/     - Dashboard data        │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+🔟 SYNC APP ⏳ Pending (Low Priority)
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  APP: apps/sync/                                                                │
+│  PURPOSE: Offline support and background sync                                   │
+│  STATUS: ⏳ PENDING (Low Priority)                                              │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  PLANNED FEATURES:                                                              │
+│  ─────────────────                                                              │
+│  • IndexedDB for offline storage                                               │
+│  • Background sync when online                                                 │
+│  • Conflict resolution                                                         │
+│  • Offline queue for actions                                                   │
+│  • Data versioning                                                             │
+│                                                                                 │
+│  NOTE: Most offline functionality will be handled in the Frontend PWA          │
+│  using Workbox service workers. This app may not be needed.                    │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+CRITICAL DEVELOPMENT RULES
+===================================================================================
+⚠️ FOLDER STRUCTURE (VERY IMPORTANT)
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                 │
+│  ✅ CORRECT:                           ❌ WRONG:                               │
+│  ───────────                           ──────────                               │
+│  backend/mediconnect/urls.py           backend/config/urls.py                  │
+│  backend/mediconnect/settings/         backend/config/settings/                │
+│  backend/mediconnect/wsgi.py           backend/core/wsgi.py                    │
+│                                                                                 │
+│  The Django configuration folder is named "mediconnect", NOT "config"!          │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+⚠️ USER MODEL FIELDS (IMPORTANT)
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                 │
+│  FIELD NAMES IN USER MODEL:                                                     │
+│  ──────────────────────────                                                     │
+│                                                                                 │
+│  ✅ CORRECT:                           ❌ WRONG:                               │
+│  ───────────                           ──────────                               │
+│  user.phone                            user.phone_number                        │
+│  user.role                             user.user_type                           │
+│  user.preferred_language               user.language                            │
+│                                                                                 │
+│  ROLE VALUES:                                                                   │
+│  'patient' or 'doctor' (NOT 'Patient', 'Doctor', 'PATIENT', etc.)              │
+│                                                                                 │
+│  EXAMPLES:                                                                      │
+│  User.objects.filter(phone='+919876543210')                                    │
+│  User.objects.filter(role='doctor')                                            │
+│  User.objects.filter(role='patient', is_active=True)                           │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+⚠️ FRONTEND IS REACT PWA (NOT Mobile App)
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                 │
+│  ✅ CORRECT:                           ❌ WRONG:                               │
+│  ───────────                           ──────────                               │
+│  React.js with Vite                    React Native                            │
+│  Progressive Web App                   Flutter                                  │
+│  Tailwind CSS                          Expo                                     │
+│  Web Speech API                        Native Speech APIs                       │
+│  Service Workers (Workbox)             Native background services               │
+│                                                                                 │
+│  MediConnect is a WEB APP that works in browsers on mobile devices.            │
+│  It is NOT a native mobile app.                                                │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+⚠️ NO DOCKER
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                 │
+│  Developer is unfamiliar with Docker.                                          │
+│                                                                                 │
+│  ❌ DON'T suggest:                     ✅ DO suggest:                          │
+│  ─────────────────                     ──────────────                          │
+│  docker-compose up                     python manage.py runserver              │
+│  docker build                          pip install -r requirements.txt         │
+│  Dockerfile                            venv activation                          │
+│  Container setup                       Local PostgreSQL setup                   │
+│                                                                                 │
+│  DEPLOYMENT:                                                                    │
+│  • Backend: Render.com (auto-deploys from Git)                                 │
+│  • Frontend: Vercel.com (auto-deploys from Git)                                │
+│  • Database: Supabase.com (managed PostgreSQL)                                 │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+⚠️ ALL SERVICES MUST BE FREE
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                 │
+│  ✅ USE (FREE):                        ❌ AVOID (PAID):                        │
+│  ───────────────                       ────────────────                         │
+│  Groq AI (Llama 3)                     OpenAI GPT-4                            │
+│  Firebase Auth                         Auth0, Okta                             │
+│  Firebase FCM                          Twilio, SNS                             │
+│  deep-translator                       Google Cloud Translation API            │
+│  Web Speech API                        Google Cloud Speech                     │
+│  Jitsi Meet                            Twilio Video, Zoom SDK                  │
+│  Supabase (FREE tier)                  AWS RDS                                 │
+│  Render (FREE tier)                    AWS EC2, Heroku paid                    │
+│  Vercel (FREE tier)                    AWS CloudFront paid                     │
+│                                                                                 │
+│  TOTAL MONTHLY COST: $0                                                        │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+API RESPONSE FORMAT
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                 │
+│  ALL API responses follow this consistent format:                               │
+│                                                                                 │
+│  SUCCESS RESPONSE:                                                              │
+│  {                                                                              │
+│    "success": true,                                                            │
+│    "message": "Operation completed successfully",                              │
+│    "data": { ... }  // or [] for lists                                         │
+│  }                                                                              │
+│                                                                                 │
+│  ERROR RESPONSE:                                                                │
+│  {                                                                              │
+│    "success": false,                                                           │
+│    "message": "Error description",                                             │
+│    "errors": { ... }  // Optional field-specific errors                        │
+│  }                                                                              │
+│                                                                                 │
+│  LIST RESPONSE:                                                                 │
+│  {                                                                              │
+│    "success": true,                                                            │
+│    "count": 25,                                                                │
+│    "data": [ ... ]                                                             │
+│  }                                                                              │
+│                                                                                 │
+│  PAGINATED RESPONSE:                                                            │
+│  {                                                                              │
+│    "success": true,                                                            │
+│    "count": 100,                                                               │
+│    "next": "http://api/endpoint/?page=2",                                      │
+│    "previous": null,                                                           │
+│    "data": [ ... ]                                                             │
+│  }                                                                              │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+ENVIRONMENT VARIABLES
+===================================================================================
+env
+
+# ===========================================
+# DJANGO SETTINGS
+# ===========================================
+SECRET_KEY=your-super-secret-key-change-in-production
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+DJANGO_SETTINGS_MODULE=mediconnect.settings.development
+
+# ===========================================
+# DATABASE
+# ===========================================
+# Development: Local PostgreSQL
+DATABASE_URL=postgresql://postgres:password@localhost:5432/mediconnect
+
+# Production: Supabase
+# DATABASE_URL=postgresql://postgres:password@db.xxxxx.supabase.co:5432/postgres
+
+# ===========================================
+# FIREBASE (Authentication & FCM)
+# ===========================================
+FIREBASE_CREDENTIALS_PATH=./firebase-service-account.json
+
+# ===========================================
+# GROQ AI (FREE - Llama 3 Chatbot)
+# ===========================================
+
+===================================================================================
+ENVIRONMENT VARIABLES (Continued)
+===================================================================================
+env
+
+# ===========================================
+# GROQ AI (FREE - Llama 3 Chatbot)
+# ===========================================
+GROQ_API_KEY=gsk_your_api_key_here
+GROQ_MODEL=llama3-8b-8192
+
+# ===========================================
+# SUPABASE (Database & Storage)
+# ===========================================
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_STORAGE_BUCKET=health-records
+
+# ===========================================
+# JITSI MEET (FREE Video Calls)
+# ===========================================
+JITSI_DOMAIN=meet.jit.si
+JITSI_ROOM_EXPIRY_HOURS=2
+
+# ===========================================
+# CORS (Frontend URLs)
+# ===========================================
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+
+# ===========================================
+# SCHEDULER (Background Tasks)
+# ===========================================
+DISABLE_MEDICINE_SCHEDULER=false
+DISABLE_APPOINTMENT_SCHEDULER=false
+DISABLE_CONSULTATION_SCHEDULER=false
+
+# ===========================================
+# REDIS CACHE (Optional - Production)
+# ===========================================
+# REDIS_URL=redis://default:xxxxx@xxxxx.upstash.io:6379
+===================================================================================
+CURRENT PROJECT PROGRESS
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                 │
+│                         PROJECT COMPLETION STATUS                               │
+│                                                                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  BACKEND APPS:                                                                  │
+│  █████████████████████████████████████████████░░░░░ 90% (9/10 apps)            │
+│                                                                                 │
+│  FRONTEND (React PWA):                                                          │
+│  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0% (not started)          │
+│                                                                                 │
+│  OVERALL PROJECT:                                                               │
+│  ██████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 45%                        │
+│                                                                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ✅ COMPLETED BACKEND APPS (9):                                                │
+│  ──────────────────────────────                                                 │
+│  1. Users App          - Firebase phone auth, JWT, profiles                    │
+│  2. Diagnosis App      - ML symptom checker (RF + NN ensemble)                 │
+│  3. Chatbot App        - Groq AI (Llama 3), multi-language                     │
+│  4. Notifications App  - Firebase FCM push notifications                       │
+│  5. Emergency App      - SOS alerts, first aid, helplines                      │
+│  6. Medicine App       - Prescriptions, reminders, drug interactions           │
+│  7. Appointments App   - Schedules, booking, queue management                  │
+│  8. Consultation App   - Video calls (Jitsi), notes, prescriptions             │
+│  9. Health Records App - Medical history, Supabase storage, sharing            │
+│                                                                                 │
+│  ⏳ PENDING (2):                                                               │
+│  ───────────────                                                                │
+│  10. Sync App          - Offline support (low priority, may skip)              │
+│  11. Frontend          - React PWA (HIGH PRIORITY - NEXT)                      │
+│                                                                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  API STATISTICS:                                                                │
+│  ───────────────                                                                │
+│  • Total Endpoints:     365+                                                   │
+│  • Total Models:        60+                                                    │
+│  • Total Services:      25+                                                    │
+│  • Background Jobs:     13                                                     │
+│  • Management Commands: 20+                                                    │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+API ENDPOINTS SUMMARY
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         COMPLETE API ENDPOINT REFERENCE                         │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  BASE URL: /api/v1/                                                            │
+│                                                                                 │
+│  APP                 │ PREFIX              │ ENDPOINTS │ STATUS                │
+│  ────────────────────┼─────────────────────┼───────────┼───────────────────────│
+│  Users               │ /auth/              │    ~15    │ ✅ Complete           │
+│  Diagnosis           │ /diagnosis/         │    ~10    │ ✅ Complete           │
+│  Chatbot             │ /chatbot/           │     22    │ ✅ Complete           │
+│  Notifications       │ /notifications/     │     22    │ ✅ Complete           │
+│  Emergency           │ /emergency/         │     30    │ ✅ Complete           │
+│  Medicine            │ /medicine/          │     46    │ ✅ Complete           │
+│  Appointments        │ /appointments/      │     45+   │ ✅ Complete           │
+│  Consultation        │ /consultation/      │     40+   │ ✅ Complete           │
+│  Health Records      │ /health-records/    │     75+   │ ✅ Complete           │
+│  ────────────────────┼─────────────────────┼───────────┼───────────────────────│
+│  TOTAL               │                     │    365+   │                       │
+│                                                                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  HEALTH CHECK ENDPOINTS (No Authentication Required):                           │
+│  ─────────────────────────────────────────────────────                          │
+│  GET /api/v1/diagnosis/health/                                                 │
+│  GET /api/v1/chatbot/health/                                                   │
+│  GET /api/v1/notifications/health/                                             │
+│  GET /api/v1/emergency/health/                                                 │
+│  GET /api/v1/medicine/health/                                                  │
+│  GET /api/v1/appointments/health/                                              │
+│  GET /api/v1/consultation/health/                                              │
+│  GET /api/v1/health-records/health/                                            │
+│                                                                                 │
+│  SWAGGER DOCUMENTATION:                                                         │
+│  ──────────────────────                                                         │
+│  http://localhost:8000/swagger/                                                │
+│  http://localhost:8000/redoc/                                                  │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+BACKGROUND SCHEDULER JOBS
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         APSCHEDULER BACKGROUND JOBS                             │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  MEDICINE APP SCHEDULER:                                                        │
+│  ───────────────────────                                                        │
+│  ┌─────────────────────────┬─────────────────┬────────────────────────────┐    │
+│  │  JOB                    │  FREQUENCY      │  PURPOSE                   │    │
+│  ├─────────────────────────┼─────────────────┼────────────────────────────┤    │
+│  │  send_notifications     │  Every 5 min    │  Send FCM for due meds     │    │
+│  │  mark_missed            │  Every 5 min    │  Mark past as missed       │    │
+│  │  generate_daily_logs    │  Daily 00:05    │  Create next day's logs    │    │
+│  │  expire_prescriptions   │  Daily 00:10    │  Expire old prescriptions  │    │
+│  └─────────────────────────┴─────────────────┴────────────────────────────┘    │
+│                                                                                 │
+│  APPOINTMENTS APP SCHEDULER:                                                    │
+│  ───────────────────────────                                                    │
+│  ┌─────────────────────────┬─────────────────┬────────────────────────────┐    │
+│  │  JOB                    │  FREQUENCY      │  PURPOSE                   │    │
+│  ├─────────────────────────┼─────────────────┼────────────────────────────┤    │
+│  │  send_pending_reminders │  Every 5 min    │  Send appointment alerts   │    │
+│  │  auto_confirm           │  Every 30 min   │  Auto-confirm pending      │    │
+│  │  mark_no_shows          │  Every 15 min   │  Mark past as no-show      │    │
+│  │  generate_daily_slots   │  Daily 00:15    │  Generate week's slots     │    │
+│  │  cleanup_old_data       │  Daily 02:00    │  Delete old records        │    │
+│  └─────────────────────────┴─────────────────┴────────────────────────────┘    │
+│                                                                                 │
+│  CONSULTATION APP SCHEDULER:                                                    │
+│  ───────────────────────────                                                    │
+│  ┌─────────────────────────┬─────────────────┬────────────────────────────┐    │
+│  │  JOB                    │  FREQUENCY      │  PURPOSE                   │    │
+│  ├─────────────────────────┼─────────────────┼────────────────────────────┤    │
+│  │  send_reminders         │  Every 5 min    │  Remind 15 min before      │    │
+│  │  mark_no_shows          │  Every 10 min   │  Mark no-show consults     │    │
+│  │  expire_rooms           │  Every 30 min   │  Expire old Jitsi rooms    │    │
+│  │  cleanup_old_data       │  Daily 03:00    │  Delete old rooms          │    │
+│  └─────────────────────────┴─────────────────┴────────────────────────────┘    │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+MANAGEMENT COMMANDS
+===================================================================================
+Bash
+
+# ===========================================
+# SERVER & DATABASE
+# ===========================================
+cd backend
+python manage.py runserver                    # Start development server
+python manage.py migrate                      # Apply migrations
+python manage.py makemigrations               # Create migrations
+python manage.py createsuperuser              # Create admin user
+
+# ===========================================
+# SAMPLE DATA LOADING
+# ===========================================
+python manage.py load_all_medical_data        # Diagnosis: symptoms, diseases
+python manage.py load_chatbot_data            # Chatbot: FAQs, health tips
+python manage.py load_notification_templates  # Notifications: templates
+python manage.py load_emergency_data          # Emergency: helplines, first aid
+python manage.py load_medicine_data           # Medicine: medicines, interactions
+python manage.py create_test_users            # Appointments: test users
+python manage.py load_sample_appointments     # Appointments: sample data
+python manage.py load_consultation_data       # Consultation: sample data
+python manage.py load_health_records_data     # Health Records: sample data
+
+# ===========================================
+# ML MODEL TRAINING
+# ===========================================
+python manage.py train_models                 # Train disease prediction models
+
+# ===========================================
+# APPOINTMENTS MANAGEMENT
+# ===========================================
+python manage.py generate_slots --all-doctors --days 14
+python manage.py process_reminders
+python manage.py cleanup_appointments --days 90
+python manage.py appointment_stats --today
+
+# ===========================================
+# CONSULTATION MANAGEMENT
+# ===========================================
+python manage.py consultation_stats
+python manage.py consultation_stats --days 7
+python manage.py cleanup_consultations --dry-run
+python manage.py process_consultation_reminders
+
+# ===========================================
+# HEALTH RECORDS MANAGEMENT
+# ===========================================
+python manage.py health_records_stats --detailed
+python manage.py cleanup_health_records --expired-shares
+python manage.py sync_health_profiles --create-missing
+===================================================================================
+TESTING COMMANDS
+===================================================================================
+Bash
+
+# ===========================================
+# HEALTH CHECKS (No Auth Required)
+# ===========================================
+curl http://localhost:8000/api/v1/chatbot/health/
+curl http://localhost:8000/api/v1/notifications/health/
+curl http://localhost:8000/api/v1/diagnosis/health/
+curl http://localhost:8000/api/v1/emergency/health/
+curl http://localhost:8000/api/v1/medicine/health/
+curl http://localhost:8000/api/v1/appointments/health/
+curl http://localhost:8000/api/v1/consultation/health/
+curl http://localhost:8000/api/v1/health-records/health/
+
+# Expected Response:
+# {
+#   "success": true,
+#   "message": "Service is running",
+#   "service": "service_name",
+#   "version": "1.0.0",
+#   "timestamp": "2025-01-27T10:00:00.000000+05:30"
+# }
+
+# ===========================================
+# JITSI CONFIG (No Auth Required)
+# ===========================================
+curl http://localhost:8000/api/v1/consultation/jitsi/config/
+
+# ===========================================
+# SWAGGER DOCUMENTATION
+# ===========================================
+# Open in browser:
+http://localhost:8000/swagger/
+http://localhost:8000/redoc/
+===================================================================================
+SAMPLE DATA LOADED
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         SAMPLE DATA IN DATABASE                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  DIAGNOSIS APP:                                                                 │
+│  ─────────────                                                                  │
+│  • 132 Symptoms with keywords (English + Telugu + Hindi)                       │
+│  • 41 Diseases with descriptions                                               │
+│  • Disease-Symptom mappings                                                    │
+│  • Trained ML models (.pkl files)                                              │
+│                                                                                 │
+│  CHATBOT APP:                                                                   │
+│  ────────────                                                                   │
+│  • 12 FAQs (English, Telugu, Hindi)                                            │
+│  • 14 Health Tips (English, Telugu, Hindi)                                     │
+│  • 16 Quick Reply suggestions                                                  │
+│                                                                                 │
+│  NOTIFICATIONS APP:                                                             │
+│  ──────────────────                                                             │
+│  • 20 Notification Templates (all types, multi-language)                       │
+│                                                                                 │
+│  EMERGENCY APP:                                                                 │
+│  ─────────────                                                                  │
+│  • 15 Emergency Helplines (108, 112, 100, 101, state-specific)                │
+│  • 10 First Aid Guides (English, Telugu, Hindi)                                │
+│  • 22 Emergency Services (hospitals, ambulances, PHCs, blood banks)            │
+│                                                                                 │
+│  MEDICINE APP:                                                                  │
+│  ────────────                                                                   │
+│  • 25 Common Indian Medicines                                                  │
+│  • 4 Medicine Alternatives with price comparison                               │
+│  • 10 Drug Interactions                                                        │
+│                                                                                 │
+│  APPOINTMENTS APP:                                                              │
+│  ─────────────────                                                              │
+│  • 3 Test Doctors with weekly schedules                                        │
+│  • 10 Test Patients                                                            │
+│  • 500+ Time Slots (2 weeks)                                                   │
+│  • 20 Sample Appointments (various statuses)                                   │
+│                                                                                 │
+│  CONSULTATION APP:                                                              │
+│  ─────────────────                                                              │
+│  • 15 Sample Consultations (scheduled, completed, cancelled)                   │
+│  • SOAP Notes for completed consultations                                      │
+│  • Prescriptions for completed consultations                                   │
+│  • Feedback/ratings for completed consultations                                │
+│  • Jitsi rooms for each consultation                                           │
+│                                                                                 │
+│  HEALTH RECORDS APP:                                                            │
+│  ───────────────────                                                            │
+│  • Health profiles for all test patients                                       │
+│  • Medical conditions (diabetes, hypertension, etc.)                           │
+│  • Allergies with severity levels                                              │
+│  • Vaccination records (COVID, Tetanus, etc.)                                  │
+│  • Family medical history                                                      │
+│  • 90 days of vital sign records                                               │
+│  • Lab reports with test results                                               │
+│  • Hospitalization records                                                     │
+│  • Shared records between patients and doctors                                 │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+JITSI MEET INTEGRATION
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         JITSI MEET VIDEO CALL SETUP                             │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  CONFIGURATION:                                                                 │
+│  ──────────────                                                                 │
+│  • Domain: meet.jit.si (FREE public server)                                    │
+│  • No API key required                                                         │
+│  • Room naming: mediconnect-{hash}-{timestamp}                                 │
+│  • Room expiry: 2 hours (configurable)                                         │
+│  • Features: Video, Audio, Chat, Screen Share, Recording                       │
+│  • Lobby: Enabled (patients wait for doctor to admit)                          │
+│                                                                                 │
+│  ROOM URL FORMAT:                                                               │
+│  ────────────────                                                               │
+│  https://meet.jit.si/mediconnect-abc123def456-202501271030                     │
+│                                                                                 │
+│  WITH CONFIGURATION:                                                            │
+│  https://meet.jit.si/mediconnect-abc123-202501271030#config.startWithAudioMuted=true&config.startWithVideoMuted=false&userInfo.displayName=Dr.%20Sharma                                           │
+│                                                                                 │
+│  FRONTEND INTEGRATION (React):                                                  │
+│  ─────────────────────────────                                                  │
+│                                                                                 │
+│  // Load Jitsi API                                                             │
+│  <script src='https://meet.jit.si/external_api.js'></script>                   │
+│                                                                                 │
+│  // Initialize in React component                                              │
+│  const api = new JitsiMeetExternalAPI('meet.jit.si', {                         │
+│      roomName: 'mediconnect-abc123-202501271030',                              │
+│      width: '100%',                                                            │
+│      height: '100%',                                                           │
+│      parentNode: document.getElementById('jitsi-container'),                   │
+│      configOverwrite: {                                                        │
+│          startWithAudioMuted: true,                                            │
+│          startWithVideoMuted: false,                                           │
+│          enableLobby: true,                                                    │
+│      },                                                                        │
+│      interfaceConfigOverwrite: {                                               │
+│          SHOW_JITSI_WATERMARK: false,                                          │
+│          SHOW_BRAND_WATERMARK: false,                                          │
+│      },                                                                        │
+│      userInfo: {                                                               │
+│          displayName: 'Dr. Sharma'                                             │
+│      }                                                                         │
+│  });                                                                           │
+│                                                                                 │
+│  // Event listeners                                                            │
+│  api.addEventListener('participantJoined', handleParticipantJoined);           │
+│  api.addEventListener('participantLeft', handleParticipantLeft);               │
+│  api.addEventListener('readyToClose', handleCallEnd);                          │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+SUPABASE STORAGE INTEGRATION
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         SUPABASE STORAGE FOR DOCUMENTS                          │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  FREE TIER LIMITS:                                                              │
+│  ─────────────────                                                              │
+│  • Storage: 1 GB                                                               │
+│  • Bandwidth: 2 GB/month                                                       │
+│  • Max file size: 50 MB (we limit to 10 MB)                                    │
+│                                                                                 │
+│  ALLOWED FILE TYPES:                                                            │
+│  ───────────────────                                                            │
+│  • PDF (prescriptions, reports)                                                │
+│  • JPG, JPEG, PNG (X-rays, scans, photos)                                      │
+│  • DOC, DOCX (medical certificates)                                            │
+│                                                                                 │
+│  FILE PATH FORMAT:                                                              │
+│  ─────────────────                                                              │
+│  {user_id}/{folder}/{year}/{month}/{uuid}_{filename}                           │
+│                                                                                 │
+│  Example:                                                                       │
+│  abc123/prescriptions/2025/01/f8a3b2c1_medicine.pdf                            │
+│  abc123/lab-reports/2025/01/d4e5f6a7_blood_test.pdf                            │
+│  abc123/imaging/2025/01/b2c3d4e5_xray_chest.jpg                                │
+│                                                                                 │
+│  FOLDER MAPPING:                                                                │
+│  ───────────────                                                                │
+│  prescription      → prescriptions/                                            │
+│  lab_report        → lab-reports/                                              │
+│  xray, mri, ct     → imaging/                                                  │
+│  ecg               → ecg/                                                      │
+│  discharge_summary → discharge-summaries/                                      │
+│  vaccination       → vaccinations/                                             │
+│  other             → other/                                                    │
+│                                                                                 │
+│  SIGNED URLS:                                                                   │
+│  ────────────                                                                   │
+│  • Default expiry: 1 hour (3600 seconds)                                       │
+│  • Configurable per request                                                    │
+│  • Secure access control                                                       │
+│                                                                                 │
+│  FALLBACK:                                                                      │
+│  ─────────                                                                      │
+│  If Supabase is not configured, automatically falls back to local storage      │
+│  at: media/health_records/documents/                                           │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+WHEN BUILDING NEW FEATURES
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         CHECKLIST FOR NEW APP/FEATURE                           │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  REQUIRED FILES:                                                                │
+│  ───────────────                                                                │
+│  □ apps/{app_name}/__init__.py                                                 │
+│  □ apps/{app_name}/apps.py                                                     │
+│  □ apps/{app_name}/models.py                                                   │
+│  □ apps/{app_name}/serializers.py                                              │
+│  □ apps/{app_name}/views.py                                                    │
+│  □ apps/{app_name}/urls.py                                                     │
+│  □ apps/{app_name}/admin.py                                                    │
+│                                                                                 │
+│  OPTIONAL FILES (as needed):                                                    │
+│  ──────────────────────────                                                     │
+│  □ apps/{app_name}/services/__init__.py                                        │
+│  □ apps/{app_name}/services/{service_name}.py                                  │
+│  □ apps/{app_name}/signals.py                                                  │
+│  □ apps/{app_name}/scheduler.py (for background tasks)                         │
+│  □ apps/{app_name}/management/__init__.py                                      │
+│  □ apps/{app_name}/management/commands/__init__.py                             │
+│  □ apps/{app_name}/management/commands/{command_name}.py                       │
+│                                                                                 │
+│  CONFIGURATION UPDATES:                                                         │
+│  ──────────────────────                                                         │
+│  □ Add to INSTALLED_APPS in mediconnect/settings/base.py                       │
+│  □ Add URL pattern in mediconnect/urls.py                                      │
+│  □ Create migrations: python manage.py makemigrations {app_name}               │
+│  □ Apply migrations: python manage.py migrate                                  │
+│                                                                                 │
+│  CODE STANDARDS:                                                                │
+│  ───────────────                                                                │
+│  □ Use UUID for primary keys                                                   │
+│  □ Include created_at, updated_at timestamps                                   │
+│  □ Follow response format: {success, message, data}                            │
+│  □ Add error handling and logging                                              │
+│  □ Support multi-language (te, hi, en)                                         │
+│  □ Include health check endpoint                                               │
+│  □ Add to Swagger documentation                                                │
+│                                                                                 │
+│  TESTING:                                                                       │
+│  ────────                                                                       │
+│  □ Test health check: curl http://localhost:8000/api/v1/{app}/health/          │
+│  □ Verify in Swagger: http://localhost:8000/swagger/                           │
+│  □ Create sample data management command                                       │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+FRONTEND REQUIREMENTS (NEXT TO BUILD)
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         REACT PWA FRONTEND REQUIREMENTS                         │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  TECHNOLOGY STACK:                                                              │
+│  ─────────────────                                                              │
+│  • React 18+ with Vite                                                         │
+│  • React Router v6 for navigation                                              │
+│  • Tailwind CSS for styling                                                    │
+│  • React Query v5 for data fetching                                            │
+│  • Zustand for state management                                                │
+│  • i18next for internationalization                                            │
+│  • Workbox for PWA service worker                                              │
+│  • Web Speech API for voice                                                    │
+│                                                                                 │
+│  KEY SCREENS NEEDED:                                                            │
+│  ───────────────────                                                            │
+│                                                                                 │
+│  AUTHENTICATION:                                                                │
+│  □ Phone number entry                                                          │
+│  □ OTP verification                                                            │
+│  □ Role selection (Patient/Doctor)                                             │
+│  □ Profile setup                                                               │
+│                                                                                 │
+│  PATIENT SCREENS:                                                               │
+│  □ Home dashboard                                                              │
+│  □ Symptom checker (with voice input)                                          │
+│  □ AI Chatbot                                                                  │
+│  □ Book appointment                                                            │
+│  □ My appointments                                                             │
+│  □ Video consultation (Jitsi embed)                                            │
+│  □ Medicine reminders                                                          │
+│  □ Health records                                                              │
+│  □ Emergency SOS                                                               │
+│  □ Settings & profile                                                          │
+│                                                                                 │
+│  DOCTOR SCREENS:                                                                │
+│  □ Dashboard                                                                   │
+│  □ Today's appointments                                                        │
+│  □ Patient queue                                                               │
+│  □ Video consultation (Jitsi embed)                                            │
+│  □ Consultation notes (SOAP)                                                   │
+│  □ Write prescription                                                          │
+│  □ Patient records viewer                                                      │
+│  □ Schedule management                                                         │
+│  □ Settings & profile                                                          │
+│                                                                                 │
+│  PWA FEATURES:                                                                  │
+│  ────────────                                                                   │
+│  □ Installable on home screen                                                  │
+│  □ Offline mode with cached data                                               │
+│  □ Push notifications                                                          │
+│  □ Background sync                                                             │
+│                                                                                 │
+│  ACCESSIBILITY:                                                                 │
+│  ──────────────                                                                 │
+│  □ Large touch targets (min 48x48px)                                           │
+│  □ High contrast colors                                                        │
+│  □ Voice input/output                                                          │
+│  □ Simple navigation                                                           │
+│  □ Minimal text, more icons                                                    │
+│  □ Telugu, Hindi, English toggle                                               │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+DEPLOYMENT PLAN
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         DEPLOYMENT ARCHITECTURE                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│                              USERS                                              │
+│                                │                                                │
+│                                ▼                                                │
+│                    ┌──────────────────────┐                                    │
+│                    │      VERCEL          │                                    │
+│                    │   (Frontend PWA)     │                                    │
+│                    │      FREE            │                                    │
+│                    └──────────┬───────────┘                                    │
+│                               │                                                │
+│                               ▼                                                │
+│                    ┌──────────────────────┐                                    │
+│                    │      RENDER          │                                    │
+│                    │   (Django Backend)   │                                    │
+│                    │   FREE (750 hrs)     │                                    │
+│                    └──────────┬───────────┘                                    │
+│                               │                                                │
+│              ┌────────────────┼────────────────┐                               │
+│              ▼                ▼                ▼                               │
+│    ┌─────────────────┐ ┌─────────────┐ ┌─────────────────┐                    │
+│    │    SUPABASE     │ │  FIREBASE   │ │  EXTERNAL APIs  │                    │
+│    │   PostgreSQL    │ │   Auth      │ │  Groq AI        │                    │
+│    │   Storage       │ │   FCM       │ │  Jitsi Meet     │                    │
+│    │   FREE          │ │   FREE      │ │  FREE           │                    │
+│    └─────────────────┘ └─────────────┘ └─────────────────┘                    │
+│                                                                                 │
+│  MONTHLY COST: $0                                                              │
+│                                                                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  DEPLOYMENT STEPS:                                                              │
+│  ─────────────────                                                              │
+│                                                                                 │
+│  1. SUPABASE SETUP:                                                            │
+│     □ Create project at supabase.com                                          │
+│     □ Get connection string for PostgreSQL                                    │
+│     □ Create storage bucket "health-records"                                  │
+│     □ Copy API keys                                                           │
+│                                                                                 │
+│  2. FIREBASE SETUP:                                                            │
+│     □ Create project at firebase.google.com                                   │
+│     □ Enable Phone Authentication                                             │
+│     □ Enable Cloud Messaging                                                  │
+│     □ Download service account JSON                                           │
+│                                                                                 │
+│  3. RENDER BACKEND:                                                            │
+│     □ Connect GitHub repository                                               │
+│     □ Set environment variables                                               │
+│     □ Deploy from main branch                                                 │
+│     □ Run migrations                                                          │
+│                                                                                 │
+│  4. VERCEL FRONTEND:                                                           │
+│     □ Connect GitHub repository                                               │
+│     □ Set environment variables                                               │
+│     □ Deploy from main branch                                                 │
+│     □ Configure custom domain (optional)                                      │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+QUICK REFERENCE COMMANDS
+===================================================================================
+Bash
+
+# ===========================================
+# DEVELOPMENT SETUP
+# ===========================================
+
+# Clone and setup
+git clone https://github.com/yourusername/mediconnect.git
+cd mediconnect/backend
+
+# Create virtual environment
+python -m venv venv
+venv\Scripts\activate          # Windows
+source venv/bin/activate       # Linux/Mac
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Setup database
+python manage.py migrate
+
+# Load all sample data
+python manage.py load_all_medical_data
+python manage.py load_chatbot_data
+python manage.py load_notification_templates
+python manage.py load_emergency_data
+python manage.py load_medicine_data
+python manage.py create_test_users
+python manage.py load_sample_appointments
+python manage.py load_consultation_data
+python manage.py load_health_records_data
+
+# Train ML models
+python manage.py train_models
+
+# Start server
+python manage.py runserver
+
+# ===========================================
+# TESTING
+# ===========================================
+
+# Test all health endpoints
+curl http://localhost:8000/api/v1/chatbot/health/
+curl http://localhost:8000/api/v1/diagnosis/health/
+curl http://localhost:8000/api/v1/health-records/health/
+
+# Open Swagger docs
+start http://localhost:8000/swagger/     # Windows
+open http://localhost:8000/swagger/      # Mac
+xdg-open http://localhost:8000/swagger/  # Linux
+===================================================================================
+INSTRUCTIONS FOR AI ASSISTANT
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                 │
+│  WHEN HELPING WITH THIS PROJECT, ALWAYS:                                        │
+│  ────────────────────────────────────────                                       │
+│                                                                                 │
+│  1. Use "mediconnect" as Django config folder (NOT "config")                   │
+│  2. Use "phone" field (NOT "phone_number") for User model                      │
+│  3. Use "role" field with values 'patient' or 'doctor'                         │
+│  4. Provide complete files, not partial code snippets                          │
+│  5. Include error handling and logging                                         │
+│  6. Follow the existing response format: {success, message, data}              │
+│  7. Support multi-language (Telugu, Hindi, English)                            │
+│  8. Use only FREE tier services                                                │
+│  9. Consider village users (simple UI, voice support, offline)                 │
+│  10. No Docker - use simple local setup                                        │
+│                                                                                 │
+│  WHEN ASKED TO BUILD A NEW FEATURE:                                            │
+│  ──────────────────────────────────                                            │
+│                                                                                 │
+│  • Provide ALL required files (models, serializers, views, urls, admin)        │
+│  • Include services if business logic is complex                               │
+│  • Add management commands for sample data                                     │
+│  • Update main urls.py and settings                                            │
+│  • Include health check endpoint                                               │
+│  • Follow patterns from existing completed apps                                │
+│                                                                                 │
+│  WHEN ASKED ABOUT THE PROJECT:                                                  │
+│  ─────────────────────────────                                                  │
+│                                                                                 │
+│  • Refer to this context document for accurate information                     │
+│  • The backend is 90% complete (9/10 apps)                                     │
+│  • The frontend (React PWA) has NOT been started yet                           │
+│  • All services use FREE tier only                                             │
+│  • Target users are rural/village population in India                          │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+VERSION HISTORY
+===================================================================================
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  VERSION   │  DATE           │  CHANGES                                        │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  1.0       │  Jan 2025       │  Initial 8 apps complete                        │
+│  2.0       │  Jan 27, 2025   │  Added Health Records App with Supabase Storage │
+│            │                 │  Updated to 9/10 backend apps complete          │
+│            │                 │  Added comprehensive project context             │
+│            │                 │  365+ API endpoints documented                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+===================================================================================
+END OF PROJECT CONTEXT
+===================================================================================
+This comprehensive project context document provides all the information needed for any AI assistant to understand and help with the MediConnect healthcare platform project. It includes:
+
+✅ Complete project overview and philosophy
+✅ Target user personas with specific needs
+✅ Full technology stack details
+✅ Detailed documentation of all 9 completed apps
+✅ 365+ API endpoints reference
+✅ Background scheduler jobs
+✅ Management commands
+✅ Environment variables
+✅ Development and testing commands
+✅ Deployment plan
+✅ Frontend requirements
+✅ Coding standards and best practices
+✅ Critical rules for AI assistants
+
+Observe this and then give me how the frontend should be meaning What tabs are there for patient, then Doctor and admin and also explain what should be there in each tab (meaning features or elements should be there). First give me for Patient and when I ask for doctor then give me details for doctor and then for admin when I ask for admin details
