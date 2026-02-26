@@ -1,4 +1,3 @@
-// src/pages/doctor/Appointments.jsx
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +12,6 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  Filter,
   Search,
   MoreVertical,
   Play,
@@ -27,30 +25,35 @@ import {
   UserX,
   Timer,
   MapPin,
-  Plus,
   Download,
-  Bell,
   Building,
   Loader2
 } from 'lucide-react';
-import { 
-  format, 
-  addDays, 
-  subDays, 
-  startOfWeek, 
-  endOfWeek, 
-  eachDayOfInterval, 
-  isSameDay, 
-  isToday, 
-  isPast, 
+import {
+  format,
+  addDays,
+  subDays,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  isSameDay,
+  isToday,
+  isPast,
   parseISO,
-  differenceInMinutes 
+  differenceInMinutes
 } from 'date-fns';
 import toast from 'react-hot-toast';
 
 import { useAuth } from '../../hooks/useAuth';
-import { useLanguage } from '../../hooks/useLanguage';
-import { appointmentService, consultationService } from '../../services/api';
+import {
+  getAppointments,
+  checkInAppointment,
+  confirmAppointment,
+  cancelAppointment,
+  startAppointment,
+  markNoShow,
+  completeAppointment
+} from '../../services/api/appointmentService';
 import {
   Card,
   Button,
@@ -58,9 +61,7 @@ import {
   Avatar,
   Loader,
   EmptyState,
-  Modal,
-  SearchInput,
-  Select
+  Modal
 } from '../../components/common';
 
 // ============================================================================
@@ -68,65 +69,65 @@ import {
 // ============================================================================
 
 const STATUS_CONFIG = {
-  pending: { 
-    color: 'warning', 
-    icon: Clock, 
+  pending: {
+    color: 'warning',
+    icon: Clock,
     label: 'Pending',
     bgColor: 'bg-amber-50',
     textColor: 'text-amber-700',
     borderColor: 'border-amber-200'
   },
-  confirmed: { 
-    color: 'success', 
-    icon: CheckCircle, 
+  confirmed: {
+    color: 'success',
+    icon: CheckCircle,
     label: 'Confirmed',
     bgColor: 'bg-green-50',
     textColor: 'text-green-700',
     borderColor: 'border-green-200'
   },
-  checked_in: { 
-    color: 'info', 
-    icon: UserCheck, 
+  checked_in: {
+    color: 'info',
+    icon: UserCheck,
     label: 'Checked In',
     bgColor: 'bg-blue-50',
     textColor: 'text-blue-700',
     borderColor: 'border-blue-200'
   },
-  in_progress: { 
-    color: 'primary', 
-    icon: Video, 
+  in_progress: {
+    color: 'primary',
+    icon: Video,
     label: 'In Progress',
     bgColor: 'bg-primary-50',
     textColor: 'text-primary-700',
     borderColor: 'border-primary-200'
   },
-  completed: { 
-    color: 'success', 
-    icon: CheckCircle, 
+  completed: {
+    color: 'success',
+    icon: CheckCircle,
     label: 'Completed',
     bgColor: 'bg-green-50',
     textColor: 'text-green-700',
     borderColor: 'border-green-200'
   },
-  cancelled: { 
-    color: 'danger', 
-    icon: XCircle, 
+  cancelled: {
+    color: 'danger',
+    icon: XCircle,
     label: 'Cancelled',
     bgColor: 'bg-red-50',
     textColor: 'text-red-700',
     borderColor: 'border-red-200'
   },
-  no_show: { 
-    color: 'danger', 
-    icon: UserX, 
+  no_show: {
+    color: 'danger',
+    icon: UserX,
     label: 'No Show',
     bgColor: 'bg-red-50',
     textColor: 'text-red-700',
     borderColor: 'border-red-200'
   },
-  rescheduled: { 
-    color: 'warning', 
-    icon: Calendar, 
+  rescheduled: {
+    color: 'warning',
+    icon: Calendar,
     label: 'Rescheduled',
     bgColor: 'bg-amber-50',
     textColor: 'text-amber-700',
@@ -145,9 +146,6 @@ const BOOKING_TYPE_CONFIG = {
 // HELPER FUNCTIONS
 // ============================================================================
 
-/**
- * Format time from HH:MM:SS to readable format
- */
 const formatTime = (timeString) => {
   if (!timeString) return '';
   try {
@@ -161,9 +159,6 @@ const formatTime = (timeString) => {
   }
 };
 
-/**
- * Format date string to readable format
- */
 const formatDate = (dateString, formatStr = 'MMM d, yyyy') => {
   if (!dateString) return '';
   try {
@@ -173,40 +168,28 @@ const formatDate = (dateString, formatStr = 'MMM d, yyyy') => {
   }
 };
 
-/**
- * Calculate duration in minutes between two time strings
- */
-const calculateDuration = (startTime, endTime) => {
-  if (!startTime || !endTime) return null;
+const calculateDuration = (startTimeStr, endTimeStr) => {
+  if (!startTimeStr || !endTimeStr) return null;
   try {
     const today = format(new Date(), 'yyyy-MM-dd');
-    const start = parseISO(`${today}T${startTime}`);
-    const end = parseISO(`${today}T${endTime}`);
+    const start = parseISO(`${today}T${startTimeStr}`);
+    const end = parseISO(`${today}T${endTimeStr}`);
     return differenceInMinutes(end, start);
   } catch {
     return null;
   }
 };
 
-/**
- * Extract error message from API error response
- */
 const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
-  if (error?.response?.data?.error?.message) {
-    return error.response.data.error.message;
+  if (error?.response?.data?.message) return error.response.data.message;
+  if (error?.response?.data && typeof error.response.data === 'object') {
+    const fieldErrors = Object.values(error.response.data).flat();
+    if (fieldErrors.length > 0) return fieldErrors.join(', ');
   }
-  if (error?.response?.data?.message) {
-    return error.response.data.message;
-  }
-  if (error?.message) {
-    return error.message;
-  }
+  if (error?.message) return error.message;
   return fallbackMessage;
 };
 
-/**
- * Parse symptoms string to array
- */
 const parseSymptoms = (symptoms) => {
   if (!symptoms) return [];
   if (Array.isArray(symptoms)) return symptoms;
@@ -220,15 +203,12 @@ const parseSymptoms = (symptoms) => {
 // SUB-COMPONENTS
 // ============================================================================
 
-/**
- * Date Navigation Header
- */
-const DateNavigationHeader = ({ 
-  selectedDate, 
-  onDateChange, 
-  viewMode, 
+const DateNavigationHeader = ({
+  selectedDate,
+  onDateChange,
+  viewMode,
   onViewModeChange,
-  onOpenCalendar 
+  onOpenCalendar
 }) => {
   const { t } = useTranslation();
 
@@ -240,9 +220,7 @@ const DateNavigationHeader = ({
     onDateChange(viewMode === 'week' ? addDays(selectedDate, 7) : addDays(selectedDate, 1));
   };
 
-  const handleToday = () => {
-    onDateChange(new Date());
-  };
+  const handleToday = () => onDateChange(new Date());
 
   const getDateLabel = () => {
     if (viewMode === 'week') {
@@ -255,17 +233,10 @@ const DateNavigationHeader = ({
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-xl border border-gray-200 p-4">
-      {/* Date Navigation */}
       <div className="flex items-center gap-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handlePrevious}
-          className="p-2"
-        >
+        <Button variant="outline" size="sm" onClick={handlePrevious} className="p-2">
           <ChevronLeft className="w-5 h-5" />
         </Button>
-        
         <button
           onClick={onOpenCalendar}
           className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
@@ -273,35 +244,23 @@ const DateNavigationHeader = ({
           <CalendarDays className="w-5 h-5 text-primary-600" />
           <span className="font-semibold text-gray-900">{getDateLabel()}</span>
         </button>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleNext}
-          className="p-2"
-        >
+        <Button variant="outline" size="sm" onClick={handleNext} className="p-2">
           <ChevronRight className="w-5 h-5" />
         </Button>
-
         {!isToday(selectedDate) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToday}
-          >
+          <Button variant="ghost" size="sm" onClick={handleToday}>
             {t('common.today', 'Today')}
           </Button>
         )}
       </div>
 
-      {/* View Mode Toggle */}
       <div className="flex items-center gap-2">
         <div className="flex items-center bg-gray-100 rounded-lg p-1">
           <button
             onClick={() => onViewModeChange('day')}
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
-              viewMode === 'day' 
-                ? 'bg-white text-gray-900 shadow-sm' 
+              viewMode === 'day'
+                ? 'bg-white text-gray-900 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -311,8 +270,8 @@ const DateNavigationHeader = ({
           <button
             onClick={() => onViewModeChange('week')}
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
-              viewMode === 'week' 
-                ? 'bg-white text-gray-900 shadow-sm' 
+              viewMode === 'week'
+                ? 'bg-white text-gray-900 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -325,24 +284,19 @@ const DateNavigationHeader = ({
   );
 };
 
-/**
- * Stats Summary Component
- */
 const StatsSummary = ({ appointments }) => {
   const { t } = useTranslation();
 
-  const stats = useMemo(() => {
-    const total = appointments.length;
-    const confirmed = appointments.filter(a => a.status === 'confirmed').length;
-    const completed = appointments.filter(a => a.status === 'completed').length;
-    const cancelled = appointments.filter(a => a.status === 'cancelled').length;
-    const pending = appointments.filter(a => a.status === 'pending').length;
-    const checkedIn = appointments.filter(a => a.status === 'checked_in').length;
-    const inProgress = appointments.filter(a => a.status === 'in_progress').length;
-    const noShow = appointments.filter(a => a.status === 'no_show').length;
-
-    return { total, confirmed, completed, cancelled, pending, checkedIn, inProgress, noShow };
-  }, [appointments]);
+  const stats = useMemo(() => ({
+    total: appointments.length,
+    pending: appointments.filter(a => a.status === 'pending').length,
+    confirmed: appointments.filter(a => a.status === 'confirmed').length,
+    checkedIn: appointments.filter(a => a.status === 'checked_in').length,
+    inProgress: appointments.filter(a => a.status === 'in_progress').length,
+    completed: appointments.filter(a => a.status === 'completed').length,
+    cancelled: appointments.filter(a => a.status === 'cancelled').length,
+    noShow: appointments.filter(a => a.status === 'no_show').length,
+  }), [appointments]);
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
@@ -352,67 +306,64 @@ const StatsSummary = ({ appointments }) => {
       </div>
       <div className="bg-amber-50 rounded-xl border border-amber-100 p-3 text-center">
         <p className="text-2xl font-bold text-amber-700">{stats.pending}</p>
-        <p className="text-xs text-amber-600">{t('status.pending', 'Pending')}</p>
+        <p className="text-xs text-amber-600">Pending</p>
       </div>
       <div className="bg-green-50 rounded-xl border border-green-100 p-3 text-center">
         <p className="text-2xl font-bold text-green-700">{stats.confirmed}</p>
-        <p className="text-xs text-green-600">{t('status.confirmed', 'Confirmed')}</p>
+        <p className="text-xs text-green-600">Confirmed</p>
       </div>
       <div className="bg-blue-50 rounded-xl border border-blue-100 p-3 text-center">
         <p className="text-2xl font-bold text-blue-700">{stats.checkedIn}</p>
-        <p className="text-xs text-blue-600">{t('status.checkedIn', 'Checked In')}</p>
+        <p className="text-xs text-blue-600">Checked In</p>
       </div>
       <div className="bg-primary-50 rounded-xl border border-primary-100 p-3 text-center">
         <p className="text-2xl font-bold text-primary-700">{stats.inProgress}</p>
-        <p className="text-xs text-primary-600">{t('status.inProgress', 'In Progress')}</p>
+        <p className="text-xs text-primary-600">In Progress</p>
       </div>
       <div className="bg-green-50 rounded-xl border border-green-100 p-3 text-center">
         <p className="text-2xl font-bold text-green-700">{stats.completed}</p>
-        <p className="text-xs text-green-600">{t('status.completed', 'Completed')}</p>
+        <p className="text-xs text-green-600">Completed</p>
       </div>
       <div className="bg-red-50 rounded-xl border border-red-100 p-3 text-center">
         <p className="text-2xl font-bold text-red-700">{stats.cancelled}</p>
-        <p className="text-xs text-red-600">{t('status.cancelled', 'Cancelled')}</p>
+        <p className="text-xs text-red-600">Cancelled</p>
       </div>
       <div className="bg-red-50 rounded-xl border border-red-100 p-3 text-center">
         <p className="text-2xl font-bold text-red-700">{stats.noShow}</p>
-        <p className="text-xs text-red-600">{t('status.noShow', 'No Show')}</p>
+        <p className="text-xs text-red-600">No Show</p>
       </div>
     </div>
   );
 };
 
-/**
- * Filters Bar Component
- */
-const FiltersBar = ({ 
-  searchQuery, 
-  onSearchChange, 
-  statusFilter, 
+const FiltersBar = ({
+  searchQuery,
+  onSearchChange,
+  statusFilter,
   onStatusChange,
   bookingTypeFilter,
   onBookingTypeChange,
-  onClearFilters 
+  onClearFilters
 }) => {
   const { t } = useTranslation();
 
   const statusOptions = [
-    { value: '', label: t('common.allStatuses', 'All Statuses') },
-    { value: 'pending', label: t('status.pending', 'Pending') },
-    { value: 'confirmed', label: t('status.confirmed', 'Confirmed') },
-    { value: 'checked_in', label: t('status.checkedIn', 'Checked In') },
-    { value: 'in_progress', label: t('status.inProgress', 'In Progress') },
-    { value: 'completed', label: t('status.completed', 'Completed') },
-    { value: 'cancelled', label: t('status.cancelled', 'Cancelled') },
-    { value: 'no_show', label: t('status.noShow', 'No Show') }
+    { value: '', label: 'All Statuses' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'confirmed', label: 'Confirmed' },
+    { value: 'checked_in', label: 'Checked In' },
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'cancelled', label: 'Cancelled' },
+    { value: 'no_show', label: 'No Show' }
   ];
 
   const bookingTypeOptions = [
-    { value: '', label: t('common.allTypes', 'All Types') },
-    { value: 'online', label: t('bookingType.online', 'Online') },
-    { value: 'walk_in', label: t('bookingType.walkIn', 'Walk-in') },
-    { value: 'phone', label: t('bookingType.phone', 'Phone') },
-    { value: 'follow_up', label: t('bookingType.followUp', 'Follow-up') }
+    { value: '', label: 'All Types' },
+    { value: 'online', label: 'Online' },
+    { value: 'walk_in', label: 'Walk-in' },
+    { value: 'phone', label: 'Phone' },
+    { value: 'follow_up', label: 'Follow-up' }
   ];
 
   const hasFilters = searchQuery || statusFilter || bookingTypeFilter;
@@ -429,59 +380,45 @@ const FiltersBar = ({
           className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
         />
       </div>
-      
       <select
         value={statusFilter}
         onChange={(e) => onStatusChange(e.target.value)}
         className="px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
       >
         {statusOptions.map(option => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
+          <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </select>
-      
       <select
         value={bookingTypeFilter}
         onChange={(e) => onBookingTypeChange(e.target.value)}
         className="px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
       >
         {bookingTypeOptions.map(option => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
+          <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </select>
-
       {hasFilters && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClearFilters}
-          className="text-gray-500 whitespace-nowrap"
-        >
+        <Button variant="ghost" size="sm" onClick={onClearFilters} className="text-gray-500 whitespace-nowrap">
           <XCircle className="w-4 h-4 mr-1" />
-          {t('common.clear', 'Clear')}
+          Clear
         </Button>
       )}
     </div>
   );
 };
 
-/**
- * Appointment Card Component
- */
-const AppointmentCard = ({ 
-  appointment, 
-  onStart, 
+const AppointmentCard = ({
+  appointment,
+  onStart,
+  onCheckIn,
   onConfirm,
-  onCancel, 
+  onCancel,
   onReschedule,
   onViewDetails,
   onViewPatient,
   onMarkNoShow,
-  processingId 
+  processingId
 }) => {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
@@ -490,19 +427,13 @@ const AppointmentCard = ({
   const bookingTypeConfig = BOOKING_TYPE_CONFIG[appointment.booking_type] || BOOKING_TYPE_CONFIG.online;
   const StatusIcon = statusConfig.icon;
   const BookingIcon = bookingTypeConfig.icon;
-  
-  // Calculate if appointment can be started
-  const appointmentDateTime = parseISO(`${appointment.appointment_date}T${appointment.start_time}`);
-  const isPastAppointment = isPast(appointmentDateTime);
-  const canStart = ['confirmed', 'checked_in'].includes(appointment.status);
+
+  const canStart = appointment.status === 'checked_in';
+  const canCheckIn = appointment.status === 'confirmed';
   const canConfirm = appointment.status === 'pending';
-  const canMarkNoShow = ['confirmed', 'checked_in'].includes(appointment.status) && isPastAppointment;
+  const canMarkNoShow = ['confirmed', 'checked_in', 'pending'].includes(appointment.status);
   const isProcessing = processingId === appointment.id;
-
-  // Calculate duration
   const duration = calculateDuration(appointment.start_time, appointment.end_time);
-
-  // Parse symptoms
   const symptoms = parseSymptoms(appointment.symptoms);
 
   return (
@@ -521,58 +452,46 @@ const AppointmentCard = ({
           <div className="flex items-center justify-center gap-1 mt-2">
             <Badge variant={bookingTypeConfig.color} size="sm">
               <BookingIcon className="w-3 h-3 mr-1" />
-              {bookingTypeConfig.label}
+              {appointment.booking_type_display || bookingTypeConfig.label}
             </Badge>
           </div>
           {duration && (
-            <p className="text-xs text-gray-500 mt-1">
-              {duration} {t('common.min', 'min')}
-            </p>
+            <p className="text-xs text-gray-500 mt-1">{duration} min</p>
           )}
         </div>
 
-        {/* Divider */}
         <div className="w-px h-24 bg-gray-200 flex-shrink-0" />
 
-        {/* Patient Info */}
+        {/* Patient Info - using backend serializer fields */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <Avatar
-                name={appointment.patient_name}
-                size="md"
-              />
+              <Avatar name={appointment.patient_name} size="md" />
               <div>
                 <h4 className="font-semibold text-gray-900 truncate">
                   {appointment.patient_name}
                 </h4>
                 {appointment.patient_phone && (
-                  <p className="text-sm text-gray-500">
-                    {appointment.patient_phone}
-                  </p>
+                  <p className="text-sm text-gray-500">{appointment.patient_phone}</p>
                 )}
               </div>
             </div>
-
-            {/* Status Badge */}
             <Badge variant={statusConfig.color} className="flex-shrink-0">
               <StatusIcon className="w-3 h-3 mr-1" />
-              {statusConfig.label}
+              {appointment.status_display || statusConfig.label}
             </Badge>
           </div>
 
-          {/* Reason */}
           {appointment.reason && (
             <p className="text-sm text-gray-600 mt-2 line-clamp-2">
               <span className="font-medium">Reason:</span> {appointment.reason}
             </p>
           )}
 
-          {/* Symptoms */}
           {symptoms.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {symptoms.slice(0, 3).map((symptom, index) => (
-                <span 
+                <span
                   key={index}
                   className="px-2 py-0.5 bg-white rounded-full text-xs text-gray-600 border border-gray-200"
                 >
@@ -587,7 +506,6 @@ const AppointmentCard = ({
             </div>
           )}
 
-          {/* Patient Notes */}
           {appointment.patient_notes && (
             <div className="mt-2 p-2 bg-white/50 rounded-lg border border-gray-100">
               <p className="text-xs text-gray-500 line-clamp-1">
@@ -597,7 +515,6 @@ const AppointmentCard = ({
             </div>
           )}
 
-          {/* Queue Number */}
           {appointment.queue_number && (
             <div className="mt-2">
               <Badge variant="secondary" size="sm">
@@ -617,10 +534,20 @@ const AppointmentCard = ({
               onClick={() => onStart(appointment)}
               disabled={isProcessing}
             >
-              {t('common.start', 'Start')}
+              Start
             </Button>
           )}
-
+          {canCheckIn && (
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
+              onClick={() => onCheckIn(appointment.id)}
+              disabled={isProcessing}
+            >
+              Check In
+            </Button>
+          )}
           {canConfirm && (
             <Button
               variant="success"
@@ -629,85 +556,57 @@ const AppointmentCard = ({
               onClick={() => onConfirm(appointment.id)}
               disabled={isProcessing}
             >
-              {t('common.confirm', 'Confirm')}
+              Confirm
             </Button>
           )}
 
-          {/* More Actions */}
           <div className="relative">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowActions(!showActions)}
-              className="p-2"
-            >
+            <Button variant="ghost" size="sm" onClick={() => setShowActions(!showActions)} className="p-2">
               <MoreVertical className="w-4 h-4" />
             </Button>
-
             {showActions && (
               <>
-                <div 
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowActions(false)}
-                />
+                <div className="fixed inset-0 z-10" onClick={() => setShowActions(false)} />
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
                   <button
-                    onClick={() => {
-                      onViewDetails(appointment);
-                      setShowActions(false);
-                    }}
+                    onClick={() => { onViewDetails(appointment); setShowActions(false); }}
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
                     <Calendar className="w-4 h-4" />
-                    {t('doctor.viewDetails', 'View Details')}
+                    View Details
                   </button>
                   <button
-                    onClick={() => {
-                      onViewPatient(appointment.patient_id);
-                      setShowActions(false);
-                    }}
+                    onClick={() => { onViewPatient(appointment.patient_id); setShowActions(false); }}
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
                     <FileText className="w-4 h-4" />
-                    {t('doctor.viewPatientRecords', 'View Patient Records')}
+                    Patient Records
                   </button>
-                  
                   {!['completed', 'cancelled', 'no_show'].includes(appointment.status) && (
                     <>
                       <hr className="my-1 border-gray-100" />
-                      
                       {canMarkNoShow && (
                         <button
-                          onClick={() => {
-                            onMarkNoShow(appointment.id);
-                            setShowActions(false);
-                          }}
+                          onClick={() => { onMarkNoShow(appointment.id); setShowActions(false); }}
                           className="w-full px-4 py-2 text-left text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2"
                         >
                           <UserX className="w-4 h-4" />
-                          {t('doctor.markNoShow', 'Mark No Show')}
+                          Mark No Show
                         </button>
                       )}
-                      
                       <button
-                        onClick={() => {
-                          onReschedule(appointment);
-                          setShowActions(false);
-                        }}
+                        onClick={() => { onReschedule(appointment); setShowActions(false); }}
                         className="w-full px-4 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2"
                       >
                         <Clock className="w-4 h-4" />
-                        {t('common.reschedule', 'Reschedule')}
+                        Reschedule
                       </button>
                       <button
-                        onClick={() => {
-                          onCancel(appointment);
-                          setShowActions(false);
-                        }}
+                        onClick={() => { onCancel(appointment); setShowActions(false); }}
                         className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                       >
                         <XCircle className="w-4 h-4" />
-                        {t('common.cancel', 'Cancel')}
+                        Cancel
                       </button>
                     </>
                   )}
@@ -721,18 +620,13 @@ const AppointmentCard = ({
   );
 };
 
-/**
- * Week View Component
- */
-const WeekView = ({ 
-  selectedDate, 
-  appointments, 
+const WeekView = ({
+  selectedDate,
+  appointments,
   onDateSelect,
   onAppointmentClick,
-  isLoading 
+  isLoading
 }) => {
-  const { t } = useTranslation();
-
   const weekDays = useMemo(() => {
     const start = startOfWeek(selectedDate, { weekStartsOn: 1 });
     const end = endOfWeek(selectedDate, { weekStartsOn: 1 });
@@ -740,7 +634,7 @@ const WeekView = ({
   }, [selectedDate]);
 
   const getAppointmentsForDay = (day) => {
-    return appointments.filter(apt => 
+    return appointments.filter(apt =>
       isSameDay(parseISO(apt.appointment_date), day)
     );
   };
@@ -756,65 +650,46 @@ const WeekView = ({
           <div
             key={day.toISOString()}
             className={`min-h-[200px] rounded-xl border p-2 cursor-pointer transition-all hover:shadow-md ${
-              isCurrentDay 
-                ? 'bg-primary-50 border-primary-200' 
+              isCurrentDay
+                ? 'bg-primary-50 border-primary-200'
                 : isPastDay
                 ? 'bg-gray-50 border-gray-100'
                 : 'bg-white border-gray-200'
             }`}
             onClick={() => onDateSelect(day)}
           >
-            {/* Day Header */}
             <div className="text-center mb-2 pb-2 border-b border-gray-100">
-              <p className="text-xs text-gray-500 uppercase">
-                {format(day, 'EEE')}
-              </p>
-              <p className={`text-lg font-bold ${
-                isCurrentDay ? 'text-primary-600' : 'text-gray-900'
-              }`}>
+              <p className="text-xs text-gray-500 uppercase">{format(day, 'EEE')}</p>
+              <p className={`text-lg font-bold ${isCurrentDay ? 'text-primary-600' : 'text-gray-900'}`}>
                 {format(day, 'd')}
               </p>
             </div>
-
-            {/* Loading */}
             {isLoading ? (
               <div className="flex justify-center py-4">
                 <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
               </div>
             ) : (
-              <>
-                {/* Appointments */}
-                <div className="space-y-1">
-                  {dayAppointments.slice(0, 4).map((apt) => {
-                    const statusConfig = STATUS_CONFIG[apt.status] || STATUS_CONFIG.pending;
-                    return (
-                      <div
-                        key={apt.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAppointmentClick(apt);
-                        }}
-                        className={`p-1.5 rounded text-xs truncate cursor-pointer hover:opacity-80 ${statusConfig.bgColor} ${statusConfig.textColor}`}
-                      >
-                        <span className="font-medium">{formatTime(apt.start_time)}</span>
-                        <span className="ml-1 opacity-75">{apt.patient_name?.split(' ')[0]}</span>
-                      </div>
-                    );
-                  })}
-                  
-                  {dayAppointments.length > 4 && (
-                    <p className="text-xs text-center text-gray-500 mt-1">
-                      +{dayAppointments.length - 4} {t('common.more', 'more')}
-                    </p>
-                  )}
-
-                  {dayAppointments.length === 0 && (
-                    <p className="text-xs text-center text-gray-400 mt-4">
-                      {t('doctor.noAppointments', 'No appointments')}
-                    </p>
-                  )}
-                </div>
-              </>
+              <div className="space-y-1">
+                {dayAppointments.slice(0, 4).map((apt) => {
+                  const sc = STATUS_CONFIG[apt.status] || STATUS_CONFIG.pending;
+                  return (
+                    <div
+                      key={apt.id}
+                      onClick={(e) => { e.stopPropagation(); onAppointmentClick(apt); }}
+                      className={`p-1.5 rounded text-xs truncate cursor-pointer hover:opacity-80 ${sc.bgColor} ${sc.textColor}`}
+                    >
+                      <span className="font-medium">{formatTime(apt.start_time)}</span>
+                      <span className="ml-1 opacity-75">{apt.patient_name?.split(' ')[0]}</span>
+                    </div>
+                  );
+                })}
+                {dayAppointments.length > 4 && (
+                  <p className="text-xs text-center text-gray-500 mt-1">+{dayAppointments.length - 4} more</p>
+                )}
+                {dayAppointments.length === 0 && (
+                  <p className="text-xs text-center text-gray-400 mt-4">No appointments</p>
+                )}
+              </div>
             )}
           </div>
         );
@@ -823,9 +698,6 @@ const WeekView = ({
   );
 };
 
-/**
- * Appointment Details Modal
- */
 const AppointmentDetailsModal = ({ isOpen, onClose, appointment, onAction, isLoading }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -840,41 +712,27 @@ const AppointmentDetailsModal = ({ isOpen, onClose, appointment, onAction, isLoa
   const duration = calculateDuration(appointment.start_time, appointment.end_time);
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={t('doctor.appointmentDetails', 'Appointment Details')}
-      size="lg"
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title="Appointment Details" size="lg">
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
-            <Avatar
-              name={appointment.patient_name}
-              size="xl"
-            />
+            <Avatar name={appointment.patient_name} size="xl" />
             <div>
-              <h3 className="text-xl font-semibold text-gray-900">
-                {appointment.patient_name}
-              </h3>
-              <div className="flex items-center gap-2 mt-1 text-gray-600">
-                {appointment.patient_phone && (
-                  <span>{appointment.patient_phone}</span>
-                )}
-              </div>
+              <h3 className="text-xl font-semibold text-gray-900">{appointment.patient_name}</h3>
+              {appointment.patient_phone && (
+                <p className="text-gray-600 mt-1">{appointment.patient_phone}</p>
+              )}
             </div>
           </div>
           <Badge variant={statusConfig.color} size="lg">
             <StatusIcon className="w-4 h-4 mr-1" />
-            {statusConfig.label}
+            {appointment.status_display || statusConfig.label}
           </Badge>
         </div>
 
-        {/* Appointment Info */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-gray-50 rounded-xl p-4">
-            <p className="text-sm text-gray-500 mb-1">{t('common.dateTime', 'Date & Time')}</p>
+            <p className="text-sm text-gray-500 mb-1">Date & Time</p>
             <p className="font-semibold text-gray-900">
               {formatDate(appointment.appointment_date, 'EEEE, MMMM d, yyyy')}
             </p>
@@ -884,69 +742,57 @@ const AppointmentDetailsModal = ({ isOpen, onClose, appointment, onAction, isLoa
               {duration && ` (${duration} min)`}
             </p>
           </div>
-          
           <div className="bg-gray-50 rounded-xl p-4">
-            <p className="text-sm text-gray-500 mb-1">{t('common.bookingType', 'Booking Type')}</p>
+            <p className="text-sm text-gray-500 mb-1">Booking Type</p>
             <p className="font-semibold text-gray-900 flex items-center gap-2">
               <BookingIcon className="w-5 h-5 text-primary-600" />
-              {bookingTypeConfig.label}
+              {appointment.booking_type_display || bookingTypeConfig.label}
             </p>
             {appointment.queue_number && (
-              <p className="text-sm text-gray-500 mt-1">
-                Queue #{appointment.queue_number}
-              </p>
+              <p className="text-sm text-gray-500 mt-1">Queue #{appointment.queue_number}</p>
             )}
           </div>
         </div>
 
-        {/* Reason */}
         {appointment.reason && (
           <div>
-            <h4 className="font-medium text-gray-900 mb-2">{t('common.reasonForVisit', 'Reason for Visit')}</h4>
-            <p className="text-gray-700 bg-gray-50 rounded-xl p-4">
-              {appointment.reason}
-            </p>
+            <h4 className="font-medium text-gray-900 mb-2">Reason for Visit</h4>
+            <p className="text-gray-700 bg-gray-50 rounded-xl p-4">{appointment.reason}</p>
           </div>
         )}
 
-        {/* Symptoms */}
         {symptoms.length > 0 && (
           <div>
-            <h4 className="font-medium text-gray-900 mb-2">{t('common.symptoms', 'Symptoms')}</h4>
+            <h4 className="font-medium text-gray-900 mb-2">Symptoms</h4>
             <div className="flex flex-wrap gap-2">
               {symptoms.map((symptom, index) => (
-                <Badge key={index} variant="secondary">
-                  {symptom}
-                </Badge>
+                <Badge key={index} variant="secondary">{symptom}</Badge>
               ))}
             </div>
           </div>
         )}
 
-        {/* Patient Notes */}
         {appointment.patient_notes && (
           <div>
-            <h4 className="font-medium text-gray-900 mb-2">{t('common.patientNotes', 'Patient Notes')}</h4>
+            <h4 className="font-medium text-gray-900 mb-2">Patient Notes</h4>
             <p className="text-gray-700 bg-amber-50 rounded-xl p-4 border border-amber-100">
               {appointment.patient_notes}
             </p>
           </div>
         )}
 
-        {/* Doctor Notes */}
         {appointment.doctor_notes && (
           <div>
-            <h4 className="font-medium text-gray-900 mb-2">{t('common.doctorNotes', 'Doctor Notes')}</h4>
+            <h4 className="font-medium text-gray-900 mb-2">Doctor Notes</h4>
             <p className="text-gray-700 bg-blue-50 rounded-xl p-4 border border-blue-100">
               {appointment.doctor_notes}
             </p>
           </div>
         )}
 
-        {/* Cancellation Info */}
         {appointment.status === 'cancelled' && appointment.cancellation_reason && (
           <div>
-            <h4 className="font-medium text-red-900 mb-2">{t('common.cancellationReason', 'Cancellation Reason')}</h4>
+            <h4 className="font-medium text-red-900 mb-2">Cancellation Reason</h4>
             <p className="text-red-700 bg-red-50 rounded-xl p-4 border border-red-100">
               {appointment.cancellation_reason}
               {appointment.cancelled_by && (
@@ -958,48 +804,45 @@ const AppointmentDetailsModal = ({ isOpen, onClose, appointment, onAction, isLoa
           </div>
         )}
 
-        {/* Timestamps */}
         <div className="text-sm text-gray-500 flex flex-wrap items-center gap-4 border-t border-gray-100 pt-4">
-          <span>
-            {t('common.bookedOn', 'Booked on')}: {formatDate(appointment.created_at, 'MMM d, yyyy h:mm a')}
-          </span>
+          <span>Booked: {formatDate(appointment.created_at, 'MMM d, yyyy h:mm a')}</span>
           {appointment.confirmed_at && (
-            <span>
-              Confirmed: {formatDate(appointment.confirmed_at, 'MMM d, h:mm a')}
-            </span>
+            <span>Confirmed: {formatDate(appointment.confirmed_at, 'MMM d, h:mm a')}</span>
           )}
           {appointment.checked_in_at && (
-            <span>
-              Checked in: {formatDate(appointment.checked_in_at, 'h:mm a')}
-            </span>
+            <span>Checked in: {formatDate(appointment.checked_in_at, 'h:mm a')}</span>
           )}
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex flex-wrap gap-3 mt-6 pt-6 border-t border-gray-100">
         <Button
           variant="outline"
           leftIcon={<FileText className="w-4 h-4" />}
-          onClick={() => {
-            navigate(`/doctor/patients/${appointment.patient_id}`);
-            onClose();
-          }}
+          onClick={() => { navigate(`/doctor/patients/${appointment.patient_id}`); onClose(); }}
         >
-          {t('doctor.viewPatientRecords', 'View Patient Records')}
+          Patient Records
         </Button>
-
-        {['confirmed', 'checked_in'].includes(appointment.status) && (
+        {appointment.status === 'checked_in' && (
           <Button
             variant="primary"
             leftIcon={isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
             onClick={() => onAction('start', appointment)}
             disabled={isLoading}
           >
-            {t('doctor.startConsultation', 'Start Consultation')}
+            Start Consultation
           </Button>
         )}
-
+        {appointment.status === 'confirmed' && (
+          <Button
+            variant="outline"
+            leftIcon={isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
+            onClick={() => onAction('check_in', appointment)}
+            disabled={isLoading}
+          >
+            Check In
+          </Button>
+        )}
         {appointment.status === 'pending' && (
           <Button
             variant="success"
@@ -1007,10 +850,9 @@ const AppointmentDetailsModal = ({ isOpen, onClose, appointment, onAction, isLoa
             onClick={() => onAction('confirm', appointment)}
             disabled={isLoading}
           >
-            {t('common.confirm', 'Confirm')}
+            Confirm
           </Button>
         )}
-
         {!['completed', 'cancelled', 'no_show'].includes(appointment.status) && (
           <>
             <Button
@@ -1019,7 +861,7 @@ const AppointmentDetailsModal = ({ isOpen, onClose, appointment, onAction, isLoa
               onClick={() => onAction('reschedule', appointment)}
               className="text-amber-600 border-amber-300 hover:bg-amber-50"
             >
-              {t('common.reschedule', 'Reschedule')}
+              Reschedule
             </Button>
             <Button
               variant="outline"
@@ -1027,7 +869,7 @@ const AppointmentDetailsModal = ({ isOpen, onClose, appointment, onAction, isLoa
               onClick={() => onAction('cancel', appointment)}
               className="text-red-600 border-red-300 hover:bg-red-50"
             >
-              {t('common.cancel', 'Cancel')}
+              Cancel
             </Button>
           </>
         )}
@@ -1036,50 +878,36 @@ const AppointmentDetailsModal = ({ isOpen, onClose, appointment, onAction, isLoa
   );
 };
 
-/**
- * Cancel Appointment Modal
- */
 const CancelAppointmentModal = ({ isOpen, onClose, appointment, onConfirm, isLoading }) => {
   const { t } = useTranslation();
   const [reason, setReason] = useState('');
 
-  // Reset reason when modal opens
   useEffect(() => {
-    if (isOpen) {
-      setReason('');
-    }
+    if (isOpen) setReason('');
   }, [isOpen]);
 
   const handleConfirm = () => {
     if (!reason.trim()) {
-      toast.error(t('errors.reasonRequired', 'Please enter a reason'));
+      toast.error('Please enter a reason');
       return;
     }
-    onConfirm(appointment.id, { reason: reason.trim() });
+    // ✅ Pass reason as string, not object
+    onConfirm(appointment.id, reason.trim());
   };
 
   if (!appointment) return null;
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={t('doctor.cancelAppointment', 'Cancel Appointment')}
-      size="md"
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title="Cancel Appointment" size="md">
       <div className="space-y-4">
         <div className="flex items-center gap-3 p-3 bg-red-50 rounded-lg border border-red-100">
           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
           <p className="text-sm text-red-700">
-            {t('doctor.cancelAppointmentWarning', 'This action cannot be undone. The patient will be notified about the cancellation.')}
+            This action cannot be undone. The patient will be notified.
           </p>
         </div>
-
         <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-          <Avatar
-            name={appointment.patient_name}
-            size="md"
-          />
+          <Avatar name={appointment.patient_name} size="md" />
           <div>
             <p className="font-medium text-gray-900">{appointment.patient_name}</p>
             <p className="text-sm text-gray-500">
@@ -1087,136 +915,84 @@ const CancelAppointmentModal = ({ isOpen, onClose, appointment, onConfirm, isLoa
             </p>
           </div>
         </div>
-
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t('doctor.cancellationReason', 'Cancellation Reason')} *
+            Cancellation Reason *
           </label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
             className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500"
-            placeholder={t('doctor.enterCancellationReason', 'Enter reason for cancellation...')}
+            placeholder="Enter reason for cancellation..."
             required
           />
         </div>
       </div>
-
       <div className="flex justify-end gap-3 mt-6">
-        <Button variant="outline" onClick={onClose} disabled={isLoading}>
-          {t('common.goBack', 'Go Back')}
-        </Button>
+        <Button variant="outline" onClick={onClose} disabled={isLoading}>Go Back</Button>
         <Button
           variant="danger"
           leftIcon={isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
           onClick={handleConfirm}
           disabled={isLoading || !reason.trim()}
         >
-          {t('common.cancelAppointment', 'Cancel Appointment')}
+          Cancel Appointment
         </Button>
       </div>
     </Modal>
   );
 };
 
-/**
- * Calendar Modal
- */
 const CalendarModal = ({ isOpen, onClose, selectedDate, onDateSelect }) => {
-  const { t } = useTranslation();
   const [viewDate, setViewDate] = useState(selectedDate);
 
   useEffect(() => {
-    if (isOpen) {
-      setViewDate(selectedDate);
-    }
+    if (isOpen) setViewDate(selectedDate);
   }, [isOpen, selectedDate]);
 
   const monthStart = startOfWeek(new Date(viewDate.getFullYear(), viewDate.getMonth(), 1), { weekStartsOn: 1 });
   const monthEnd = endOfWeek(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0), { weekStartsOn: 1 });
   const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-  const handlePrevMonth = () => {
-    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
-  };
-
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={t('common.selectDate', 'Select Date')}
-      size="sm"
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title="Select Date" size="sm">
       <div className="space-y-4">
-        {/* Month Navigation */}
         <div className="flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={handlePrevMonth}>
+          <Button variant="ghost" size="sm" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}>
             <ChevronLeft className="w-5 h-5" />
           </Button>
-          <span className="font-semibold text-gray-900">
-            {format(viewDate, 'MMMM yyyy')}
-          </span>
-          <Button variant="ghost" size="sm" onClick={handleNextMonth}>
+          <span className="font-semibold text-gray-900">{format(viewDate, 'MMMM yyyy')}</span>
+          <Button variant="ghost" size="sm" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}>
             <ChevronRight className="w-5 h-5" />
           </Button>
         </div>
-
-        {/* Calendar Grid */}
         <div className="grid grid-cols-7 gap-1">
-          {/* Day Headers */}
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-            <div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
-              {day}
-            </div>
+            <div key={day} className="text-center text-xs font-medium text-gray-500 py-2">{day}</div>
           ))}
-
-          {/* Days */}
           {calendarDays.map(day => {
             const isCurrentMonth = day.getMonth() === viewDate.getMonth();
             const isSelected = isSameDay(day, selectedDate);
             const isTodayDate = isToday(day);
-
             return (
               <button
                 key={day.toISOString()}
-                onClick={() => {
-                  onDateSelect(day);
-                  onClose();
-                }}
-                className={`
-                  p-2 text-sm rounded-lg transition-colors
-                  ${isSelected 
-                    ? 'bg-primary-600 text-white' 
-                    : isTodayDate
-                    ? 'bg-primary-100 text-primary-700'
-                    : isCurrentMonth
-                    ? 'hover:bg-gray-100 text-gray-900'
-                    : 'text-gray-400 hover:bg-gray-50'
-                  }
-                `}
+                onClick={() => { onDateSelect(day); onClose(); }}
+                className={`p-2 text-sm rounded-lg transition-colors ${
+                  isSelected ? 'bg-primary-600 text-white'
+                  : isTodayDate ? 'bg-primary-100 text-primary-700'
+                  : isCurrentMonth ? 'hover:bg-gray-100 text-gray-900'
+                  : 'text-gray-400 hover:bg-gray-50'
+                }`}
               >
                 {format(day, 'd')}
               </button>
             );
           })}
         </div>
-
-        {/* Quick Actions */}
         <div className="flex gap-2 pt-2 border-t border-gray-100">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              onDateSelect(new Date());
-              onClose();
-            }}
-            className="flex-1"
-          >
+          <Button variant="ghost" size="sm" onClick={() => { onDateSelect(new Date()); onClose(); }} className="flex-1">
             Today
           </Button>
         </div>
@@ -1234,22 +1010,16 @@ const DoctorAppointments = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // State
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [processingId, setProcessingId] = useState(null);
   const [appointments, setAppointments] = useState([]);
   const [error, setError] = useState(null);
 
-  // Filters
   const [selectedDate, setSelectedDate] = useState(() => {
     const dateParam = searchParams.get('date');
     if (dateParam) {
-      try {
-        return parseISO(dateParam);
-      } catch {
-        return new Date();
-      }
+      try { return parseISO(dateParam); } catch { return new Date(); }
     }
     return new Date();
   });
@@ -1258,72 +1028,71 @@ const DoctorAppointments = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [bookingTypeFilter, setBookingTypeFilter] = useState('');
 
-  // Modals
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [appointmentToCancel, setAppointmentToCancel] = useState(null);
 
-  // ============================================================================
-  // API CALLS
-  // ============================================================================
-
-  /**
-   * Fetch appointments for selected date/week
-   */
+  // ✅ FIXED: Fetch using correct API function
   const fetchAppointments = useCallback(async (showRefresh = false) => {
     try {
-      if (showRefresh) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
+      if (showRefresh) setIsRefreshing(true);
+      else setIsLoading(true);
       setError(null);
 
       let allAppointments = [];
 
       if (viewMode === 'week') {
-        // For week view, fetch appointments for each day
         const start = startOfWeek(selectedDate, { weekStartsOn: 1 });
         const end = endOfWeek(selectedDate, { weekStartsOn: 1 });
         const days = eachDayOfInterval({ start, end });
 
-        // Fetch all days in parallel
-        const promises = days.map(day => 
-          appointmentService.getAll({ date: format(day, 'yyyy-MM-dd') })
-            .then(response => response.data?.results || response.data || [])
+        const promises = days.map(day =>
+          getAppointments({ date: format(day, 'yyyy-MM-dd') })
+            .then(response => response.data || [])
             .catch(() => [])
         );
 
         const results = await Promise.all(promises);
         allAppointments = results.flat();
       } else {
-        // For day view, fetch single day
-        const response = await appointmentService.getAll({ 
-          date: format(selectedDate, 'yyyy-MM-dd') 
+        const [selectedDateResponse, pendingResponse] = await Promise.all([
+          getAppointments({
+            date: format(selectedDate, 'yyyy-MM-dd')
+          }),
+          getAppointments({
+            status: 'pending',
+            upcoming: true
+          })
+        ]);
+
+        const selectedDateAppointments = selectedDateResponse?.data || [];
+        const pendingAppointments = pendingResponse?.data || [];
+
+        const uniqueById = new Map();
+        [...selectedDateAppointments, ...pendingAppointments].forEach((appointment) => {
+          if (appointment?.id) {
+            uniqueById.set(appointment.id, appointment);
+          }
         });
-        allAppointments = response.data?.results || response.data || [];
+
+        allAppointments = Array.from(uniqueById.values());
       }
 
       setAppointments(allAppointments);
-
     } catch (err) {
       console.error('Error fetching appointments:', err);
-      setError(getErrorMessage(err, t('errors.failedToLoadAppointments', 'Failed to load appointments')));
+      setError(getErrorMessage(err, 'Failed to load appointments'));
       setAppointments([]);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [selectedDate, viewMode, t]);
+  }, [selectedDate, viewMode]);
 
-  // Initial load and date/view change
-  useEffect(() => {
-    fetchAppointments();
-  }, [fetchAppointments]);
+  useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
 
-  // Sync URL params
   useEffect(() => {
     const params = new URLSearchParams();
     params.set('date', format(selectedDate, 'yyyy-MM-dd'));
@@ -1331,145 +1100,107 @@ const DoctorAppointments = () => {
     setSearchParams(params, { replace: true });
   }, [selectedDate, viewMode, setSearchParams]);
 
-  // ============================================================================
-  // FILTERED & SORTED APPOINTMENTS
-  // ============================================================================
-
   const filteredAppointments = useMemo(() => {
     let filtered = [...appointments];
 
-    // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(apt => 
+      filtered = filtered.filter(apt =>
         apt.patient_name?.toLowerCase().includes(query) ||
         apt.reason?.toLowerCase().includes(query) ||
         apt.symptoms?.toLowerCase().includes(query)
       );
     }
-
-    // Filter by status
     if (statusFilter) {
       filtered = filtered.filter(apt => apt.status === statusFilter);
     }
-
-    // Filter by booking type
     if (bookingTypeFilter) {
       filtered = filtered.filter(apt => apt.booking_type === bookingTypeFilter);
     }
 
-    // Sort by time
     filtered.sort((a, b) => {
-      // First by date
       const dateCompare = (a.appointment_date || '').localeCompare(b.appointment_date || '');
       if (dateCompare !== 0) return dateCompare;
-      
-      // Then by time
       return (a.start_time || '').localeCompare(b.start_time || '');
     });
 
     return filtered;
   }, [appointments, searchQuery, statusFilter, bookingTypeFilter]);
 
-  // ============================================================================
-  // HANDLERS
-  // ============================================================================
+  const handleDateChange = useCallback((date) => setSelectedDate(date), []);
+  const handleViewModeChange = useCallback((mode) => setViewMode(mode), []);
 
-  const handleDateChange = useCallback((date) => {
-    setSelectedDate(date);
-  }, []);
-
-  const handleViewModeChange = useCallback((mode) => {
-    setViewMode(mode);
-  }, []);
-
-  /**
-   * Start consultation from appointment
-   */
+  // ✅ FIXED: Start consultation uses correct API
   const handleStartConsultation = useCallback(async (appointment) => {
     try {
       setProcessingId(appointment.id);
-      
-      // Create consultation from appointment
-      const response = await consultationService.createFromAppointment({
-        appointment_id: appointment.id
-      });
-      
-      const consultationId = response.data?.id;
-      
-      if (consultationId) {
-        toast.success(t('doctor.consultationStarted', 'Consultation started'));
-        navigate(`/doctor/consultation/${consultationId}`);
-      } else {
-        throw new Error('No consultation ID returned');
-      }
+      await startAppointment(appointment.id);
+      toast.success('Consultation started');
+      // Navigate to consultation room or refresh
+      navigate(`/doctor/consultation/${appointment.id}`);
     } catch (err) {
-      console.error('Error starting consultation:', err);
-      toast.error(getErrorMessage(err, t('errors.failedToStartConsultation', 'Failed to start consultation')));
+      toast.error(getErrorMessage(err, 'Failed to start consultation'));
     } finally {
       setProcessingId(null);
     }
-  }, [navigate, t]);
+  }, [navigate]);
 
-  /**
-   * Confirm appointment
-   */
+  // ✅ FIXED: Confirm uses correct API
   const handleConfirmAppointment = useCallback(async (appointmentId) => {
     try {
       setProcessingId(appointmentId);
-      
-      await appointmentService.confirm(appointmentId);
-      
-      toast.success(t('doctor.appointmentConfirmed', 'Appointment confirmed'));
+      await confirmAppointment(appointmentId);
+      toast.success('Appointment confirmed');
       await fetchAppointments(true);
     } catch (err) {
-      console.error('Error confirming appointment:', err);
-      toast.error(getErrorMessage(err, t('errors.failedToConfirmAppointment', 'Failed to confirm appointment')));
+      toast.error(getErrorMessage(err, 'Failed to confirm appointment'));
     } finally {
       setProcessingId(null);
     }
-  }, [fetchAppointments, t]);
+  }, [fetchAppointments]);
 
-  /**
-   * Cancel appointment
-   */
-  const handleCancelAppointment = useCallback(async (appointmentId, data) => {
+  const handleCheckInAppointment = useCallback(async (appointmentId) => {
     try {
       setProcessingId(appointmentId);
-      
-      // API expects { reason: "string" }
-      await appointmentService.cancel(appointmentId, data);
-      
-      toast.success(t('doctor.appointmentCancelled', 'Appointment cancelled'));
+      await checkInAppointment(appointmentId);
+      toast.success('Patient checked in');
+      await fetchAppointments(true);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to check in patient'));
+    } finally {
+      setProcessingId(null);
+    }
+  }, [fetchAppointments]);
+
+  // ✅ FIXED: Cancel uses correct API - reason is string
+  const handleCancelAppointment = useCallback(async (appointmentId, reason) => {
+    try {
+      setProcessingId(appointmentId);
+      await cancelAppointment(appointmentId, reason);
+      toast.success('Appointment cancelled');
       setShowCancelModal(false);
       setAppointmentToCancel(null);
       await fetchAppointments(true);
     } catch (err) {
-      console.error('Error cancelling appointment:', err);
-      toast.error(getErrorMessage(err, t('errors.failedToCancelAppointment', 'Failed to cancel appointment')));
+      toast.error(getErrorMessage(err, 'Failed to cancel appointment'));
     } finally {
       setProcessingId(null);
     }
-  }, [fetchAppointments, t]);
+  }, [fetchAppointments]);
 
-  /**
-   * Mark appointment as no show
-   */
+  // ✅ FIXED: No-show uses correct API
   const handleMarkNoShow = useCallback(async (appointmentId) => {
     try {
       setProcessingId(appointmentId);
-      
-      await appointmentService.noShow(appointmentId);
-      
-      toast.success(t('doctor.markedNoShow', 'Marked as no show'));
+      await markNoShow(appointmentId);
+      toast.success('Marked as no show');
       await fetchAppointments(true);
     } catch (err) {
-      console.error('Error marking no show:', err);
-      toast.error(getErrorMessage(err, t('errors.failedToMarkNoShow', 'Failed to mark as no show')));
+      toast.error(getErrorMessage(err, 'Failed to mark as no show'));
     } finally {
       setProcessingId(null);
     }
-  }, [fetchAppointments, t]);
+  }, [fetchAppointments]);
 
   const handleViewDetails = useCallback((appointment) => {
     setSelectedAppointment(appointment);
@@ -1477,12 +1208,9 @@ const DoctorAppointments = () => {
   }, []);
 
   const handleViewPatient = useCallback((patientId) => {
-    if (patientId) {
-      navigate(`/doctor/patients/${patientId}`);
-    } else {
-      toast.error(t('errors.patientIdMissing', 'Patient ID not available'));
-    }
-  }, [navigate, t]);
+    if (patientId) navigate(`/doctor/patients/${patientId}`);
+    else toast.error('Patient ID not available');
+  }, [navigate]);
 
   const handleReschedule = useCallback((appointment) => {
     navigate(`/doctor/appointments/${appointment.id}/reschedule`);
@@ -1496,35 +1224,21 @@ const DoctorAppointments = () => {
 
   const handleModalAction = useCallback((action, appointment) => {
     setShowDetailsModal(false);
-    
     switch (action) {
-      case 'start':
-        handleStartConsultation(appointment);
-        break;
-      case 'confirm':
-        handleConfirmAppointment(appointment.id);
-        break;
-      case 'reschedule':
-        handleReschedule(appointment);
-        break;
+      case 'start': handleStartConsultation(appointment); break;
+      case 'check_in': handleCheckInAppointment(appointment.id); break;
+      case 'confirm': handleConfirmAppointment(appointment.id); break;
+      case 'reschedule': handleReschedule(appointment); break;
       case 'cancel':
         setAppointmentToCancel(appointment);
         setShowCancelModal(true);
         break;
-      default:
-        break;
+      default: break;
     }
-  }, [handleStartConsultation, handleConfirmAppointment, handleReschedule]);
+  }, [handleStartConsultation, handleCheckInAppointment, handleConfirmAppointment, handleReschedule]);
 
-  const handleRefresh = useCallback(() => {
-    fetchAppointments(true);
-  }, [fetchAppointments]);
+  const handleRefresh = useCallback(() => fetchAppointments(true), [fetchAppointments]);
 
-  // ============================================================================
-  // RENDER
-  // ============================================================================
-
-  // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -1535,60 +1249,38 @@ const DoctorAppointments = () => {
 
   return (
     <div className="space-y-6 pb-20 md:pb-6">
-      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {t('doctor.appointments', 'Appointments')}
-          </h1>
-          <p className="text-gray-500 mt-1">
-            {t('doctor.manageAppointments', 'Manage your appointments and schedule')}
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Appointments</h1>
+          <p className="text-gray-500 mt-1">Manage your appointments and schedule</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant="ghost"
-            size="sm"
+            variant="ghost" size="sm"
             leftIcon={<RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />}
-            onClick={handleRefresh}
-            disabled={isRefreshing}
+            onClick={handleRefresh} disabled={isRefreshing}
           >
-            {t('common.refresh', 'Refresh')}
+            Refresh
           </Button>
           <Button
-            variant="outline"
-            size="sm"
+            variant="outline" size="sm"
             leftIcon={<Download className="w-4 h-4" />}
-            onClick={() => toast.info(t('common.comingSoon', 'Coming soon'))}
+            onClick={() => toast('Coming soon')}
           >
-            {t('common.export', 'Export')}
+            Export
           </Button>
         </div>
       </div>
 
-      {/* Error Alert */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
           <p className="text-red-700 text-sm flex-1">{error}</p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setError(null)}
-          >
-            {t('common.dismiss', 'Dismiss')}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-          >
-            {t('common.retry', 'Retry')}
-          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setError(null)}>Dismiss</Button>
+          <Button variant="outline" size="sm" onClick={handleRefresh}>Retry</Button>
         </div>
       )}
 
-      {/* Date Navigation */}
       <DateNavigationHeader
         selectedDate={selectedDate}
         onDateChange={handleDateChange}
@@ -1597,10 +1289,8 @@ const DoctorAppointments = () => {
         onOpenCalendar={() => setShowCalendarModal(true)}
       />
 
-      {/* Stats Summary */}
       <StatsSummary appointments={filteredAppointments} />
 
-      {/* Filters */}
       <Card padding="md">
         <FiltersBar
           searchQuery={searchQuery}
@@ -1613,7 +1303,6 @@ const DoctorAppointments = () => {
         />
       </Card>
 
-      {/* Content */}
       {viewMode === 'week' ? (
         <WeekView
           selectedDate={selectedDate}
@@ -1631,11 +1320,9 @@ const DoctorAppointments = () => {
                   key={appointment.id}
                   appointment={appointment}
                   onStart={handleStartConsultation}
+                  onCheckIn={handleCheckInAppointment}
                   onConfirm={handleConfirmAppointment}
-                  onCancel={(apt) => {
-                    setAppointmentToCancel(apt);
-                    setShowCancelModal(true);
-                  }}
+                  onCancel={(apt) => { setAppointmentToCancel(apt); setShowCancelModal(true); }}
                   onReschedule={handleReschedule}
                   onViewDetails={handleViewDetails}
                   onViewPatient={handleViewPatient}
@@ -1647,21 +1334,17 @@ const DoctorAppointments = () => {
           ) : (
             <EmptyState
               icon={Calendar}
-              title={t('doctor.noAppointmentsForDate', 'No appointments')}
+              title="No appointments"
               description={
                 searchQuery || statusFilter || bookingTypeFilter
-                  ? t('doctor.noAppointmentsMatchingFilters', 'No appointments match your filters')
-                  : t('doctor.noAppointmentsDesc', 'You have no appointments scheduled for this date')
+                  ? 'No appointments match your filters'
+                  : 'No appointments scheduled for this date'
               }
               action={
-                searchQuery || statusFilter || bookingTypeFilter ? (
-                  <Button variant="outline" onClick={handleClearFilters}>
-                    {t('common.clearFilters', 'Clear Filters')}
-                  </Button>
+                (searchQuery || statusFilter || bookingTypeFilter) ? (
+                  <Button variant="outline" onClick={handleClearFilters}>Clear Filters</Button>
                 ) : !isToday(selectedDate) ? (
-                  <Button variant="outline" onClick={() => setSelectedDate(new Date())}>
-                    {t('common.goToToday', 'Go to Today')}
-                  </Button>
+                  <Button variant="outline" onClick={() => setSelectedDate(new Date())}>Go to Today</Button>
                 ) : null
               }
             />
@@ -1669,13 +1352,9 @@ const DoctorAppointments = () => {
         </Card>
       )}
 
-      {/* Modals */}
       <AppointmentDetailsModal
         isOpen={showDetailsModal}
-        onClose={() => {
-          setShowDetailsModal(false);
-          setSelectedAppointment(null);
-        }}
+        onClose={() => { setShowDetailsModal(false); setSelectedAppointment(null); }}
         appointment={selectedAppointment}
         onAction={handleModalAction}
         isLoading={!!processingId}
@@ -1683,10 +1362,7 @@ const DoctorAppointments = () => {
 
       <CancelAppointmentModal
         isOpen={showCancelModal}
-        onClose={() => {
-          setShowCancelModal(false);
-          setAppointmentToCancel(null);
-        }}
+        onClose={() => { setShowCancelModal(false); setAppointmentToCancel(null); }}
         appointment={appointmentToCancel}
         onConfirm={handleCancelAppointment}
         isLoading={!!processingId}

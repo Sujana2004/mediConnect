@@ -644,6 +644,54 @@ class DoctorUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         
         return instance
+    
+
+# ============================================
+# DOCTOR LEAVE SERIALIZER
+# ============================================
+
+class DoctorLeaveSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Doctor Leave.
+    """
+    class Meta:
+        model = DoctorLeave
+        fields = [
+            'id', 'date', 'reason', 'is_full_day',
+            'start_time', 'end_time', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+    
+    def validate_date(self, value):
+        """
+        Validate that leave date is not in the past.
+        """
+        from django.utils import timezone
+        if value < timezone.now().date():
+            raise serializers.ValidationError(
+                "Cannot add leave for past dates."
+            )
+        return value
+    
+    def validate(self, attrs):
+        """
+        Validate time fields for partial day leave.
+        """
+        is_full_day = attrs.get('is_full_day', True)
+        start_time = attrs.get('start_time')
+        end_time = attrs.get('end_time')
+        
+        if not is_full_day:
+            if not start_time or not end_time:
+                raise serializers.ValidationError({
+                    'start_time': 'Start time and end time are required for partial day leave.'
+                })
+            if start_time >= end_time:
+                raise serializers.ValidationError({
+                    'end_time': 'End time must be after start time.'
+                })
+        
+        return attrs
 
 
 # ============================================

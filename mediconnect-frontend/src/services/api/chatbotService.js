@@ -20,6 +20,10 @@ const CHATBOT_ENDPOINTS = Object.freeze({
   TRANSLATE: '/chatbot/translate/',
   TTS: '/chatbot/text-to-speech/',
   DETECT_LANGUAGE: '/chatbot/detect-language/',
+  FEEDBACK_MESSAGE: '/chatbot/feedback/message/',
+  FEEDBACK_CONVERSATION: '/chatbot/feedback/conversation/',
+  SUGGESTIONS: '/chatbot/suggestions/',
+  HEALTH_CHECK: '/chatbot/health/',
 });
 
 /**
@@ -67,11 +71,23 @@ const buildEndpoint = (baseEndpoint, id = null, action = null) => {
  * Start a new chat session
  * @param {Object} [sessionData] - Session data
  * @param {string} [sessionData.language] - Preferred language
- * @param {string} [sessionData.context] - Context (general/symptoms/medicines/appointments)
  * @returns {Promise<Object>} Session data with session_id
  */
 export const startSession = async (sessionData = {}) => {
+  console.log('🔄 startSession request:', sessionData);
   const response = await api.post(CHATBOT_ENDPOINTS.SESSION_START, sessionData);
+  console.log('📦 startSession response:', response.data);
+  return response.data;
+};
+
+/**
+ * Get session details
+ * @param {string} sessionId - Session ID
+ * @returns {Promise<Object>} Session details
+ */
+export const getSession = async (sessionId) => {
+  const endpoint = buildEndpoint(CHATBOT_ENDPOINTS.SESSION_BASE, sessionId);
+  const response = await api.get(endpoint);
   return response.data;
 };
 
@@ -98,6 +114,16 @@ export const endSession = async (sessionId) => {
 };
 
 /**
+ * Delete a chat session
+ * @param {string} sessionId - Session ID
+ * @returns {Promise<void>}
+ */
+export const deleteSession = async (sessionId) => {
+  const endpoint = buildEndpoint(CHATBOT_ENDPOINTS.SESSION_BASE, sessionId, 'delete');
+  await api.delete(endpoint);
+};
+
+/**
  * Get user's chat sessions
  * @param {Object} [filters] - Filter options
  * @param {number} [filters.page] - Page number
@@ -121,7 +147,9 @@ export const getSessions = async (filters = {}) => {
  * @returns {Promise<Object>} Bot response
  */
 export const sendMessage = async (messageData) => {
+  console.log('📤 sendMessage request:', messageData);
   const response = await api.post(CHATBOT_ENDPOINTS.MESSAGE, messageData);
+  console.log('📥 sendMessage response:', response.data);
   return response.data;
 };
 
@@ -166,6 +194,25 @@ export const getFAQs = async (filters = {}) => {
 };
 
 /**
+ * Get FAQ categories
+ * @returns {Promise<Object>} Categories list
+ */
+export const getFAQCategories = async () => {
+  const response = await api.get(`${CHATBOT_ENDPOINTS.FAQ}categories/`);
+  return response.data;
+};
+
+/**
+ * Mark FAQ as helpful
+ * @param {string} faqId - FAQ ID
+ * @returns {Promise<Object>} Confirmation
+ */
+export const markFAQHelpful = async (faqId) => {
+  const response = await api.post(`${CHATBOT_ENDPOINTS.FAQ}${faqId}/helpful/`);
+  return response.data;
+};
+
+/**
  * Get health tips
  * @param {Object} [filters] - Filter options
  * @param {string} [filters.category] - Tips category
@@ -189,14 +236,64 @@ export const getDailyHealthTip = async (language = 'en') => {
   return response.data;
 };
 
+/**
+ * Like a health tip
+ * @param {string} tipId - Health tip ID
+ * @returns {Promise<Object>} Updated like count
+ */
+export const likeHealthTip = async (tipId) => {
+  const response = await api.post(`${CHATBOT_ENDPOINTS.HEALTH_TIPS}${tipId}/like/`);
+  return response.data;
+};
+
+// ========== Quick Replies / Suggestions ==========
+
+/**
+ * Get quick reply suggestions
+ * @param {Object} [filters] - Filter options
+ * @param {string} [filters.context] - Context
+ * @param {string} [filters.language] - Language code
+ * @returns {Promise<Object>} Quick replies
+ */
+export const getQuickReplies = async (filters = {}) => {
+  const queryString = buildQueryString(filters);
+  const response = await api.get(`${CHATBOT_ENDPOINTS.SUGGESTIONS}${queryString}`);
+  return response.data;
+};
+
+// ========== Feedback ==========
+
+/**
+ * Submit feedback for a specific message
+ * @param {Object} feedbackData - Feedback data
+ * @param {string} feedbackData.message_id - Message ID
+ * @param {number} feedbackData.rating - Rating 1-5
+ * @param {string} [feedbackData.feedback_text] - Optional text feedback
+ * @returns {Promise<Object>} Confirmation
+ */
+export const submitMessageFeedback = async (feedbackData) => {
+  const response = await api.post(CHATBOT_ENDPOINTS.FEEDBACK_MESSAGE, feedbackData);
+  return response.data;
+};
+
+/**
+ * Submit overall conversation feedback
+ * @param {Object} feedbackData - Feedback data
+ * @returns {Promise<Object>} Confirmation
+ */
+export const submitConversationFeedback = async (feedbackData) => {
+  const response = await api.post(CHATBOT_ENDPOINTS.FEEDBACK_CONVERSATION, feedbackData);
+  return response.data;
+};
+
 // ========== Translation & TTS ==========
 
 /**
  * Translate text
  * @param {Object} translateData - Translation data
  * @param {string} translateData.text - Text to translate
- * @param {string} translateData.source_language - Source language code
  * @param {string} translateData.target_language - Target language code
+ * @param {string} [translateData.source_language] - Source language
  * @returns {Promise<Object>} Translated text
  */
 export const translateText = async (translateData) => {
@@ -209,7 +306,6 @@ export const translateText = async (translateData) => {
  * @param {Object} ttsData - TTS data
  * @param {string} ttsData.text - Text to convert
  * @param {string} [ttsData.language] - Language code
- * @param {string} [ttsData.voice] - Voice type (male/female)
  * @returns {Promise<Blob>} Audio blob
  */
 export const textToSpeech = async (ttsData) => {
@@ -230,25 +326,47 @@ export const detectLanguage = async (detectData) => {
   return response.data;
 };
 
+// ========== Health Check ==========
+
 /**
- * Chatbot service default export
- * Groups all chatbot-related API methods
+ * Check chatbot service health
+ * @returns {Promise<Object>} Health status
  */
-export default {
+export const healthCheck = async () => {
+  const response = await api.get(CHATBOT_ENDPOINTS.HEALTH_CHECK);
+  return response.data;
+};
+
+// ========== Default Export ==========
+const chatbotService = {
   // Sessions
   startSession,
+  getSession,
   getSessionMessages,
   endSession,
+  deleteSession,
   getSessions,
   // Messaging
   sendMessage,
   sendVoiceMessage,
   // FAQ & Tips
   getFAQs,
+  getFAQCategories,
+  markFAQHelpful,
   getHealthTips,
   getDailyHealthTip,
+  likeHealthTip,
+  // Quick Replies
+  getQuickReplies,
+  // Feedback
+  submitMessageFeedback,
+  submitConversationFeedback,
   // Translation & TTS
   translateText,
   textToSpeech,
   detectLanguage,
+  // Health Check
+  healthCheck,
 };
+
+export default chatbotService;

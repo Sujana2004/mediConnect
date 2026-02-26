@@ -1,29 +1,18 @@
 // src/contexts/NotificationContext.jsx
-/**
- * Notification Context
- * Manages push notifications and FCM integration
- * Uses sessionStorage for caching - no window listeners
- */
-
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useAuthStore } from '../store';
-import api from '../config/api';
+import { notificationService } from '../services/api';
 import toast from 'react-hot-toast';
 
-// Create context
 const NotificationContext = createContext(null);
 
-// Session storage keys
 const STORAGE_KEYS = {
   FCM_TOKEN: 'fcm_token',
   PERMISSION: 'fcm_permission',
   SUPPORTED: 'fcm_supported'
 };
 
-/**
- * Safe sessionStorage getter
- */
 const getFromSession = (key, defaultValue = null) => {
   try {
     const value = sessionStorage.getItem(key);
@@ -33,9 +22,6 @@ const getFromSession = (key, defaultValue = null) => {
   }
 };
 
-/**
- * Safe sessionStorage setter
- */
 const setToSession = (key, value) => {
   try {
     if (value === null || value === undefined) {
@@ -44,13 +30,10 @@ const setToSession = (key, value) => {
       sessionStorage.setItem(key, String(value));
     }
   } catch {
-    // Ignore storage errors
+    // Ignore
   }
 };
 
-/**
- * Clear all notification-related session data
- */
 const clearSessionData = () => {
   try {
     Object.values(STORAGE_KEYS).forEach(key => {
@@ -61,40 +44,28 @@ const clearSessionData = () => {
   }
 };
 
-/**
- * Get initial permission status
- */
 const getInitialPermission = () => {
-  // Check sessionStorage first
   const cached = getFromSession(STORAGE_KEYS.PERMISSION);
   if (cached && ['granted', 'denied', 'default'].includes(cached)) {
     return cached;
   }
-  
-  // Fall back to Notification API
   if (typeof window !== 'undefined' && 'Notification' in window) {
     return Notification.permission;
   }
-  
   return 'default';
 };
 
-/**
- * Notification Provider Component
- */
 function NotificationProvider({ children }) {
-  // Initialize state from sessionStorage
   const [fcmToken, setFcmToken] = useState(() => getFromSession(STORAGE_KEYS.FCM_TOKEN));
   const [permission, setPermission] = useState(getInitialPermission);
   const [isSupported, setIsSupported] = useState(() => getFromSession(STORAGE_KEYS.SUPPORTED) === 'true');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Refs for cleanup
   const messageUnsubscribeRef = useRef(null);
   const fcmModuleRef = useRef(null);
   const initAttemptedRef = useRef(false);
+  const messagingInitializedRef = useRef(false);
 
-  // Get auth state from store
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   /**
@@ -116,12 +87,33 @@ function NotificationProvider({ children }) {
   }, []);
 
   /**
+   * Ensure messaging is initialized before using it
+   */
+  const ensureMessagingInitialized = useCallback(async () => {
+    if (messagingInitializedRef.current) return true;
+
+    try {
+      const fcm = await loadFCMModule();
+      if (!fcm?.initializeMessaging) return false;
+
+      const messaging = await fcm.initializeMessaging();
+      if (messaging) {
+        messagingInitializedRef.current = true;
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.warn('FCM: Failed to initialize messaging:', error.message);
+      return false;
+    }
+  }, [loadFCMModule]);
+
+  /**
    * Check notification support on mount
    */
   useEffect(() => {
     const checkSupport = async () => {
       try {
-        // Check basic browser support
         const hasNotificationAPI = typeof window !== 'undefined' && 'Notification' in window;
         const hasServiceWorker = 'serviceWorker' in navigator;
         const hasPushManager = 'PushManager' in window;
@@ -133,12 +125,10 @@ function NotificationProvider({ children }) {
           return;
         }
 
-        // Update permission from actual API
         const currentPermission = Notification.permission;
         setPermission(currentPermission);
         setToSession(STORAGE_KEYS.PERMISSION, currentPermission);
 
-        // Check FCM support
         const fcm = await loadFCMModule();
         if (fcm?.isFCMSupported) {
           const fcmSupported = await fcm.isFCMSupported();
@@ -161,13 +151,20 @@ function NotificationProvider({ children }) {
   }, [loadFCMModule]);
 
   /**
-   * Send token to backend
+   * Send token to backend using the notification service
+   * Backend endpoint: POST /notifications/device/register/
+   * Backend expects: { token, device_type, device_name, device_id }
    */
   const sendTokenToBackend = useCallback(async (token) => {
     if (!token || !isAuthenticated) return false;
 
     try {
-      await api.post('/auth/settings/fcm-token/', { fcm_token: token });
+      await notificationService.registerDevice({
+        token: token,
+        device_type: 'web',
+        device_name: navigator.userAgent?.substring(0, 100) || 'Web Browser',
+        device_id: '',
+      });
       console.log('✅ FCM: Token sent to backend');
       return true;
     } catch (error) {
@@ -185,7 +182,9 @@ function NotificationProvider({ children }) {
     const initializeFCM = async () => {
       initAttemptedRef.current = true;
 
-      // Check if we have a cached token
+      // Ensure messaging is initialized first
+      await ensureMessagingInitialized();
+
       const cachedToken = getFromSession(STORAGE_KEYS.FCM_TOKEN);
       if (cachedToken) {
         setFcmToken(cachedToken);
@@ -193,7 +192,6 @@ function NotificationProvider({ children }) {
         return;
       }
 
-      // Only try to get new token if permission already granted
       if (Notification.permission !== 'granted') {
         return;
       }
@@ -217,16 +215,23 @@ function NotificationProvider({ children }) {
     };
 
     initializeFCM();
-  }, [isAuthenticated, isSupported, loadFCMModule, sendTokenToBackend]);
+  }, [isAuthenticated, isSupported, loadFCMModule, sendTokenToBackend, ensureMessagingInitialized]);
 
   /**
-   * Setup foreground message listener
+   * Setup foreground message listener - ONLY after messaging is initialized
    */
   useEffect(() => {
     if (!isAuthenticated || !isSupported || !fcmToken) return;
 
     const setupListener = async () => {
       try {
+        // Ensure messaging is initialized before setting up listener
+        const initialized = await ensureMessagingInitialized();
+        if (!initialized) {
+          console.warn('FCM: Cannot setup listener - messaging not initialized');
+          return;
+        }
+
         const fcm = await loadFCMModule();
         if (!fcm?.onForegroundMessage) return;
 
@@ -243,7 +248,6 @@ function NotificationProvider({ children }) {
           const title = notification?.title || 'MediConnect';
           const body = notification?.body || 'You have a new notification';
 
-          // Show toast notification
           toast.custom(
             (t) => (
               <div
@@ -277,7 +281,6 @@ function NotificationProvider({ children }) {
             { duration: 5000 }
           );
 
-          // Show browser notification if document is hidden
           if (document.hidden && fcm.showLocalNotification) {
             fcm.showLocalNotification(title, {
               body,
@@ -294,14 +297,13 @@ function NotificationProvider({ children }) {
 
     setupListener();
 
-    // Cleanup on unmount or dependency change
     return () => {
       if (messageUnsubscribeRef.current) {
         messageUnsubscribeRef.current();
         messageUnsubscribeRef.current = null;
       }
     };
-  }, [isAuthenticated, isSupported, fcmToken, loadFCMModule]);
+  }, [isAuthenticated, isSupported, fcmToken, loadFCMModule, ensureMessagingInitialized]);
 
   /**
    * Request notification permission (user-triggered)
@@ -314,7 +316,6 @@ function NotificationProvider({ children }) {
     setIsLoading(true);
 
     try {
-      // Request browser permission
       const browserPermission = await Notification.requestPermission();
       setPermission(browserPermission);
       setToSession(STORAGE_KEYS.PERMISSION, browserPermission);
@@ -324,7 +325,9 @@ function NotificationProvider({ children }) {
         return { success: false, permission: browserPermission };
       }
 
-      // Get FCM token
+      // Initialize messaging first
+      await ensureMessagingInitialized();
+
       const fcm = await loadFCMModule();
       if (fcm?.getFCMToken) {
         const token = await fcm.getFCMToken();
@@ -350,7 +353,7 @@ function NotificationProvider({ children }) {
       setIsLoading(false);
       return { success: false, permission: 'error' };
     }
-  }, [isSupported, isAuthenticated, loadFCMModule, sendTokenToBackend]);
+  }, [isSupported, isAuthenticated, loadFCMModule, sendTokenToBackend, ensureMessagingInitialized]);
 
   /**
    * Show local notification
@@ -369,7 +372,6 @@ function NotificationProvider({ children }) {
         ...options
       });
 
-      // Handle click - use location.assign instead of window.location.href
       notification.onclick = () => {
         notification.close();
         if (options.url && typeof options.url === 'string') {
@@ -377,7 +379,6 @@ function NotificationProvider({ children }) {
         }
       };
 
-      // Auto-close
       const duration = options.duration || 5000;
       setTimeout(() => {
         notification.close();
@@ -395,30 +396,36 @@ function NotificationProvider({ children }) {
    */
   const clearNotificationData = useCallback(async () => {
     try {
-      // Clean up listener
       if (messageUnsubscribeRef.current) {
         messageUnsubscribeRef.current();
         messageUnsubscribeRef.current = null;
       }
 
-      // Delete FCM token
+      // Unregister token from backend
+      const token = getFromSession(STORAGE_KEYS.FCM_TOKEN);
+      if (token && isAuthenticated) {
+        try {
+          await notificationService.unregisterDevice(token);
+        } catch {
+          // Ignore - user is logging out anyway
+        }
+      }
+
       const fcm = await loadFCMModule();
       if (fcm?.deleteFCMToken) {
         await fcm.deleteFCMToken();
       }
 
-      // Clear session storage
       clearSessionData();
-
-      // Reset state
       setFcmToken(null);
       initAttemptedRef.current = false;
+      messagingInitializedRef.current = false;
 
       console.log('FCM: Notification data cleared');
     } catch (error) {
       console.warn('FCM: Clear data error:', error.message);
     }
-  }, [loadFCMModule]);
+  }, [loadFCMModule, isAuthenticated]);
 
   const value = {
     fcmToken,
@@ -442,18 +449,12 @@ NotificationProvider.propTypes = {
   children: PropTypes.node.isRequired
 };
 
-/**
- * Hook to use notifications
- */
 function useNotifications() {
   const context = useContext(NotificationContext);
-
   if (!context) {
     throw new Error('useNotifications must be used within NotificationProvider');
   }
-
   return context;
 }
 
-// Named exports only
 export { NotificationContext, NotificationProvider, useNotifications };

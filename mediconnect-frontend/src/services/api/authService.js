@@ -80,7 +80,7 @@ export const login = async (firebaseToken) => {
  */
 export const logout = async (refreshToken) => {
   const response = await api.post(AUTH_ENDPOINTS.LOGOUT, {
-    refresh_token: refreshToken,
+    refresh: refreshToken,
   });
   return response.data;
 };
@@ -171,9 +171,9 @@ export const updateProfile = async (profileData) => {
  */
 export const updateProfilePicture = async (imageFile) => {
   const formData = new FormData();
-  formData.append('profile_picture', imageFile);
+  formData.append('profile_photo', imageFile);
 
-  const response = await api.put(AUTH_ENDPOINTS.PROFILE, formData, {
+  const response = await api.patch(AUTH_ENDPOINTS.PROFILE, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -220,11 +220,14 @@ export const getHelpers = async () => {
 /**
  * Add a family helper
  * @param {Object} helperData - Helper data
- * @param {string} helperData.name - Helper's name
- * @param {string} helperData.phone - Helper's phone number
- * @param {string} helperData.relationship - Relationship to patient
- * @param {boolean} [helperData.can_book_appointments] - Can book appointments
- * @param {boolean} [helperData.can_view_records] - Can view health records
+ * @param {string} helperData.helper_name - Helper's name
+ * @param {string} helperData.helper_phone - Helper's phone number (10 digits)
+ * @param {string} helperData.relationship - Relationship (spouse/son/daughter/father/mother/brother/sister/other)
+ * @param {boolean} [helperData.can_book_appointments=true] - Can book appointments
+ * @param {boolean} [helperData.can_view_records=true] - Can view health records
+ * @param {boolean} [helperData.can_chat_with_doctor=true] - Can chat with doctor
+ * @param {boolean} [helperData.can_manage_medications=true] - Can manage medications
+ * @param {boolean} [helperData.is_primary=false] - Is primary helper
  * @returns {Promise<Object>} Created helper data
  */
 export const addHelper = async (helperData) => {

@@ -12,6 +12,7 @@ const useAuth = () => {
     user,
     isAuthenticated,
     isLoading,
+    hasHydrated,
     error,
     login,
     logout,
@@ -83,21 +84,28 @@ const useAuth = () => {
   }, [clearError, setError, login]);
 
   // Register new patient
-  const registerNewPatient = useCallback(async (otp, patientData) => {
+  const registerNewPatient = useCallback(async (tokenOrOtp, patientData) => {
     clearError();
 
-    if (!otp || otp.length !== 6) {
-      return { 
-        success: false, 
-        error: 'Please enter a valid 6-digit OTP' 
-      };
+    let firebaseToken = tokenOrOtp;
+
+    // If it looks like an OTP (6 digits), verify it first
+    if (/^\d{6}$/.test(tokenOrOtp)) {
+      const verifyResult = await verifyOTP(tokenOrOtp);
+      
+      if (!verifyResult.success) {
+        setError(verifyResult.message);
+        return verifyResult;
+      }
+      
+      firebaseToken = verifyResult.token;
     }
 
-    const verifyResult = await verifyOTP(otp);
-    
-    if (!verifyResult.success) {
-      setError(verifyResult.message);
-      return verifyResult;
+    if (!firebaseToken) {
+      return {
+        success: false,
+        error: 'Authentication token is missing. Please verify your phone again.'
+      };
     }
 
     // Try to get FCM token with retry
@@ -123,50 +131,57 @@ const useAuth = () => {
       fcm_token: fcmToken ? '[PRESENT]' : '[NOT INCLUDED]'
     });
     
-    const result = await registerPatient(verifyResult.token, registrationData);
+    const result = await registerPatient(firebaseToken, registrationData);
     
     return result;
   }, [clearError, setError, registerPatient]);
 
   // Register new doctor
-  const registerNewDoctor = useCallback(async (otp, doctorData) => {
-    clearError();
+  // Accepts either a Firebase token directly OR an OTP to verify
+    const registerNewDoctor = useCallback(async (tokenOrOtp, doctorData) => {
+      clearError();
 
-    if (!otp || otp.length !== 6) {
-      return { 
-        success: false, 
-        error: 'Please enter a valid 6-digit OTP' 
-      };
-    }
+      let firebaseToken = tokenOrOtp;
 
-    const verifyResult = await verifyOTP(otp);
-    
-    if (!verifyResult.success) {
-      setError(verifyResult.message);
-      return verifyResult;
-    }
+      // If it looks like an OTP (6 digits), verify it first
+      if (/^\d{6}$/.test(tokenOrOtp)) {
+        const verifyResult = await verifyOTP(tokenOrOtp);
+        
+        if (!verifyResult.success) {
+          setError(verifyResult.message);
+          return verifyResult;
+        }
+        
+        firebaseToken = verifyResult.token;
+      }
 
-    // Try to get FCM token with retry
-    let fcmToken = null;
-    try {
-      console.log('🔔 Getting FCM token for doctor registration...');
-      fcmToken = await getFCMTokenWithRetry(3, 1000);
-      console.log('🔔 FCM token:', fcmToken ? '✅ obtained' : '⚠️ not available');
-    } catch (fcmError) {
-      console.warn('🔔 FCM token error (continuing without it):', fcmError.message);
-    }
+      if (!firebaseToken) {
+        return {
+          success: false,
+          error: 'Authentication token is missing. Please verify your phone again.'
+        };
+      }
 
-    // ✅ FIX: Only add fcm_token if it actually exists
-    const registrationData = { ...doctorData };
-    
-    if (fcmToken) {
-      registrationData.fcm_token = fcmToken;
-    }
+      // Try to get FCM token with retry
+      let fcmToken = null;
+      try {
+        console.log('🔔 Getting FCM token for doctor registration...');
+        fcmToken = await getFCMTokenWithRetry(3, 1000);
+        console.log('🔔 FCM token:', fcmToken ? '✅ obtained' : '⚠️ not available');
+      } catch (fcmError) {
+        console.warn('🔔 FCM token error (continuing without it):', fcmError.message);
+      }
 
-    const result = await registerDoctor(verifyResult.token, registrationData);
-    
-    return result;
-  }, [clearError, setError, registerDoctor]);
+      const registrationData = { ...doctorData };
+      
+      if (fcmToken) {
+        registrationData.fcm_token = fcmToken;
+      }
+
+      const result = await registerDoctor(firebaseToken, registrationData);
+      
+      return result;
+    }, [clearError, setError, registerDoctor]);
 
   // Handle logout
   const handleLogout = useCallback(async () => {
@@ -244,6 +259,7 @@ const useAuth = () => {
     user,
     isAuthenticated,
     isLoading,
+    hasHydrated,
     error,
 
     // Role checks (call the functions to get boolean values)

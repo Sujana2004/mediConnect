@@ -49,7 +49,7 @@ import {
   SkipForward,
   PlayCircle
 } from 'lucide-react';
-import { format, isToday, isTomorrow, isPast, parseISO, addDays } from 'date-fns';
+import { format, isToday, isTomorrow, isPast, parseISO, addDays, subDays } from 'date-fns';
 
 import { useAuth } from '../../hooks/useAuth';
 import { useVoice } from '../../hooks/useVoice';
@@ -75,21 +75,21 @@ import { formatDate, formatTime } from '../../utils/helpers';
 // ============================================================================
 
 const MEDICINE_FORMS = {
-  tablet: { icon: Tablets, label: 'Tablet', color: 'bg-blue-100 text-blue-600' },
+  tablet: { icon: Tablets, label: 'Tablet', color: 'bg-violet-100 text-violet-600' },
   capsule: { icon: Package, label: 'Capsule', color: 'bg-purple-100 text-purple-600' },
-  syrup: { icon: Droplet, label: 'Syrup', color: 'bg-pink-100 text-pink-600' },
-  injection: { icon: Syringe, label: 'Injection', color: 'bg-red-100 text-red-600' },
-  drops: { icon: Droplet, label: 'Drops', color: 'bg-cyan-100 text-cyan-600' },
-  cream: { icon: Package, label: 'Cream/Ointment', color: 'bg-yellow-100 text-yellow-600' },
-  inhaler: { icon: Package, label: 'Inhaler', color: 'bg-green-100 text-green-600' },
+  syrup: { icon: Droplet, label: 'Syrup', color: 'bg-fuchsia-100 text-fuchsia-600' },
+  injection: { icon: Syringe, label: 'Injection', color: 'bg-rose-100 text-rose-600' },
+  drops: { icon: Droplet, label: 'Drops', color: 'bg-indigo-100 text-indigo-600' },
+  cream: { icon: Package, label: 'Cream/Ointment', color: 'bg-purple-100 text-purple-600' },
+  inhaler: { icon: Package, label: 'Inhaler', color: 'bg-violet-100 text-violet-600' },
   other: { icon: Pill, label: 'Other', color: 'bg-gray-100 text-gray-600' }
 };
 
 const TIME_SLOTS = {
-  morning: { icon: Sunrise, label: 'Morning', time: '8:00 AM', color: 'bg-amber-100 text-amber-600' },
-  afternoon: { icon: Sun, label: 'Afternoon', time: '1:00 PM', color: 'bg-orange-100 text-orange-600' },
-  evening: { icon: Sunset, label: 'Evening', time: '6:00 PM', color: 'bg-purple-100 text-purple-600' },
-  night: { icon: Moon, label: 'Night', time: '10:00 PM', color: 'bg-indigo-100 text-indigo-600' }
+  morning: { icon: Sunrise, label: 'Morning', time: '8:00 AM', color: 'bg-amber-50 text-amber-600 border border-amber-200' },
+  afternoon: { icon: Sun, label: 'Afternoon', time: '1:00 PM', color: 'bg-orange-50 text-orange-600 border border-orange-200' },
+  evening: { icon: Sunset, label: 'Evening', time: '6:00 PM', color: 'bg-purple-50 text-purple-600 border border-purple-200' },
+  night: { icon: Moon, label: 'Night', time: '10:00 PM', color: 'bg-indigo-50 text-indigo-600 border border-indigo-200' }
 };
 
 const MEAL_TIMING = {
@@ -102,7 +102,7 @@ const MEAL_TIMING = {
 
 const REMINDER_STATUS = {
   pending: { color: 'bg-yellow-100 text-yellow-700', label: 'Pending' },
-  taken: { color: 'bg-green-100 text-green-700', label: 'Taken' },
+  taken: { color: 'bg-emerald-100 text-emerald-700', label: 'Taken' },
   missed: { color: 'bg-red-100 text-red-700', label: 'Missed' },
   skipped: { color: 'bg-gray-100 text-gray-700', label: 'Skipped' }
 };
@@ -115,77 +115,74 @@ const REMINDER_STATUS = {
 const AdherenceStatsCard = ({ stats }) => {
   const { t } = useTranslation();
 
-  const getAdherenceColor = (percentage) => {
-    if (percentage >= 90) return 'text-green-600';
-    if (percentage >= 70) return 'text-yellow-600';
-    return 'text-red-600';
+  const getBarColor = (percentage) => {
+    if (percentage >= 90) return 'from-emerald-400 to-emerald-500';
+    if (percentage >= 70) return 'from-amber-400 to-amber-500';
+    return 'from-red-400 to-red-500';
   };
 
   return (
-    <Card className="bg-gradient-to-br from-primary-50 to-blue-50">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Target className="w-5 h-5 text-primary-600" />
-          {t('medicines.adherenceStats')}
-        </h3>
-        <Badge variant="success">
-          <TrendingUp className="w-3 h-3 mr-1" />
-          {t('medicines.thisWeek')}
-        </Badge>
-      </div>
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 p-6 shadow-xl shadow-purple-200/50">
+      <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+      <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+      <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-white/5 rounded-full" />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Overall Adherence */}
-        <div className="bg-white/70 rounded-xl p-4 text-center">
-          <div className={`text-3xl font-bold ${getAdherenceColor(stats?.adherence || 0)}`}>
-            {stats?.adherence || 0}%
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+              <Target className="w-5 h-5 text-white" />
+            </div>
+            {t('medicines.adherenceStats')}
+          </h3>
+          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-sm text-white text-xs font-semibold">
+            <TrendingUp className="w-3 h-3" />
+            {t('medicines.thisWeek')}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-4 text-center border border-white/10">
+            <div className="text-3xl font-extrabold text-white">
+              {stats?.adherence || 0}%
+            </div>
+            <p className="text-sm text-white/70 mt-1 font-medium">{t('medicines.adherence')}</p>
           </div>
-          <p className="text-sm text-gray-500 mt-1">{t('medicines.adherence')}</p>
-        </div>
-
-        {/* Taken */}
-        <div className="bg-white/70 rounded-xl p-4 text-center">
-          <div className="text-3xl font-bold text-green-600">
-            {stats?.taken || 0}
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-4 text-center border border-white/10">
+            <div className="text-3xl font-extrabold text-emerald-300">
+              {stats?.taken || 0}
+            </div>
+            <p className="text-sm text-white/70 mt-1 font-medium">{t('medicines.taken')}</p>
           </div>
-          <p className="text-sm text-gray-500 mt-1">{t('medicines.taken')}</p>
-        </div>
-
-        {/* Missed */}
-        <div className="bg-white/70 rounded-xl p-4 text-center">
-          <div className="text-3xl font-bold text-red-600">
-            {stats?.missed || 0}
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-4 text-center border border-white/10">
+            <div className="text-3xl font-extrabold text-rose-300">
+              {stats?.missed || 0}
+            </div>
+            <p className="text-sm text-white/70 mt-1 font-medium">{t('medicines.missed')}</p>
           </div>
-          <p className="text-sm text-gray-500 mt-1">{t('medicines.missed')}</p>
-        </div>
-
-        {/* Streak */}
-        <div className="bg-white/70 rounded-xl p-4 text-center">
-          <div className="text-3xl font-bold text-amber-600 flex items-center justify-center gap-1">
-            <Zap className="w-6 h-6" />
-            {stats?.streak || 0}
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-4 text-center border border-white/10">
+            <div className="text-3xl font-extrabold text-amber-300 flex items-center justify-center gap-1">
+              <Zap className="w-6 h-6" />
+              {stats?.streak || 0}
+            </div>
+            <p className="text-sm text-white/70 mt-1 font-medium">{t('medicines.dayStreak')}</p>
           </div>
-          <p className="text-sm text-gray-500 mt-1">{t('medicines.dayStreak')}</p>
         </div>
-      </div>
 
-      {/* Progress Bar */}
-      <div className="mt-4">
-        <div className="flex items-center justify-between text-sm mb-1">
-          <span className="text-gray-600">{t('medicines.weeklyGoal')}</span>
-          <span className="font-medium">{stats?.taken || 0}/{stats?.total || 0}</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div
-            className={`h-2 rounded-full transition-all ${
-              (stats?.adherence || 0) >= 90 ? 'bg-green-500' :
-              (stats?.adherence || 0) >= 70 ? 'bg-yellow-500' : 'bg-red-500'
-            }`}
-            style={{ width: `${stats?.adherence || 0}%` }}
-          />
+        <div className="mt-5">
+          <div className="flex items-center justify-between text-sm mb-2">
+            <span className="text-white/80 font-medium">{t('medicines.weeklyGoal')}</span>
+            <span className="font-bold text-white">{stats?.taken || 0}/{stats?.total || 0}</span>
+          </div>
+          <div className="w-full bg-white/20 rounded-full h-3 backdrop-blur-sm">
+            <div
+              className={`h-3 rounded-full bg-gradient-to-r ${getBarColor(stats?.adherence || 0)} transition-all duration-700 ease-out shadow-lg`}
+              style={{ width: `${stats?.adherence || 0}%` }}
+            />
+          </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 };
 
@@ -207,48 +204,55 @@ const TodayRemindersSection = ({ reminders, onTake, onSkip, onSnooze }) => {
     speak(t('medicines.voiceTaken', { medicine: reminder.medicine_name }));
   };
 
+  const pendingCount = reminders?.filter(r => r.status === 'pending').length || 0;
+
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Bell className="w-5 h-5 text-primary-600" />
-          {t('medicines.todaysReminders')}
-        </h3>
-        <Badge variant="primary">
-          {reminders?.filter(r => r.status === 'pending').length || 0} {t('medicines.pending')}
-        </Badge>
+    <div className="bg-white rounded-2xl border border-purple-100 shadow-lg shadow-purple-100/30 overflow-hidden">
+      <div className="p-6 border-b border-purple-50 bg-gradient-to-r from-purple-50/50 to-violet-50/50">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-3">
+            <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl shadow-lg shadow-purple-200/50">
+              <Bell className="w-5 h-5 text-white" />
+            </div>
+            {t('medicines.todaysReminders')}
+          </h3>
+          {pendingCount > 0 && (
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-violet-100 text-violet-700 text-sm font-bold animate-pulse">
+              {pendingCount} {t('medicines.pending')}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="p-6 space-y-8">
         {Object.entries(TIME_SLOTS).map(([slotKey, slotConfig]) => {
           const slotReminders = groupedByTime[slotKey];
           if (!slotReminders || slotReminders.length === 0) return null;
 
           const SlotIcon = slotConfig.icon;
           const allTaken = slotReminders.every(r => r.status === 'taken');
-          const hasPending = slotReminders.some(r => r.status === 'pending');
 
           return (
             <div key={slotKey} className="relative">
-              {/* Time Slot Header */}
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`p-2 rounded-lg ${slotConfig.color}`}>
+              <div className="absolute left-5 top-14 bottom-0 w-0.5 bg-gradient-to-b from-purple-200 to-transparent" />
+
+              <div className="flex items-center gap-4 mb-4">
+                <div className={`p-2.5 rounded-xl ${slotConfig.color} shadow-sm`}>
                   <SlotIcon className="w-5 h-5" />
                 </div>
-                <div>
-                  <h4 className="font-medium text-gray-900">{slotConfig.label}</h4>
-                  <p className="text-sm text-gray-500">{slotConfig.time}</p>
+                <div className="flex-1">
+                  <h4 className="font-bold text-gray-900">{slotConfig.label}</h4>
+                  <p className="text-sm text-gray-400">{slotConfig.time}</p>
                 </div>
                 {allTaken && (
-                  <Badge variant="success" className="ml-auto">
-                    <CheckCircle className="w-3 h-3 mr-1" />
+                  <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-200">
+                    <CheckCircle className="w-3.5 h-3.5" />
                     {t('medicines.allTaken')}
-                  </Badge>
+                  </span>
                 )}
               </div>
 
-              {/* Medicines */}
-              <div className="space-y-2 ml-12">
+              <div className="space-y-3 ml-14">
                 {slotReminders.map((reminder) => {
                   const statusConfig = REMINDER_STATUS[reminder.status];
                   const formConfig = MEDICINE_FORMS[reminder.form] || MEDICINE_FORMS.other;
@@ -258,28 +262,29 @@ const TodayRemindersSection = ({ reminders, onTake, onSkip, onSnooze }) => {
                   return (
                     <div
                       key={reminder.id}
-                      className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${
+                      className={`group relative flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-300 ${
                         reminder.status === 'taken'
-                          ? 'bg-green-50 border-green-200'
+                          ? 'bg-emerald-50/50 border-emerald-200 shadow-sm'
                           : reminder.status === 'missed'
-                          ? 'bg-red-50 border-red-200'
-                          : 'bg-white border-gray-200 hover:border-primary-200'
+                          ? 'bg-red-50/50 border-red-200 shadow-sm'
+                          : 'bg-white border-purple-100 hover:border-purple-300 hover:shadow-lg hover:shadow-purple-100/30 hover:-translate-y-0.5'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${formConfig.color}`}>
+                      <div className="flex items-center gap-4">
+                        <div className={`p-2.5 rounded-xl ${formConfig.color} transition-transform group-hover:scale-110`}>
                           <FormIcon className="w-4 h-4" />
                         </div>
                         <div>
-                          <h5 className="font-medium text-gray-900">
+                          <h5 className="font-bold text-gray-900">
                             {reminder.medicine_name}
                           </h5>
-                          <p className="text-sm text-gray-500">
-                            {reminder.dosage}
+                          <p className="text-sm text-gray-400 flex items-center gap-2 mt-0.5">
+                            <span className="font-medium text-gray-500">{reminder.dosage}</span>
                             {reminder.meal_timing && (
-                              <span className="ml-2">
-                                • {MEAL_TIMING[reminder.meal_timing]?.label}
-                              </span>
+                              <>
+                                <span className="w-1 h-1 rounded-full bg-gray-300" />
+                                <span>{MEAL_TIMING[reminder.meal_timing]?.label}</span>
+                              </>
                             )}
                           </p>
                         </div>
@@ -288,35 +293,34 @@ const TodayRemindersSection = ({ reminders, onTake, onSkip, onSnooze }) => {
                       <div className="flex items-center gap-2">
                         {isPending ? (
                           <>
-                            <Button
-                              variant="success"
-                              size="sm"
-                              leftIcon={<Check className="w-4 h-4" />}
+                            <button
                               onClick={() => handleTake(reminder)}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-sm font-bold shadow-lg shadow-purple-200/50 hover:shadow-purple-300/50 hover:from-violet-600 hover:to-purple-700 transition-all duration-200 active:scale-95"
                             >
+                              <Check className="w-4 h-4" />
                               {t('medicines.take')}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
+                            </button>
+                            <button
                               onClick={() => onSkip(reminder.id)}
+                              className="p-2 rounded-xl text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                              title="Skip"
                             >
                               <SkipForward className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
+                            </button>
+                            <button
                               onClick={() => onSnooze(reminder.id)}
+                              className="p-2 rounded-xl text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                              title="Snooze"
                             >
                               <Clock className="w-4 h-4" />
-                            </Button>
+                            </button>
                           </>
                         ) : (
-                          <Badge variant={statusConfig.color} className={statusConfig.color}>
-                            {reminder.status === 'taken' && <CheckCircle className="w-3 h-3 mr-1" />}
-                            {reminder.status === 'missed' && <XCircle className="w-3 h-3 mr-1" />}
+                          <span className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold ${statusConfig.color}`}>
+                            {reminder.status === 'taken' && <CheckCircle className="w-3.5 h-3.5" />}
+                            {reminder.status === 'missed' && <XCircle className="w-3.5 h-3.5" />}
                             {statusConfig.label}
-                          </Badge>
+                          </span>
                         )}
                       </div>
                     </div>
@@ -328,15 +332,16 @@ const TodayRemindersSection = ({ reminders, onTake, onSkip, onSnooze }) => {
         })}
 
         {(!reminders || reminders.length === 0) && (
-          <EmptyState
-            icon={CheckCircle}
-            title={t('medicines.noRemindersToday')}
-            description={t('medicines.noRemindersTodayDesc')}
-            compact
-          />
+          <div className="text-center py-12">
+            <div className="mx-auto w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mb-4">
+              <CheckCircle className="w-8 h-8 text-purple-500" />
+            </div>
+            <h4 className="font-bold text-gray-900 mb-1">{t('medicines.noRemindersToday')}</h4>
+            <p className="text-gray-400 text-sm">{t('medicines.noRemindersTodayDesc')}</p>
+          </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 };
 
@@ -346,139 +351,140 @@ const ActivePrescriptionsSection = ({ prescriptions, onViewDetails, onSetReminde
   const navigate = useNavigate();
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <FileText className="w-5 h-5 text-primary-600" />
-          {t('medicines.activePrescriptions')}
-        </h3>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate('/patient/health-records?tab=documents')}
-        >
-          {t('common.viewAll')}
-        </Button>
+    <div className="bg-white rounded-2xl border border-purple-100 shadow-lg shadow-purple-100/30 overflow-hidden">
+      <div className="p-6 border-b border-purple-50 bg-gradient-to-r from-purple-50/50 to-violet-50/50">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-3">
+            <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl shadow-lg shadow-purple-200/50">
+              <FileText className="w-5 h-5 text-white" />
+            </div>
+            {t('medicines.activePrescriptions')}
+          </h3>
+          <button
+            onClick={() => navigate('/patient/health-records?tab=documents')}
+            className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition-colors flex items-center gap-1"
+          >
+            {t('common.viewAll')}
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {prescriptions && prescriptions.length > 0 ? (
-        <div className="space-y-4">
-          {prescriptions.map((prescription) => (
-            <div
-              key={prescription.id}
-              className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow"
-            >
-              {/* Header */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <Avatar
-                    name={prescription.doctor_name}
-                    src={prescription.doctor_avatar}
-                    size="sm"
-                  />
-                  <div>
-                    <h4 className="font-medium text-gray-900">
-                      Dr. {prescription.doctor_name}
-                    </h4>
-                    <p className="text-sm text-gray-500">
-                      {prescription.doctor_specialization}
+      <div className="p-6">
+        {prescriptions && prescriptions.length > 0 ? (
+          <div className="space-y-4">
+            {prescriptions.map((prescription) => (
+              <div
+                key={prescription.id}
+                className="group border-2 border-purple-100 rounded-2xl p-5 hover:border-purple-200 hover:shadow-lg hover:shadow-purple-100/30 transition-all duration-300 hover:-translate-y-0.5"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar
+                      name={prescription.doctor_name}
+                      src={prescription.doctor_avatar}
+                      size="sm"
+                    />
+                    <div>
+                      <h4 className="font-bold text-gray-900">
+                        Dr. {prescription.doctor_name}
+                      </h4>
+                      <p className="text-sm text-gray-400">
+                        {prescription.doctor_specialization}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500 font-medium">
+                      {formatDate(prescription.date, 'MMM d, yyyy')}
                     </p>
+                    {prescription.valid_until && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Valid until: {formatDate(prescription.valid_until, 'MMM d')}
+                      </p>
+                    )}
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-500">
-                    {formatDate(prescription.date, 'MMM d, yyyy')}
-                  </p>
-                  {prescription.valid_until && (
-                    <p className="text-xs text-gray-400">
-                      Valid until: {formatDate(prescription.valid_until, 'MMM d')}
+
+                {prescription.diagnosis && (
+                  <div className="bg-violet-50 rounded-xl p-3 mb-4 border border-violet-100">
+                    <p className="text-sm text-violet-700 font-medium flex items-center gap-2">
+                      <Info className="w-4 h-4 text-violet-500" />
+                      {prescription.diagnosis}
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {prescription.medicines?.slice(0, 3).map((medicine, index) => {
+                    const formConfig = MEDICINE_FORMS[medicine.form] || MEDICINE_FORMS.other;
+                    const FormIcon = formConfig.icon;
+
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-purple-50/50 transition-colors border-b border-purple-50 last:border-b-0"
+                      >
+                        <div className="flex items-center gap-3">
+                          <FormIcon className={`w-4 h-4 ${formConfig.color.split(' ')[1]}`} />
+                          <span className="font-semibold text-gray-900">{medicine.name}</span>
+                          <span className="px-2 py-0.5 rounded-lg bg-purple-100 text-purple-700 text-xs font-bold">
+                            {medicine.dosage}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-gray-400">
+                            {medicine.frequency} • {medicine.duration}
+                          </span>
+                          {!medicine.has_reminder && (
+                            <button
+                              onClick={() => onSetReminder(medicine)}
+                              className="p-1.5 rounded-lg text-purple-400 hover:text-purple-600 hover:bg-purple-100 transition-colors"
+                            >
+                              <Bell className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {prescription.medicines?.length > 3 && (
+                    <p className="text-sm text-purple-400 text-center pt-2 font-medium">
+                      +{prescription.medicines.length - 3} more medicines
                     </p>
                   )}
                 </div>
-              </div>
 
-              {/* Diagnosis */}
-              {prescription.diagnosis && (
-                <div className="bg-blue-50 rounded-lg p-2 mb-3">
-                  <p className="text-sm text-blue-700">
-                    <Info className="w-4 h-4 inline mr-1" />
-                    {prescription.diagnosis}
-                  </p>
+                <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-purple-50">
+                  <button
+                    onClick={() => onViewDetails(prescription)}
+                    className="px-4 py-2 rounded-xl border-2 border-purple-200 text-purple-600 text-sm font-bold hover:bg-purple-50 transition-colors"
+                  >
+                    {t('common.viewDetails')}
+                  </button>
+                  <button
+                    onClick={() => onSetReminder(prescription)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-sm font-bold shadow-lg shadow-purple-200/50 hover:shadow-purple-300/50 hover:from-violet-600 hover:to-purple-700 transition-all active:scale-95"
+                  >
+                    <Bell className="w-4 h-4" />
+                    {t('medicines.setReminders')}
+                  </button>
                 </div>
-              )}
-
-              {/* Medicines */}
-              <div className="space-y-2">
-                {prescription.medicines?.slice(0, 3).map((medicine, index) => {
-                  const formConfig = MEDICINE_FORMS[medicine.form] || MEDICINE_FORMS.other;
-                  const FormIcon = formConfig.icon;
-
-                  return (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FormIcon className={`w-4 h-4 ${formConfig.color.split(' ')[1]}`} />
-                        <span className="font-medium text-gray-900">{medicine.name}</span>
-                        <Badge variant="secondary" size="sm">{medicine.dosage}</Badge>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-500">
-                          {medicine.frequency} • {medicine.duration}
-                        </span>
-                        {!medicine.has_reminder && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onSetReminder(medicine)}
-                            className="text-primary-600"
-                          >
-                            <Bell className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {prescription.medicines?.length > 3 && (
-                  <p className="text-sm text-gray-500 text-center pt-2">
-                    +{prescription.medicines.length - 3} more medicines
-                  </p>
-                )}
               </div>
-
-              {/* Actions */}
-              <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-gray-100">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onViewDetails(prescription)}
-                >
-                  {t('common.viewDetails')}
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={<Bell className="w-4 h-4" />}
-                  onClick={() => onSetReminder(prescription)}
-                >
-                  {t('medicines.setReminders')}
-                </Button>
-              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <div className="mx-auto w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mb-4">
+              <FileText className="w-8 h-8 text-purple-500" />
             </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          icon={FileText}
-          title={t('medicines.noPrescriptions')}
-          description={t('medicines.noPrescriptionsDesc')}
-          compact
-        />
-      )}
-    </Card>
+            <h4 className="font-bold text-gray-900 mb-1">{t('medicines.noPrescriptions')}</h4>
+            <p className="text-gray-400 text-sm">{t('medicines.noPrescriptionsDesc')}</p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -488,172 +494,180 @@ const MyMedicinesSection = ({ medicines, onEdit, onDelete, onToggleReminder }) =
   const [expandedMedicine, setExpandedMedicine] = useState(null);
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Pill className="w-5 h-5 text-primary-600" />
+    <div className="bg-white rounded-2xl border border-purple-100 shadow-lg shadow-purple-100/30 overflow-hidden">
+      <div className="p-6 border-b border-purple-50 bg-gradient-to-r from-purple-50/50 to-violet-50/50">
+        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-3">
+          <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl shadow-lg shadow-purple-200/50">
+            <Pill className="w-5 h-5 text-white" />
+          </div>
           {t('medicines.myMedicines')}
         </h3>
       </div>
 
-      {medicines && medicines.length > 0 ? (
-        <div className="space-y-3">
-          {medicines.map((medicine) => {
-            const formConfig = MEDICINE_FORMS[medicine.form] || MEDICINE_FORMS.other;
-            const FormIcon = formConfig.icon;
-            const isExpanded = expandedMedicine === medicine.id;
+      <div className="p-6">
+        {medicines && medicines.length > 0 ? (
+          <div className="space-y-3">
+            {medicines.map((medicine) => {
+              const formConfig = MEDICINE_FORMS[medicine.form] || MEDICINE_FORMS.other;
+              const FormIcon = formConfig.icon;
+              const isExpanded = expandedMedicine === medicine.id;
 
-            return (
-              <div
-                key={medicine.id}
-                className="border border-gray-200 rounded-xl overflow-hidden"
-              >
-                {/* Medicine Header */}
-                <button
-                  onClick={() => setExpandedMedicine(isExpanded ? null : medicine.id)}
-                  className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+              return (
+                <div
+                  key={medicine.id}
+                  className={`border-2 rounded-2xl overflow-hidden transition-all duration-300 ${
+                    isExpanded
+                      ? 'border-purple-300 shadow-lg shadow-purple-100/30'
+                      : 'border-purple-100 hover:border-purple-200'
+                  }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${formConfig.color}`}>
-                      <FormIcon className="w-5 h-5" />
-                    </div>
-                    <div className="text-left">
-                      <h4 className="font-medium text-gray-900">{medicine.name}</h4>
-                      <p className="text-sm text-gray-500">
-                        {medicine.dosage} • {medicine.frequency}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    {medicine.reminder_enabled ? (
-                      <Badge variant="success" size="sm">
-                        <Bell className="w-3 h-3 mr-1" />
-                        {t('medicines.reminderOn')}
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" size="sm">
-                        <BellOff className="w-3 h-3 mr-1" />
-                        {t('medicines.reminderOff')}
-                      </Badge>
-                    )}
-                    {isExpanded ? (
-                      <ChevronUp className="w-5 h-5 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-400" />
-                    )}
-                  </div>
-                </button>
-
-                {/* Expanded Details */}
-                {isExpanded && (
-                  <div className="px-4 pb-4 pt-2 border-t border-gray-100 bg-gray-50">
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <p className="text-xs text-gray-500">{t('medicines.duration')}</p>
-                        <p className="font-medium">{medicine.duration}</p>
+                  <button
+                    onClick={() => setExpandedMedicine(isExpanded ? null : medicine.id)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-purple-50/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`p-2.5 rounded-xl ${formConfig.color} transition-transform ${isExpanded ? 'scale-110' : ''}`}>
+                        <FormIcon className="w-5 h-5" />
                       </div>
-                      <div>
-                        <p className="text-xs text-gray-500">{t('medicines.startDate')}</p>
-                        <p className="font-medium">
-                          {formatDate(medicine.start_date, 'MMM d, yyyy')}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">{t('medicines.endDate')}</p>
-                        <p className="font-medium">
-                          {medicine.end_date 
-                            ? formatDate(medicine.end_date, 'MMM d, yyyy')
-                            : 'Ongoing'
-                          }
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">{t('medicines.mealTiming')}</p>
-                        <p className="font-medium">
-                          {MEAL_TIMING[medicine.meal_timing]?.label || '-'}
+                      <div className="text-left">
+                        <h4 className="font-bold text-gray-900">{medicine.name}</h4>
+                        <p className="text-sm text-gray-400 mt-0.5">
+                          <span className="font-medium text-gray-500">{medicine.dosage}</span>
+                          <span className="mx-1.5">•</span>
+                          {medicine.frequency}
                         </p>
                       </div>
                     </div>
 
-                    {/* Reminder Times */}
-                    {medicine.reminder_times && medicine.reminder_times.length > 0 && (
-                      <div className="mb-4">
-                        <p className="text-xs text-gray-500 mb-2">{t('medicines.reminderTimes')}</p>
-                        <div className="flex flex-wrap gap-2">
-                          {medicine.reminder_times.map((time, index) => {
-                            const slotConfig = TIME_SLOTS[time] || {};
-                            const SlotIcon = slotConfig.icon || Clock;
-                            return (
-                              <div
-                                key={index}
-                                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${slotConfig.color || 'bg-gray-100 text-gray-600'}`}
-                              >
-                                <SlotIcon className="w-3 h-3" />
-                                {slotConfig.label || time}
-                              </div>
-                            );
-                          })}
+                    <div className="flex items-center gap-3">
+                      {medicine.reminder_enabled ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-200">
+                          <Bell className="w-3 h-3" />
+                          {t('medicines.reminderOn')}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 text-xs font-bold border border-gray-200">
+                          <BellOff className="w-3 h-3" />
+                          {t('medicines.reminderOff')}
+                        </span>
+                      )}
+                      <div className={`p-1 rounded-lg transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                        <ChevronDown className="w-5 h-5 text-gray-400" />
+                      </div>
+                    </div>
+                  </button>
+
+                  <div
+                    className={`transition-all duration-300 ease-in-out ${
+                      isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0 overflow-hidden'
+                    }`}
+                  >
+                    <div className="px-5 pb-5 pt-2 border-t border-purple-50 bg-gradient-to-b from-purple-50/30 to-white">
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="bg-white rounded-xl p-3 border border-purple-100">
+                          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{t('medicines.duration')}</p>
+                          <p className="font-bold text-gray-900 mt-1">{medicine.duration}</p>
+                        </div>
+                        <div className="bg-white rounded-xl p-3 border border-purple-100">
+                          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{t('medicines.startDate')}</p>
+                          <p className="font-bold text-gray-900 mt-1">
+                            {formatDate(medicine.start_date, 'MMM d, yyyy')}
+                          </p>
+                        </div>
+                        <div className="bg-white rounded-xl p-3 border border-purple-100">
+                          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{t('medicines.endDate')}</p>
+                          <p className="font-bold text-gray-900 mt-1">
+                            {medicine.end_date
+                              ? formatDate(medicine.end_date, 'MMM d, yyyy')
+                              : 'Ongoing'
+                            }
+                          </p>
+                        </div>
+                        <div className="bg-white rounded-xl p-3 border border-purple-100">
+                          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{t('medicines.mealTiming')}</p>
+                          <p className="font-bold text-gray-900 mt-1">
+                            {MEAL_TIMING[medicine.meal_timing]?.label || '-'}
+                          </p>
                         </div>
                       </div>
-                    )}
 
-                    {/* Instructions */}
-                    {medicine.instructions && (
-                      <div className="p-3 bg-amber-50 rounded-lg mb-4">
-                        <p className="text-sm text-amber-800">
-                          <Info className="w-4 h-4 inline mr-1" />
-                          {medicine.instructions}
-                        </p>
-                      </div>
-                    )}
+                      {medicine.reminder_times && medicine.reminder_times.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-2">{t('medicines.reminderTimes')}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {medicine.reminder_times.map((time, index) => {
+                              const slotConfig = TIME_SLOTS[time] || {};
+                              const SlotIcon = slotConfig.icon || Clock;
+                              return (
+                                <div
+                                  key={index}
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${slotConfig.color || 'bg-gray-100 text-gray-600'}`}
+                                >
+                                  <SlotIcon className="w-3.5 h-3.5" />
+                                  {slotConfig.label || time}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
-                    {/* Actions */}
-                    <div className="flex justify-between">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        leftIcon={medicine.reminder_enabled ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
-                        onClick={() => onToggleReminder(medicine)}
-                      >
-                        {medicine.reminder_enabled 
-                          ? t('medicines.disableReminder')
-                          : t('medicines.enableReminder')
-                        }
-                      </Button>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onEdit(medicine)}
+                      {medicine.instructions && (
+                        <div className="p-3 bg-amber-50 rounded-xl mb-4 border border-amber-100">
+                          <p className="text-sm text-amber-700 font-medium flex items-start gap-2">
+                            <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-500" />
+                            {medicine.instructions}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center">
+                        <button
+                          onClick={() => onToggleReminder(medicine)}
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border-2 transition-colors ${
+                            medicine.reminder_enabled
+                              ? 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                              : 'border-purple-200 text-purple-600 hover:bg-purple-50'
+                          }`}
                         >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onDelete(medicine)}
-                          className="text-red-500 hover:text-red-600"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                          {medicine.reminder_enabled ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                          {medicine.reminder_enabled
+                            ? t('medicines.disableReminder')
+                            : t('medicines.enableReminder')
+                          }
+                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => onEdit(medicine)}
+                            className="p-2.5 rounded-xl text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => onDelete(medicine)}
+                            className="p-2.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <EmptyState
-          icon={Pill}
-          title={t('medicines.noMedicines')}
-          description={t('medicines.noMedicinesDesc')}
-          compact
-        />
-      )}
-    </Card>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <div className="mx-auto w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mb-4">
+              <Pill className="w-8 h-8 text-purple-500" />
+            </div>
+            <h4 className="font-bold text-gray-900 mb-1">{t('medicines.noMedicines')}</h4>
+            <p className="text-gray-400 text-sm">{t('medicines.noMedicinesDesc')}</p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -672,76 +686,97 @@ const MedicineHistorySection = ({ history, onLoadMore, hasMore }) => {
   }, [history]);
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <History className="w-5 h-5 text-primary-600" />
+    <div className="bg-white rounded-2xl border border-purple-100 shadow-lg shadow-purple-100/30 overflow-hidden">
+      <div className="p-6 border-b border-purple-50 bg-gradient-to-r from-purple-50/50 to-violet-50/50">
+        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-3">
+          <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl shadow-lg shadow-purple-200/50">
+            <History className="w-5 h-5 text-white" />
+          </div>
           {t('medicines.history')}
         </h3>
       </div>
 
-      {history && history.length > 0 ? (
-        <div className="space-y-6">
-          {Object.entries(groupedByDate).map(([date, items]) => (
-            <div key={date}>
-              <h4 className="text-sm font-medium text-gray-500 mb-3">
-                {isToday(parseISO(date))
-                  ? t('common.today')
-                  : formatDate(date, 'EEEE, MMM d')
-                }
-              </h4>
-              <div className="space-y-2">
-                {items.map((item, index) => {
-                  const statusConfig = REMINDER_STATUS[item.status];
-                  return (
-                    <div
-                      key={index}
-                      className={`flex items-center justify-between p-3 rounded-lg ${statusConfig.color}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        {item.status === 'taken' ? (
-                          <CheckCircle className="w-5 h-5" />
-                        ) : item.status === 'missed' ? (
-                          <XCircle className="w-5 h-5" />
-                        ) : (
-                          <SkipForward className="w-5 h-5" />
-                        )}
-                        <div>
-                          <p className="font-medium">{item.medicine_name}</p>
-                          <p className="text-sm opacity-80">
-                            {item.dosage} • {formatTime(item.time)}
-                          </p>
+      <div className="p-6">
+        {history && history.length > 0 ? (
+          <div className="space-y-6">
+            {Object.entries(groupedByDate).map(([date, items]) => (
+              <div key={date}>
+                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5" />
+                  {isToday(parseISO(date))
+                    ? t('common.today')
+                    : formatDate(date, 'EEEE, MMM d')
+                  }
+                </h4>
+                <div className="space-y-2">
+                  {items.map((item, index) => {
+                    const statusConfig = REMINDER_STATUS[item.status];
+                    return (
+                      <div
+                        key={index}
+                        className={`flex items-center justify-between p-3.5 rounded-xl border transition-colors ${
+                          item.status === 'taken'
+                            ? 'bg-emerald-50/50 border-emerald-100'
+                            : item.status === 'missed'
+                            ? 'bg-red-50/50 border-red-100'
+                            : 'bg-gray-50/50 border-gray-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`p-1.5 rounded-lg ${
+                            item.status === 'taken'
+                              ? 'bg-emerald-100'
+                              : item.status === 'missed'
+                              ? 'bg-red-100'
+                              : 'bg-gray-100'
+                          }`}>
+                            {item.status === 'taken' ? (
+                              <CheckCircle className="w-4 h-4 text-emerald-600" />
+                            ) : item.status === 'missed' ? (
+                              <XCircle className="w-4 h-4 text-red-600" />
+                            ) : (
+                              <SkipForward className="w-4 h-4 text-gray-500" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900">{item.medicine_name}</p>
+                            <p className="text-sm text-gray-400">
+                              {item.dosage}
+                              <span className="mx-1">•</span>
+                              {formatTime(item.time)}
+                            </p>
+                          </div>
                         </div>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${statusConfig.color}`}>
+                          {statusConfig.label}
+                        </span>
                       </div>
-                      <Badge variant="secondary" size="sm">
-                        {statusConfig.label}
-                      </Badge>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {hasMore && (
-            <Button
-              variant="outline"
-              fullWidth
-              onClick={onLoadMore}
-            >
-              {t('common.loadMore')}
-            </Button>
-          )}
-        </div>
-      ) : (
-        <EmptyState
-          icon={History}
-          title={t('medicines.noHistory')}
-          description={t('medicines.noHistoryDesc')}
-          compact
-        />
-      )}
-    </Card>
+            {hasMore && (
+              <button
+                onClick={onLoadMore}
+                className="w-full py-3 rounded-xl border-2 border-dashed border-purple-200 text-purple-600 font-bold text-sm hover:bg-purple-50 hover:border-purple-300 transition-colors"
+              >
+                {t('common.loadMore')}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <div className="mx-auto w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mb-4">
+              <History className="w-8 h-8 text-purple-500" />
+            </div>
+            <h4 className="font-bold text-gray-900 mb-1">{t('medicines.noHistory')}</h4>
+            <p className="text-gray-400 text-sm">{t('medicines.noHistoryDesc')}</p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -793,7 +828,7 @@ const AddMedicineModal = ({ isOpen, onClose, onSave, isLoading }) => {
       title={t('medicines.addMedicine')}
       size="lg"
     >
-      <div className="space-y-4">
+      <div className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <Input
             label={t('medicines.medicineName')}
@@ -802,14 +837,12 @@ const AddMedicineModal = ({ isOpen, onClose, onSave, isLoading }) => {
             placeholder="e.g., Metformin"
             className="col-span-2"
           />
-
           <Input
             label={t('medicines.dosage')}
             value={formData.dosage}
             onChange={(e) => setFormData({ ...formData, dosage: e.target.value })}
             placeholder="e.g., 500mg"
           />
-
           <Select
             label={t('medicines.form')}
             value={formData.form}
@@ -819,14 +852,12 @@ const AddMedicineModal = ({ isOpen, onClose, onSave, isLoading }) => {
               label: config.label
             }))}
           />
-
           <Select
             label={t('medicines.frequency')}
             value={formData.frequency}
             onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
             options={frequencyOptions}
           />
-
           <Select
             label={t('medicines.mealTiming')}
             value={formData.meal_timing}
@@ -836,7 +867,6 @@ const AddMedicineModal = ({ isOpen, onClose, onSave, isLoading }) => {
               label: config.label
             }))}
           />
-
           <div className="flex gap-2">
             <Input
               label={t('medicines.duration')}
@@ -859,7 +889,6 @@ const AddMedicineModal = ({ isOpen, onClose, onSave, isLoading }) => {
               className="w-28"
             />
           </div>
-
           <Input
             label={t('medicines.startDate')}
             type="date"
@@ -868,12 +897,11 @@ const AddMedicineModal = ({ isOpen, onClose, onSave, isLoading }) => {
           />
         </div>
 
-        {/* Reminder Times */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-bold text-gray-700 mb-3">
             {t('medicines.reminderTimes')}
           </label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {Object.entries(TIME_SLOTS).map(([key, config]) => {
               const SlotIcon = config.icon;
               const isSelected = formData.reminder_times.includes(key);
@@ -881,18 +909,20 @@ const AddMedicineModal = ({ isOpen, onClose, onSave, isLoading }) => {
                 <button
                   key={key}
                   onClick={() => toggleReminderTime(key)}
-                  className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-colors ${
+                  className={`flex items-center gap-2.5 p-3.5 rounded-2xl border-2 transition-all duration-200 ${
                     isSelected
-                      ? 'border-primary-500 bg-primary-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-purple-400 bg-purple-50 shadow-lg shadow-purple-100/50'
+                      : 'border-gray-200 hover:border-purple-200 hover:bg-purple-50/30'
                   }`}
                 >
-                  <SlotIcon className={`w-5 h-5 ${isSelected ? 'text-primary-600' : 'text-gray-400'}`} />
+                  <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-purple-100' : 'bg-gray-100'}`}>
+                    <SlotIcon className={`w-4 h-4 ${isSelected ? 'text-purple-600' : 'text-gray-400'}`} />
+                  </div>
                   <div className="text-left">
-                    <p className={`text-sm font-medium ${isSelected ? 'text-primary-700' : 'text-gray-700'}`}>
+                    <p className={`text-sm font-bold ${isSelected ? 'text-purple-700' : 'text-gray-700'}`}>
                       {config.label}
                     </p>
-                    <p className="text-xs text-gray-500">{config.time}</p>
+                    <p className="text-xs text-gray-400">{config.time}</p>
                   </div>
                 </button>
               );
@@ -909,18 +939,25 @@ const AddMedicineModal = ({ isOpen, onClose, onSave, isLoading }) => {
         />
       </div>
 
-      <div className="flex justify-end gap-3 mt-6">
-        <Button variant="outline" onClick={onClose}>
-          {t('common.cancel')}
-        </Button>
-        <Button
-          variant="primary"
-          onClick={handleSave}
-          loading={isLoading}
-          disabled={!formData.name || !formData.dosage}
+      <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-purple-100">
+        <button
+          onClick={onClose}
+          className="px-5 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
         >
+          {t('common.cancel')}
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={!formData.name || !formData.dosage || isLoading}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white font-bold text-sm shadow-lg shadow-purple-200/50 hover:shadow-purple-300/50 hover:from-violet-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+        >
+          {isLoading ? (
+            <RefreshCw className="w-4 h-4 animate-spin" />
+          ) : (
+            <Plus className="w-4 h-4" />
+          )}
           {t('common.save')}
-        </Button>
+        </button>
       </div>
     </Modal>
   );
@@ -940,37 +977,34 @@ const PrescriptionDetailsModal = ({ isOpen, onClose, prescription }) => {
       size="lg"
     >
       <div className="space-y-6">
-        {/* Doctor Info */}
-        <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+        <div className="flex items-center gap-4 p-5 bg-gradient-to-r from-purple-50 to-violet-50 rounded-2xl border border-purple-100">
           <Avatar
             name={prescription.doctor_name}
             src={prescription.doctor_avatar}
             size="lg"
           />
           <div>
-            <h4 className="font-semibold text-gray-900">
+            <h4 className="font-bold text-gray-900 text-lg">
               Dr. {prescription.doctor_name}
             </h4>
-            <p className="text-gray-600">{prescription.doctor_specialization}</p>
-            <p className="text-sm text-gray-500">
+            <p className="text-purple-600 font-medium">{prescription.doctor_specialization}</p>
+            <p className="text-sm text-gray-400 mt-0.5">
               {formatDate(prescription.date, 'MMMM d, yyyy')}
             </p>
           </div>
         </div>
 
-        {/* Diagnosis */}
         {prescription.diagnosis && (
-          <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-            <p className="text-sm text-blue-700 font-medium mb-1">
+          <div className="bg-violet-50 rounded-2xl p-4 border border-violet-100">
+            <p className="text-xs text-violet-500 font-bold uppercase tracking-wider mb-1">
               {t('medicines.diagnosis')}
             </p>
-            <p className="text-blue-900">{prescription.diagnosis}</p>
+            <p className="text-violet-900 font-semibold">{prescription.diagnosis}</p>
           </div>
         )}
 
-        {/* Medicines List */}
         <div>
-          <h4 className="font-medium text-gray-900 mb-3">
+          <h4 className="font-bold text-gray-900 mb-3">
             {t('medicines.prescribedMedicines')}
           </h4>
           <div className="space-y-3">
@@ -981,33 +1015,35 @@ const PrescriptionDetailsModal = ({ isOpen, onClose, prescription }) => {
               return (
                 <div
                   key={index}
-                  className="p-4 bg-gray-50 rounded-xl border border-gray-200"
+                  className="p-4 bg-white rounded-2xl border-2 border-purple-100 hover:border-purple-200 transition-colors"
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${formConfig.color}`}>
+                    <div className={`p-2.5 rounded-xl ${formConfig.color}`}>
                       <FormIcon className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <h5 className="font-semibold text-gray-900">{medicine.name}</h5>
-                        <Badge variant="primary">{medicine.dosage}</Badge>
+                        <h5 className="font-bold text-gray-900">{medicine.name}</h5>
+                        <span className="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-700 text-xs font-bold">
+                          {medicine.dosage}
+                        </span>
                       </div>
                       {medicine.generic_name && (
-                        <p className="text-sm text-gray-500">{medicine.generic_name}</p>
+                        <p className="text-sm text-gray-400">{medicine.generic_name}</p>
                       )}
-                      <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
-                        <p className="text-gray-600">
-                          <Clock className="w-4 h-4 inline mr-1" />
+                      <div className="grid grid-cols-2 gap-2 mt-3 text-sm">
+                        <p className="text-gray-500 flex items-center gap-1.5 font-medium">
+                          <Clock className="w-4 h-4 text-purple-400" />
                           {medicine.frequency}
                         </p>
-                        <p className="text-gray-600">
-                          <Calendar className="w-4 h-4 inline mr-1" />
+                        <p className="text-gray-500 flex items-center gap-1.5 font-medium">
+                          <Calendar className="w-4 h-4 text-purple-400" />
                           {medicine.duration}
                         </p>
                       </div>
                       {medicine.instructions && (
-                        <p className="text-sm text-amber-700 mt-2 p-2 bg-amber-50 rounded-lg">
-                          <Info className="w-4 h-4 inline mr-1" />
+                        <p className="text-sm text-amber-700 mt-3 p-2.5 bg-amber-50 rounded-xl border border-amber-100 font-medium flex items-start gap-2">
+                          <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-500" />
                           {medicine.instructions}
                         </p>
                       )}
@@ -1019,42 +1055,45 @@ const PrescriptionDetailsModal = ({ isOpen, onClose, prescription }) => {
           </div>
         </div>
 
-        {/* General Instructions */}
         {prescription.general_instructions && (
-          <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
-            <p className="text-sm text-amber-700 font-medium mb-1">
+          <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100">
+            <p className="text-xs text-amber-600 font-bold uppercase tracking-wider mb-1">
               {t('medicines.generalInstructions')}
             </p>
-            <p className="text-amber-900">{prescription.general_instructions}</p>
+            <p className="text-amber-900 font-medium">{prescription.general_instructions}</p>
           </div>
         )}
 
-        {/* Follow-up */}
         {prescription.follow_up_date && (
-          <div className="flex items-center justify-between p-4 bg-primary-50 rounded-xl">
+          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-violet-50 rounded-2xl border border-purple-100">
             <div>
-              <p className="text-sm text-primary-700 font-medium">
+              <p className="text-xs text-purple-500 font-bold uppercase tracking-wider">
                 {t('medicines.followUpAdvised')}
               </p>
-              <p className="text-primary-900 font-semibold">
+              <p className="text-purple-900 font-bold mt-1">
                 {formatDate(prescription.follow_up_date, 'EEEE, MMMM d, yyyy')}
               </p>
             </div>
-            <Calendar className="w-6 h-6 text-primary-600" />
+            <div className="p-3 bg-purple-100 rounded-xl">
+              <Calendar className="w-6 h-6 text-purple-600" />
+            </div>
           </div>
         )}
       </div>
 
-      <div className="flex justify-end gap-3 mt-6">
-        <Button variant="outline" onClick={onClose}>
-          {t('common.close')}
-        </Button>
-        <Button
-          variant="primary"
-          leftIcon={<Bell className="w-4 h-4" />}
+      <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-purple-100">
+        <button
+          onClick={onClose}
+          className="px-5 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
         >
+          {t('common.close')}
+        </button>
+        <button
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white font-bold text-sm shadow-lg shadow-purple-200/50 hover:shadow-purple-300/50 hover:from-violet-600 hover:to-purple-700 transition-all active:scale-95"
+        >
+          <Bell className="w-4 h-4" />
           {t('medicines.setReminders')}
-        </Button>
+        </button>
       </div>
     </Modal>
   );
@@ -1128,7 +1167,6 @@ const Medicines = () => {
         setHistory(historyRes.value.data || []);
       }
 
-      // Calculate stats
       const taken = remindersRes.value?.data?.filter(r => r.status === 'taken').length || 0;
       const missed = remindersRes.value?.data?.filter(r => r.status === 'missed').length || 0;
       const total = remindersRes.value?.data?.length || 0;
@@ -1145,7 +1183,6 @@ const Medicines = () => {
       console.error('Error fetching medicine data:', err);
       setError(t('errors.failedToLoadMedicines'));
 
-      // Mock data
       setTodayReminders([
         { id: 1, medicine_name: 'Metformin', dosage: '500mg', form: 'tablet', time_slot: 'morning', meal_timing: 'after_meal', status: 'taken' },
         { id: 2, medicine_name: 'Amlodipine', dosage: '5mg', form: 'tablet', time_slot: 'morning', meal_timing: 'before_meal', status: 'taken' },
@@ -1241,7 +1278,6 @@ const Medicines = () => {
     }
   }, [t]);
 
-  // Initial load
   useEffect(() => {
     fetchMedicineData();
   }, [fetchMedicineData]);
@@ -1254,7 +1290,6 @@ const Medicines = () => {
       setTodayReminders(prev =>
         prev.map(r => r.id === reminderId ? { ...r, status: 'taken' } : r)
       );
-      // Update stats
       setStats(prev => ({
         ...prev,
         taken: prev.taken + 1,
@@ -1280,7 +1315,6 @@ const Medicines = () => {
 
   const handleSnoozeReminder = async (reminderId) => {
     speak(t('medicines.voiceSnoozed'));
-    // Would implement snooze logic
   };
 
   const handleAddMedicine = async (medicineData) => {
@@ -1299,14 +1333,12 @@ const Medicines = () => {
   };
 
   const handleEditMedicine = (medicine) => {
-    // Navigate to edit or open modal
     console.log('Edit medicine:', medicine);
   };
 
   const handleDeleteMedicine = async (medicine) => {
     if (window.confirm(t('medicines.confirmDelete', { medicine: medicine.name }))) {
       try {
-        // API call to delete
         setMedicines(prev => prev.filter(m => m.id !== medicine.id));
       } catch (err) {
         console.error('Error deleting medicine:', err);
@@ -1316,10 +1348,9 @@ const Medicines = () => {
 
   const handleToggleReminder = async (medicine) => {
     try {
-      // API call to toggle
       setMedicines(prev =>
-        prev.map(m => m.id === medicine.id 
-          ? { ...m, reminder_enabled: !m.reminder_enabled } 
+        prev.map(m => m.id === medicine.id
+          ? { ...m, reminder_enabled: !m.reminder_enabled }
           : m
         )
       );
@@ -1334,12 +1365,10 @@ const Medicines = () => {
   };
 
   const handleSetReminder = (prescriptionOrMedicine) => {
-    // Would open reminder setup modal
     console.log('Set reminder for:', prescriptionOrMedicine);
   };
 
   const handleLoadMoreHistory = () => {
-    // Load more history
     setHasMoreHistory(false);
   };
 
@@ -1347,104 +1376,152 @@ const Medicines = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader size="lg" />
+        <div className="text-center">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 animate-pulse mx-auto flex items-center justify-center shadow-lg shadow-purple-200/50">
+              <Pill className="w-8 h-8 text-white" />
+            </div>
+          </div>
+          <p className="text-gray-400 mt-4 font-medium">Loading your medicines...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6 pb-20 md:pb-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {t('medicines.title')}
-          </h1>
-          <p className="text-gray-500 mt-1">
-            {t('medicines.subtitle')}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<RefreshCw className="w-4 h-4" />}
-            onClick={fetchMedicineData}
-          >
-            {t('common.refresh')}
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<Plus className="w-4 h-4" />}
-            onClick={() => setShowAddModal(true)}
-          >
-            {t('medicines.addMedicine')}
-          </Button>
+      {/* ============================================================== */}
+      {/* REDESIGNED PAGE HEADER — clean on desktop, compact on mobile   */}
+      {/* ============================================================== */}
+      <div className="relative overflow-hidden rounded-2xl bg-white border border-purple-100 shadow-lg shadow-purple-100/20">
+        {/* Subtle decorative blobs – desktop only */}
+        <div className="hidden md:block absolute -top-10 -right-10 w-40 h-40 bg-purple-100/40 rounded-full blur-2xl" />
+        <div className="hidden md:block absolute -bottom-8 -left-8 w-32 h-32 bg-violet-100/40 rounded-full blur-2xl" />
+
+        <div className="relative z-10 p-5 md:p-8">
+          {/* Top row: icon + title  |  date badge (desktop) */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 md:p-4 bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl shadow-lg shadow-purple-300/40">
+                <Pill className="w-6 h-6 md:w-7 md:h-7 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl md:text-2xl font-extrabold text-gray-900">
+                  {t('medicines.title')}
+                </h1>
+                <p className="text-gray-400 text-sm md:text-base mt-0.5">
+                  {t('medicines.subtitle')}
+                </p>
+              </div>
+            </div>
+
+            {/* Desktop-only date pill */}
+            <span className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-50 text-purple-600 text-sm font-semibold border border-purple-100">
+              <Calendar className="w-4 h-4" />
+              {format(new Date(), 'EEEE, MMM d')}
+            </span>
+          </div>
+
+          {/* Action buttons — row beneath on desktop, inline on mobile */}
+          <div className="mt-5 flex flex-col sm:flex-row sm:items-center gap-3">
+            <button
+              onClick={fetchMedicineData}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border-2 border-purple-200 text-purple-600 text-sm font-bold hover:bg-purple-50 active:scale-[0.97] transition-all sm:w-auto w-full"
+            >
+              <RefreshCw className="w-4 h-4" />
+              {t('common.refresh')}
+            </button>
+
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-sm font-bold shadow-lg shadow-purple-300/40 hover:shadow-purple-400/40 hover:from-violet-600 hover:to-purple-700 active:scale-[0.97] transition-all sm:w-auto w-full"
+            >
+              <Plus className="w-4 h-4" />
+              {t('medicines.addMedicine')}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Error Alert */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-          <p className="text-red-700 text-sm">{error}</p>
-          <Button
-            variant="ghost"
-            size="sm"
+        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 flex items-center gap-3">
+          <div className="p-2 bg-red-100 rounded-xl">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+          </div>
+          <p className="text-red-700 text-sm font-medium flex-1">{error}</p>
+          <button
             onClick={() => setError(null)}
-            className="ml-auto"
+            className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-100 transition-colors"
           >
-            {t('common.dismiss')}
-          </Button>
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
       {/* Adherence Stats */}
       <AdherenceStatsCard stats={stats} />
 
-      {/* Tabs */}
-      <Tabs
-        tabs={tabs}
-        activeTab={activeTab}
-        onChange={setActiveTab}
-        variant="pills"
-      />
+      {/* Custom Tabs */}
+      <div className="bg-white rounded-2xl border border-purple-100 shadow-sm p-1.5">
+        <div className="flex gap-1">
+          {tabs.map((tab) => {
+            const TabIcon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold transition-all duration-200 ${
+                  isActive
+                    ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg shadow-purple-200/50'
+                    : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50'
+                }`}
+              >
+                <TabIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Content */}
-      {activeTab === 'today' && (
-        <TodayRemindersSection
-          reminders={todayReminders}
-          onTake={handleTakeReminder}
-          onSkip={handleSkipReminder}
-          onSnooze={handleSnoozeReminder}
-        />
-      )}
+      <div className="transition-all duration-300">
+        {activeTab === 'today' && (
+          <TodayRemindersSection
+            reminders={todayReminders}
+            onTake={handleTakeReminder}
+            onSkip={handleSkipReminder}
+            onSnooze={handleSnoozeReminder}
+          />
+        )}
 
-      {activeTab === 'medicines' && (
-        <MyMedicinesSection
-          medicines={medicines}
-          onEdit={handleEditMedicine}
-          onDelete={handleDeleteMedicine}
-          onToggleReminder={handleToggleReminder}
-        />
-      )}
+        {activeTab === 'medicines' && (
+          <MyMedicinesSection
+            medicines={medicines}
+            onEdit={handleEditMedicine}
+            onDelete={handleDeleteMedicine}
+            onToggleReminder={handleToggleReminder}
+          />
+        )}
 
-      {activeTab === 'prescriptions' && (
-        <ActivePrescriptionsSection
-          prescriptions={prescriptions}
-          onViewDetails={handleViewPrescription}
-          onSetReminder={handleSetReminder}
-        />
-      )}
+        {activeTab === 'prescriptions' && (
+          <ActivePrescriptionsSection
+            prescriptions={prescriptions}
+            onViewDetails={handleViewPrescription}
+            onSetReminder={handleSetReminder}
+          />
+        )}
 
-      {activeTab === 'history' && (
-        <MedicineHistorySection
-          history={history}
-          onLoadMore={handleLoadMoreHistory}
-          hasMore={hasMoreHistory}
-        />
-      )}
+        {activeTab === 'history' && (
+          <MedicineHistorySection
+            history={history}
+            onLoadMore={handleLoadMoreHistory}
+            hasMore={hasMoreHistory}
+          />
+        )}
+      </div>
 
       {/* Modals */}
       <AddMedicineModal

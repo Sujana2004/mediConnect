@@ -282,175 +282,175 @@ const LanguageSelectorModal = ({ isOpen, onClose, currentLanguage, languages, on
 // CHANGE PASSWORD MODAL
 // ============================================================================
 
-const ChangePasswordModal = ({ isOpen, onClose, onSave, isSaving }) => {
-  const { t } = useTranslation();
-  const [formData, setFormData] = useState({
-    current_password: '',
-    new_password: '',
-    confirm_password: ''
-  });
-  const [showPasswords, setShowPasswords] = useState({
-    current: false,
-    new: false,
-    confirm: false
-  });
-  const [errors, setErrors] = useState({});
+// const ChangePasswordModal = ({ isOpen, onClose, onSave, isSaving }) => {
+//   const { t } = useTranslation();
+//   const [formData, setFormData] = useState({
+//     current_password: '',
+//     new_password: '',
+//     confirm_password: ''
+//   });
+//   const [showPasswords, setShowPasswords] = useState({
+//     current: false,
+//     new: false,
+//     confirm: false
+//   });
+//   const [errors, setErrors] = useState({});
 
-  useEffect(() => {
-    if (!isOpen) {
-      setFormData({ current_password: '', new_password: '', confirm_password: '' });
-      setErrors({});
-      setShowPasswords({ current: false, new: false, confirm: false });
-    }
-  }, [isOpen]);
+//   useEffect(() => {
+//     if (!isOpen) {
+//       setFormData({ current_password: '', new_password: '', confirm_password: '' });
+//       setErrors({});
+//       setShowPasswords({ current: false, new: false, confirm: false });
+//     }
+//   }, [isOpen]);
 
-  const validate = () => {
-    const newErrors = {};
+//   const validate = () => {
+//     const newErrors = {};
     
-    if (!formData.current_password) {
-      newErrors.current_password = t('validation.required', 'Required');
-    }
+//     if (!formData.current_password) {
+//       newErrors.current_password = t('validation.required', 'Required');
+//     }
     
-    if (!formData.new_password) {
-      newErrors.new_password = t('validation.required', 'Required');
-    } else if (formData.new_password.length < 8) {
-      newErrors.new_password = t('validation.passwordLength', 'At least 8 characters');
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.new_password)) {
-      newErrors.new_password = t('validation.passwordStrength', 'Include uppercase, lowercase, and number');
-    }
+//     if (!formData.new_password) {
+//       newErrors.new_password = t('validation.required', 'Required');
+//     } else if (formData.new_password.length < 8) {
+//       newErrors.new_password = t('validation.passwordLength', 'At least 8 characters');
+//     } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.new_password)) {
+//       newErrors.new_password = t('validation.passwordStrength', 'Include uppercase, lowercase, and number');
+//     }
     
-    if (!formData.confirm_password) {
-      newErrors.confirm_password = t('validation.required', 'Required');
-    } else if (formData.new_password !== formData.confirm_password) {
-      newErrors.confirm_password = t('validation.passwordMismatch', 'Passwords do not match');
-    }
+//     if (!formData.confirm_password) {
+//       newErrors.confirm_password = t('validation.required', 'Required');
+//     } else if (formData.new_password !== formData.confirm_password) {
+//       newErrors.confirm_password = t('validation.passwordMismatch', 'Passwords do not match');
+//     }
     
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+//     setErrors(newErrors);
+//     return Object.keys(newErrors).length === 0;
+//   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (validate()) {
-      onSave({
-        current_password: formData.current_password,
-        new_password: formData.new_password
-      });
-    }
-  };
+//   const handleSubmit = (e) => {
+//     e.preventDefault();
+//     if (validate()) {
+//       onSave({
+//         current_password: formData.current_password,
+//         new_password: formData.new_password
+//       });
+//     }
+//   };
 
-  const PasswordInput = ({ name, label, value, onChange, show, onToggleShow, error }) => (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      <div className="relative">
-        <input
-          type={show ? 'text' : 'password'}
-          value={value}
-          onChange={(e) => onChange(name, e.target.value)}
-          className={`
-            w-full px-4 py-2 pr-10 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500
-            ${error ? 'border-red-500' : 'border-gray-300'}
-          `}
-          placeholder="••••••••"
-        />
-        <button
-          type="button"
-          onClick={onToggleShow}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-        >
-          {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-        </button>
-      </div>
-      {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
-    </div>
-  );
+//   const PasswordInput = ({ name, label, value, onChange, show, onToggleShow, error }) => (
+//     <div>
+//       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+//       <div className="relative">
+//         <input
+//           type={show ? 'text' : 'password'}
+//           value={value}
+//           onChange={(e) => onChange(name, e.target.value)}
+//           className={`
+//             w-full px-4 py-2 pr-10 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500
+//             ${error ? 'border-red-500' : 'border-gray-300'}
+//           `}
+//           placeholder="••••••••"
+//         />
+//         <button
+//           type="button"
+//           onClick={onToggleShow}
+//           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+//         >
+//           {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+//         </button>
+//       </div>
+//       {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
+//     </div>
+//   );
 
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={t('settings.changePassword', 'Change Password')}
-      size="md"
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <PasswordInput
-          name="current_password"
-          label={t('settings.currentPassword', 'Current Password')}
-          value={formData.current_password}
-          onChange={(name, value) => setFormData(prev => ({ ...prev, [name]: value }))}
-          show={showPasswords.current}
-          onToggleShow={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
-          error={errors.current_password}
-        />
+//   return (
+//     <Modal
+//       isOpen={isOpen}
+//       onClose={onClose}
+//       title={t('settings.changePassword', 'Change Password')}
+//       size="md"
+//     >
+//       <form onSubmit={handleSubmit} className="space-y-4">
+//         <PasswordInput
+//           name="current_password"
+//           label={t('settings.currentPassword', 'Current Password')}
+//           value={formData.current_password}
+//           onChange={(name, value) => setFormData(prev => ({ ...prev, [name]: value }))}
+//           show={showPasswords.current}
+//           onToggleShow={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
+//           error={errors.current_password}
+//         />
 
-        <PasswordInput
-          name="new_password"
-          label={t('settings.newPassword', 'New Password')}
-          value={formData.new_password}
-          onChange={(name, value) => setFormData(prev => ({ ...prev, [name]: value }))}
-          show={showPasswords.new}
-          onToggleShow={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
-          error={errors.new_password}
-        />
+//         <PasswordInput
+//           name="new_password"
+//           label={t('settings.newPassword', 'New Password')}
+//           value={formData.new_password}
+//           onChange={(name, value) => setFormData(prev => ({ ...prev, [name]: value }))}
+//           show={showPasswords.new}
+//           onToggleShow={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
+//           error={errors.new_password}
+//         />
 
-        <PasswordInput
-          name="confirm_password"
-          label={t('settings.confirmPassword', 'Confirm New Password')}
-          value={formData.confirm_password}
-          onChange={(name, value) => setFormData(prev => ({ ...prev, [name]: value }))}
-          show={showPasswords.confirm}
-          onToggleShow={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
-          error={errors.confirm_password}
-        />
+//         <PasswordInput
+//           name="confirm_password"
+//           label={t('settings.confirmPassword', 'Confirm New Password')}
+//           value={formData.confirm_password}
+//           onChange={(name, value) => setFormData(prev => ({ ...prev, [name]: value }))}
+//           show={showPasswords.confirm}
+//           onToggleShow={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
+//           error={errors.confirm_password}
+//         />
 
-        {/* Password Requirements */}
-        <div className="bg-gray-50 p-3 rounded-lg">
-          <p className="text-sm font-medium text-gray-700 mb-2">
-            {t('settings.passwordRequirements', 'Password must contain:')}
-          </p>
-          <ul className="space-y-1 text-sm">
-            <li className={`flex items-center gap-2 ${formData.new_password.length >= 8 ? 'text-green-600' : 'text-gray-500'}`}>
-              {formData.new_password.length >= 8 ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-              {t('settings.min8Chars', 'At least 8 characters')}
-            </li>
-            <li className={`flex items-center gap-2 ${/[A-Z]/.test(formData.new_password) ? 'text-green-600' : 'text-gray-500'}`}>
-              {/[A-Z]/.test(formData.new_password) ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-              {t('settings.uppercase', 'One uppercase letter')}
-            </li>
-            <li className={`flex items-center gap-2 ${/[a-z]/.test(formData.new_password) ? 'text-green-600' : 'text-gray-500'}`}>
-              {/[a-z]/.test(formData.new_password) ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-              {t('settings.lowercase', 'One lowercase letter')}
-            </li>
-            <li className={`flex items-center gap-2 ${/\d/.test(formData.new_password) ? 'text-green-600' : 'text-gray-500'}`}>
-              {/\d/.test(formData.new_password) ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-              {t('settings.number', 'One number')}
-            </li>
-          </ul>
-        </div>
+//         {/* Password Requirements */}
+//         <div className="bg-gray-50 p-3 rounded-lg">
+//           <p className="text-sm font-medium text-gray-700 mb-2">
+//             {t('settings.passwordRequirements', 'Password must contain:')}
+//           </p>
+//           <ul className="space-y-1 text-sm">
+//             <li className={`flex items-center gap-2 ${formData.new_password.length >= 8 ? 'text-green-600' : 'text-gray-500'}`}>
+//               {formData.new_password.length >= 8 ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+//               {t('settings.min8Chars', 'At least 8 characters')}
+//             </li>
+//             <li className={`flex items-center gap-2 ${/[A-Z]/.test(formData.new_password) ? 'text-green-600' : 'text-gray-500'}`}>
+//               {/[A-Z]/.test(formData.new_password) ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+//               {t('settings.uppercase', 'One uppercase letter')}
+//             </li>
+//             <li className={`flex items-center gap-2 ${/[a-z]/.test(formData.new_password) ? 'text-green-600' : 'text-gray-500'}`}>
+//               {/[a-z]/.test(formData.new_password) ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+//               {t('settings.lowercase', 'One lowercase letter')}
+//             </li>
+//             <li className={`flex items-center gap-2 ${/\d/.test(formData.new_password) ? 'text-green-600' : 'text-gray-500'}`}>
+//               {/\d/.test(formData.new_password) ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+//               {t('settings.number', 'One number')}
+//             </li>
+//           </ul>
+//         </div>
 
-        <div className="flex gap-3 pt-4">
-          <Button
-            type="button"
-            variant="outline"
-            className="flex-1"
-            onClick={onClose}
-            disabled={isSaving}
-          >
-            {t('common.cancel', 'Cancel')}
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            className="flex-1"
-            loading={isSaving}
-          >
-            {t('settings.updatePassword', 'Update Password')}
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-};
+//         <div className="flex gap-3 pt-4">
+//           <Button
+//             type="button"
+//             variant="outline"
+//             className="flex-1"
+//             onClick={onClose}
+//             disabled={isSaving}
+//           >
+//             {t('common.cancel', 'Cancel')}
+//           </Button>
+//           <Button
+//             type="submit"
+//             variant="primary"
+//             className="flex-1"
+//             loading={isSaving}
+//           >
+//             {t('settings.updatePassword', 'Update Password')}
+//           </Button>
+//         </div>
+//       </form>
+//     </Modal>
+//   );
+// };
 
 // ============================================================================
 // DELETE ACCOUNT MODAL
@@ -783,18 +783,18 @@ const Settings = () => {
   };
 
   // API: Change password
-  const handleChangePassword = async (data) => {
-    setIsSaving(true);
-    try {
-      await authService.changePassword(data);
-      toast.success(t('settings.passwordChanged', 'Password changed successfully'));
-      setShowPasswordModal(false);
-    } catch (err) {
-      toast.error(err.response?.data?.message || t('settings.passwordError', 'Failed to change password'));
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  // const handleChangePassword = async (data) => {
+  //   setIsSaving(true);
+  //   try {
+  //     await authService.changePassword(data);
+  //     toast.success(t('settings.passwordChanged', 'Password changed successfully'));
+  //     setShowPasswordModal(false);
+  //   } catch (err) {
+  //     toast.error(err.response?.data?.message || t('settings.passwordError', 'Failed to change password'));
+  //   } finally {
+  //     setIsSaving(false);
+  //   }
+  // };
 
   // API: Export data
   const handleExportData = async (dataTypes) => {
@@ -1085,12 +1085,12 @@ const Settings = () => {
           <Card className="overflow-hidden">
             <SectionHeader icon={Shield} title={t('settings.privacySecurity', 'Privacy & Security')} />
             
-            <SettingItem
+            {/* <SettingItem
               icon={Lock}
               label={t('settings.changePassword', 'Change Password')}
               description={t('settings.changePasswordDesc', 'Update your account password')}
               onClick={() => setShowPasswordModal(true)}
-            />
+            /> */}
 
             <SettingItem
               icon={Eye}
@@ -1217,12 +1217,12 @@ const Settings = () => {
         isChanging={isLanguageChanging}
       />
 
-      <ChangePasswordModal
+      {/* <ChangePasswordModal
         isOpen={showPasswordModal}
         onClose={() => setShowPasswordModal(false)}
         onSave={handleChangePassword}
         isSaving={isSaving}
-      />
+      /> */}
 
       <DeleteAccountModal
         isOpen={showDeleteModal}

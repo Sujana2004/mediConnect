@@ -14,7 +14,11 @@ import {
   Users,
   Volume2,
   Heart,
-  Shield
+  Shield,
+  Stethoscope,
+  Sparkles,
+  Activity,
+  Globe
 } from 'lucide-react';
 import {
   Button,
@@ -22,7 +26,7 @@ import {
   Select,
   PhoneInput,
   OTPInput,
-  Card
+  LanguageSwitcher
 } from '../../components/common';
 import useAuth from '../../hooks/useAuth';
 import useLanguage from '../../hooks/useLanguage';
@@ -106,6 +110,15 @@ const LANGUAGE_OPTIONS = [
 ];
 
 /**
+ * Step icon mapping
+ */
+const STEP_ICONS = {
+  1: Shield,
+  2: User,
+  3: Heart
+};
+
+/**
  * Patient registration page with multi-step form
  * Step 1: Phone verification
  * Step 2: Basic information
@@ -140,6 +153,9 @@ const PatientRegister = () => {
   // OTP resend timer
   const [resendTimer, setResendTimer] = useState(0);
   const [canResend, setCanResend] = useState(false);
+
+  // Store verified Firebase token
+  const [verifiedFirebaseToken, setVerifiedFirebaseToken] = useState(null);
 
   // Memoized values
   const todayDate = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -257,11 +273,24 @@ const PatientRegister = () => {
     setOtpError('');
     setIsVerifying(true);
 
-    // Small delay for UX feedback
-    await new Promise(resolve => setTimeout(resolve, 300));
+    try {
+      // Actually verify OTP with Firebase
+      const { verifyOTP } = await import('../../config/firebase');
+      const verifyResult = await verifyOTP(otp);
 
-    setIsVerifying(false);
-    setCurrentStep(2);
+      if (verifyResult.success) {
+        // Store the Firebase token for use during registration
+        setVerifiedFirebaseToken(verifyResult.token);
+        setIsVerifying(false);
+        setCurrentStep(2);
+      } else {
+        setOtpError(verifyResult.message || t('auth.invalidOTP'));
+        setIsVerifying(false);
+      }
+    } catch (error) {
+      setOtpError(error.message || t('auth.invalidOTP'));
+      setIsVerifying(false);
+    }
   }, [otp, t]);
 
   // Handle OTP complete
@@ -342,7 +371,18 @@ const PatientRegister = () => {
 
     logger.log('📤 Submitting patient data:', patientData);
 
-    const result = await registerNewPatient(otp, patientData);
+    // Check if we have a verified Firebase token
+    if (!verifiedFirebaseToken) {
+      toast.error(t('auth.sessionExpired'));
+      setCurrentStep(1);
+      setOtpSent(false);
+      setOtp('');
+      setVerifiedFirebaseToken(null);
+      return;
+    }
+
+    // Pass the already-verified Firebase token (not the raw OTP)
+    const result = await registerNewPatient(verifiedFirebaseToken, patientData);
 
     if (result.success) {
       toast.success(t('registration.registrationSuccess'));
@@ -350,14 +390,22 @@ const PatientRegister = () => {
     } else {
       const errorLower = (result.error || '').toLowerCase();
 
+      logger.log('❌ Registration error:', result.error);
+
       // Check if user already exists - redirect to login
+      // The extractErrorMessage in authStore formats field errors as "phone: message"
+      // so we need to check broadly
       if (
         errorLower.includes('already exists') ||
         errorLower.includes('already registered') ||
         errorLower.includes('phone number already') ||
-        errorLower.includes('user with this phone')
+        errorLower.includes('user with this phone') ||
+        errorLower.includes('already has an account') ||
+        errorLower.includes('unique') ||
+        errorLower.includes('duplicate') ||
+        errorLower.includes('phone: ') // Django field-level error for phone
       ) {
-        toast.error(t('auth.userAlreadyExists'));
+        toast.error(t('auth.userAlreadyExists') || 'This phone number is already registered. Please login instead.');
         navigate('/login', {
           state: { phone },
           replace: true
@@ -377,14 +425,15 @@ const PatientRegister = () => {
         setCurrentStep(1);
         setOtpSent(false);
         setOtp('');
-        toast.error(t('auth.sessionExpired'));
+        setVerifiedFirebaseToken(null);
+        toast.error(t('auth.sessionExpired') || 'Session expired. Please verify your phone again.');
         return;
       }
 
       // Generic error
       toast.error(result.error || t('errors.somethingWrong'));
     }
-  }, [currentStep, trigger, buildPatientData, otp, registerNewPatient, t, navigate, phone]);
+  }, [currentStep, trigger, buildPatientData, verifiedFirebaseToken, registerNewPatient, t, navigate, phone]);
 
   // Handle back
   const handleBack = useCallback(() => {
@@ -424,511 +473,665 @@ const PatientRegister = () => {
   const getStepInfo = useCallback(() => {
     switch (currentStep) {
       case 1:
-        return {
-          subtitle: t('auth.verifyPhoneSubtitle'),
-          icon: Shield
-        };
+        return { subtitle: t('auth.verifyPhoneSubtitle'), icon: Shield };
       case 2:
-        return {
-          subtitle: t('registration.basicInfoSubtitle'),
-          icon: User
-        };
+        return { subtitle: t('registration.basicInfoSubtitle'), icon: User };
       case 3:
-        return {
-          subtitle: t('registration.additionalInfoSubtitle'),
-          icon: Heart
-        };
+        return { subtitle: t('registration.additionalInfoSubtitle'), icon: Heart };
       default:
         return { subtitle: '', icon: Users };
     }
   }, [currentStep, t]);
 
   const stepInfo = getStepInfo();
-
-  // Step indicator component
-  const StepIndicator = useMemo(() => (
-    <div className="flex items-center justify-center mb-8">
-      {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((step) => (
-        <div key={`step-${step}`} className="flex items-center">
-          <div
-            className={`
-              w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold
-              transition-all duration-300 shadow-sm
-              ${currentStep >= step
-                ? 'bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-200/50'
-                : 'bg-gray-100 text-gray-400 border-2 border-gray-200'
-              }
-            `}
-            aria-current={currentStep === step ? 'step' : undefined}
-            aria-label={`${t('common.step')} ${step}`}
-          >
-            {currentStep > step ? (
-              <CheckCircle size={20} strokeWidth={2.5} />
-            ) : (
-              step
-            )}
-          </div>
-          {step < TOTAL_STEPS && (
-            <div
-              className={`
-                w-12 sm:w-16 h-1.5 mx-2 rounded-full transition-all duration-500
-                ${currentStep > step
-                  ? 'bg-gradient-to-r from-primary-500 to-primary-400'
-                  : 'bg-gray-200'
-                }
-              `}
-            />
-          )}
-        </div>
-      ))}
-    </div>
-  ), [currentStep, t]);
+  const StepIcon = STEP_ICONS[currentStep] || Users;
 
   return (
-    <div className="animate-fadeIn">
-      {/* Header */}
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-18 h-18 rounded-2xl bg-gradient-to-br from-secondary-100 via-secondary-50 to-primary-50 mb-4 shadow-xl shadow-secondary-200/30 p-4">
-          <stepInfo.icon className="w-9 h-9 text-secondary-600" />
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-          {t('registration.patientRegistration')}
-        </h1>
-        <p className="text-gray-500 mt-2 text-sm sm:text-base max-w-xs mx-auto">
-          {stepInfo.subtitle}
-        </p>
-      </div>
+    <div className="min-h-screen flex flex-col lg:flex-row bg-gray-50 lg:bg-white">
 
-      {/* Step Indicator */}
-      {StepIndicator}
+      {/* ══════════════════════════════════════════════════════════
+          Left Panel - Branding (hidden on mobile, shown on lg+)
+          ══════════════════════════════════════════════════════════ */}
+      <div className="hidden lg:flex lg:w-[45%] xl:w-[48%] 2xl:w-[50%] relative overflow-hidden flex-shrink-0">
+        {/* Gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-700 via-teal-600 to-cyan-600" />
 
-      {/* Form Card */}
-      <Card className="shadow-xl border-0 overflow-hidden">
-        {/* Progress bar */}
-        <div className="h-1 bg-gray-100">
-          <div
-            className="h-full bg-gradient-to-r from-primary-500 to-secondary-500 transition-all duration-500"
-            style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
-          />
+        {/* Animated floating orbs */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute top-20 left-20 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-20 right-20 w-96 h-96 bg-cyan-400/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+          <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-emerald-300/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
         </div>
 
-        <div className="p-5 sm:p-6">
-          <form onSubmit={handleSubmit(onSubmit)}>
-            {/* Step 1: Phone Verification */}
-            {currentStep === 1 && (
-              <div className="space-y-6">
-                {!otpSent ? (
-                  <>
-                    <div className="text-center mb-2">
-                      <p className="text-sm text-gray-500">
-                        {t('auth.phoneVerificationDesc')}
-                      </p>
-                    </div>
+        {/* Dot pattern overlay */}
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
+            backgroundSize: '32px 32px'
+          }}
+        />
 
-                    <PhoneInput
-                      value={phone}
-                      onChange={handlePhoneChange}
-                      error={phoneError || error}
-                      label={t('auth.phoneNumber')}
-                      placeholder={t('auth.enterPhone')}
-                      autoFocus
-                      size="lg"
-                    />
+        {/* Branding content */}
+        <div className="relative z-10 flex flex-col justify-between p-10 xl:p-14 2xl:p-16 w-full">
+          {/* Logo */}
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-lg shadow-black/5">
+              <Stethoscope size={22} className="text-white" />
+            </div>
+            <div>
+              <span className="text-xl font-black text-white tracking-tight block leading-tight">
+                {t('common.appName')}
+              </span>
+              <span className="text-[11px] text-white/50 font-medium">
+                {t('common.tagline')}
+              </span>
+            </div>
+          </div>
 
-                    <Button
-                      type="button"
-                      onClick={handleSendOTP}
-                      fullWidth
-                      size="lg"
-                      loading={isLoading}
-                      rightIcon={<ArrowRight size={20} />}
-                      className="shadow-lg shadow-primary-200/50 h-14 text-base font-semibold"
-                    >
-                      {t('auth.sendOTP')}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    {/* Phone display */}
-                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary-50 via-gray-50 to-secondary-50 rounded-2xl border border-primary-100">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center">
-                          <Phone size={22} className="text-primary-600" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">
-                            {t('auth.phoneNumber')}
-                          </p>
-                          <p className="font-bold text-gray-900 text-lg">+91 {phone}</p>
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handlePhoneEdit}
-                        className="text-primary-600 hover:text-primary-700 font-medium"
-                      >
-                        {t('common.edit')}
-                      </Button>
-                    </div>
+          {/* Hero section */}
+          <div className="max-w-md">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 mb-8">
+              <Users size={14} className="text-yellow-300" />
+              <span className="text-white/90 text-sm font-medium">{t('auth.patient')} Registration</span>
+            </div>
 
-                    {/* OTP Input */}
-                    <div className="py-2">
-                      <label className="block text-sm font-semibold text-gray-700 mb-4 text-center">
-                        {t('auth.enterOTP')}
-                      </label>
-                      <OTPInput
-                        value={otp}
-                        onChange={setOtp}
-                        onComplete={handleOTPComplete}
-                        error={otpError || error}
-                        disabled={isLoading || isVerifying}
-                        autoFocus
-                      />
-                      <p className="text-xs text-gray-400 text-center mt-3">
-                        {t('auth.otpSentTo', { phone: `+91 ${phone}` })}
-                      </p>
-                    </div>
+            <h1 className="text-3xl xl:text-4xl 2xl:text-5xl font-black text-white leading-[1.15] mb-5">
+              Join Our{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-orange-200 to-pink-200">
+                Health Community
+              </span>
+            </h1>
 
-                    {/* Verify Button */}
-                    <Button
-                      type="button"
-                      onClick={handleVerifyOTP}
-                      fullWidth
-                      size="lg"
-                      loading={isLoading || isVerifying}
-                      disabled={otp.length !== OTP_LENGTH}
-                      className="shadow-lg shadow-primary-200/50 h-14 text-base font-semibold"
-                    >
-                      {t('auth.verifyAndContinue')}
-                    </Button>
+            <p className="text-base xl:text-lg text-white/60 leading-relaxed mb-10">
+              Create your account in minutes. Track your health, connect with doctors, and take control of your wellbeing.
+            </p>
 
-                    {/* Resend OTP */}
-                    <div className="text-center pt-2">
-                      {canResend ? (
-                        <Button
-                          type="button"
-                          variant="link"
-                          onClick={handleResendOTP}
-                          disabled={isLoading}
-                          className="text-primary-600 font-medium"
-                        >
-                          {t('auth.resendOTP')}
-                        </Button>
-                      ) : resendTimer > 0 ? (
-                        <p className="text-sm text-gray-500">
-                          {t('auth.resendIn', { seconds: resendTimer })}
-                        </p>
-                      ) : null}
-                    </div>
-                  </>
-                )}
-
-                <div id="recaptcha-container" />
-              </div>
-            )}
-
-            {/* Step 2: Basic Information */}
-            {currentStep === 2 && (
-              <div className="space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Controller
-                    name="first_name"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        label={t('registration.firstName')}
-                        placeholder={t('registration.firstNamePlaceholder')}
-                        error={errors.first_name?.message}
-                        required
-                        autoFocus
-                        leftIcon={<User size={18} />}
-                        className="h-12"
-                      />
-                    )}
-                  />
-                  <Controller
-                    name="last_name"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        label={t('registration.lastName')}
-                        placeholder={t('registration.lastNamePlaceholder')}
-                        error={errors.last_name?.message}
-                        className="h-12"
-                      />
-                    )}
-                  />
-                </div>
-
-                <Controller
-                  name="date_of_birth"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      {...field}
-                      type="date"
-                      label={t('registration.dateOfBirth')}
-                      error={errors.date_of_birth?.message}
-                      max={todayDate}
-                      className="h-12"
-                    />
-                  )}
-                />
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Controller
-                    name="gender"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        {...field}
-                        label={t('registration.gender')}
-                        options={genderOptions}
-                        error={errors.gender?.message}
-                      />
-                    )}
-                  />
-
-                  <Controller
-                    name="preferred_language"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        {...field}
-                        label={t('registration.preferredLanguage')}
-                        options={LANGUAGE_OPTIONS}
-                        error={errors.preferred_language?.message}
-                      />
-                    )}
-                  />
-                </div>
-
-                {/* Navigation */}
-                <div className="flex gap-3 pt-6">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleBack}
-                    leftIcon={<ArrowLeft size={18} />}
-                    className="h-12 px-6"
-                  >
-                    {t('common.back')}
-                  </Button>
-                  <Button
-                    type="submit"
-                    fullWidth
-                    rightIcon={<ArrowRight size={18} />}
-                    className="h-12 font-semibold"
-                  >
-                    {t('common.next')}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Additional Details */}
-            {currentStep === 3 && (
-              <div className="space-y-5">
-                {/* Optional badge */}
-                <div className="flex items-center justify-center">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
-                    {t('common.optional')}
+            {/* Steps preview */}
+            <div className="space-y-3">
+              {[
+                { num: 1, text: 'Verify your phone number', icon: Phone },
+                { num: 2, text: 'Add basic information', icon: User },
+                { num: 3, text: 'Optional health details', icon: Heart },
+              ].map(({ num, text, icon: Icon }) => (
+                <div
+                  key={num}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
+                    currentStep === num
+                      ? 'bg-white/20 border border-white/30'
+                      : currentStep > num
+                        ? 'bg-white/10 border border-white/10'
+                        : 'bg-white/5 border border-white/5'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
+                    currentStep > num
+                      ? 'bg-white/30 text-white'
+                      : currentStep === num
+                        ? 'bg-white text-emerald-700'
+                        : 'bg-white/10 text-white/50'
+                  }`}>
+                    {currentStep > num ? <CheckCircle size={16} /> : num}
+                  </div>
+                  <span className={`text-sm font-medium ${
+                    currentStep >= num ? 'text-white' : 'text-white/40'
+                  }`}>
+                    {text}
                   </span>
                 </div>
+              ))}
+            </div>
+          </div>
 
-                {/* Location */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Controller
-                    name="village"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        label={t('registration.village')}
-                        placeholder={t('registration.villagePlaceholder')}
-                        leftIcon={<MapPin size={18} />}
-                        className="h-12"
-                      />
-                    )}
-                  />
-                  <Controller
-                    name="district"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        label={t('registration.district')}
-                        placeholder={t('registration.districtPlaceholder')}
-                        className="h-12"
-                      />
-                    )}
-                  />
-                </div>
-
-                <Controller
-                  name="blood_group"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      {...field}
-                      label={t('registration.bloodGroup')}
-                      options={bloodGroupOptions}
-                      leftIcon={<Heart size={18} className="text-red-500" />}
-                    />
-                  )}
-                />
-
-                {/* Emergency Contact Section */}
-                <div className="p-5 bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50 rounded-2xl border border-red-100/50">
-                  <h3 className="text-sm font-bold text-red-800 mb-4 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
-                      <Phone size={16} className="text-red-600" />
-                    </div>
-                    {t('registration.emergencyContact')}
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Controller
-                      name="emergency_contact_name"
-                      control={control}
-                      render={({ field }) => (
-                        <Input
-                          {...field}
-                          label={t('registration.emergencyContactName')}
-                          placeholder={t('registration.emergencyContactNamePlaceholder')}
-                          className="bg-white/70 h-12"
-                        />
-                      )}
-                    />
-                    <Controller
-                      name="emergency_contact_phone"
-                      control={control}
-                      render={({ field }) => (
-                        <Input
-                          {...field}
-                          type="tel"
-                          inputMode="numeric"
-                          label={t('registration.emergencyContactPhone')}
-                          placeholder="9876543210"
-                          error={errors.emergency_contact_phone?.message}
-                          maxLength={PHONE_LENGTH}
-                          onChange={handleEmergencyPhoneChange(field)}
-                          className="bg-white/70 h-12"
-                        />
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* Accessibility Options */}
-                <div className="p-5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl border border-blue-100/50">
-                  <h3 className="text-sm font-bold text-blue-800 mb-4 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                      <Volume2 size={16} className="text-blue-600" />
-                    </div>
-                    {t('registration.accessibilityOptions')}
-                  </h3>
-                  <div className="space-y-2">
-                    <Controller
-                      name="is_literate"
-                      control={control}
-                      render={({ field }) => (
-                        <label className="flex items-center gap-4 cursor-pointer p-3 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-200 border border-transparent hover:border-blue-200">
-                          <div className="relative">
-                            <input
-                              type="checkbox"
-                              checked={field.value}
-                              onChange={field.onChange}
-                              className="sr-only peer"
-                            />
-                            <div className="w-6 h-6 rounded-lg border-2 border-gray-300 peer-checked:border-primary-500 peer-checked:bg-primary-500 transition-all duration-200 flex items-center justify-center">
-                              {field.value && (
-                                <CheckCircle size={16} className="text-white" />
-                              )}
-                            </div>
-                          </div>
-                          <span className="text-gray-700 font-medium">
-                            {t('registration.isLiterate')}
-                          </span>
-                        </label>
-                      )}
-                    />
-                    <Controller
-                      name="needs_voice_assistance"
-                      control={control}
-                      render={({ field }) => (
-                        <label className="flex items-center gap-4 cursor-pointer p-3 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-200 border border-transparent hover:border-blue-200">
-                          <div className="relative">
-                            <input
-                              type="checkbox"
-                              checked={field.value}
-                              onChange={field.onChange}
-                              className="sr-only peer"
-                            />
-                            <div className="w-6 h-6 rounded-lg border-2 border-gray-300 peer-checked:border-primary-500 peer-checked:bg-primary-500 transition-all duration-200 flex items-center justify-center">
-                              {field.value && (
-                                <CheckCircle size={16} className="text-white" />
-                              )}
-                            </div>
-                          </div>
-                          <span className="text-gray-700 font-medium">
-                            {t('registration.needsVoiceAssistance')}
-                          </span>
-                        </label>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* Navigation buttons */}
-                <div className="flex flex-col sm:flex-row gap-3 pt-6">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleBack}
-                    leftIcon={<ArrowLeft size={18} />}
-                    className="h-12 px-6 order-2 sm:order-1"
-                  >
-                    {t('common.back')}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={handleSkip}
-                    className="h-12 order-3 sm:order-2 text-gray-500"
-                  >
-                    {t('common.skipForNow')}
-                  </Button>
-                  <Button
-                    type="submit"
-                    fullWidth
-                    loading={isLoading}
-                    rightIcon={<CheckCircle size={18} />}
-                    className="shadow-lg shadow-primary-200/50 h-14 text-base font-semibold order-1 sm:order-3"
-                  >
-                    {t('registration.completeRegistration')}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </form>
+          {/* Trust badges */}
+          <div className="flex items-center gap-5 text-white/40 text-xs font-medium">
+            <div className="flex items-center gap-1.5">
+              <Shield size={14} />
+              <span>Secure & Private</span>
+            </div>
+            <div className="w-1 h-1 rounded-full bg-white/20" />
+            <div className="flex items-center gap-1.5">
+              <Activity size={14} />
+              <span>Quick Setup</span>
+            </div>
+            <div className="w-1 h-1 rounded-full bg-white/20" />
+            <div className="flex items-center gap-1.5">
+              <Globe size={14} />
+              <span>Multi-language</span>
+            </div>
+          </div>
         </div>
-      </Card>
+      </div>
 
-      {/* Login Link */}
-      <div className="mt-8 text-center">
-        <p className="text-gray-600">
-          {t('auth.alreadyHaveAccount')}{' '}
-          <Link
-            to="/login"
-            className="text-primary-600 font-semibold hover:text-primary-700 hover:underline transition-colors"
-          >
-            {t('auth.login')}
-          </Link>
-        </p>
+      {/* ══════════════════════════════════════════════════════════
+          Right Panel - Registration Form
+          ══════════════════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col min-h-screen lg:min-h-0">
+
+        {/* ── Mobile top header ── */}
+        <div className="lg:hidden relative overflow-hidden flex-shrink-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-700 via-teal-600 to-cyan-600" />
+          <div
+            className="absolute inset-0 opacity-[0.06]"
+            style={{
+              backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
+              backgroundSize: '20px 20px'
+            }}
+          />
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
+
+          <div className="relative z-10 px-5 pt-8 pb-8 sm:px-8 sm:pt-10 sm:pb-10">
+            {/* Language switcher */}
+            <div className="absolute top-4 right-4">
+              <LanguageSwitcher variant="dropdown" size="sm" />
+            </div>
+
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-lg mb-3">
+                <Users size={24} className="text-white" />
+              </div>
+              <h2 className="text-xl font-black text-white tracking-tight">
+                {t('registration.patientRegistration')}
+              </h2>
+              <p className="text-white/60 text-sm mt-1">
+                {stepInfo.subtitle}
+              </p>
+            </div>
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-5 bg-gray-50 rounded-t-[1.5rem]" />
+        </div>
+
+        {/* ── Desktop language switcher ── */}
+        <div className="hidden lg:flex items-center justify-end px-8 pt-5">
+          <LanguageSwitcher variant="dropdown" size="sm" />
+        </div>
+
+        {/* ── Form area ── */}
+        <div className="flex-1 flex items-start lg:items-center justify-center px-4 sm:px-6 lg:px-10 xl:px-14 py-5 sm:py-6 lg:py-0 overflow-y-auto">
+          <div className="w-full max-w-[480px]">
+
+            {/* Step progress bar */}
+            <div className="flex items-center gap-2 mb-6">
+              {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+                <div
+                  key={i}
+                  className={`h-1.5 rounded-full flex-1 transition-all duration-500 ${
+                    currentStep > i + 1
+                      ? 'bg-emerald-500'
+                      : currentStep === i + 1
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                        : 'bg-gray-200'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Step header */}
+            <div className="mb-6 hidden lg:block">
+              <div className={`
+                inline-flex items-center justify-center w-12 h-12 rounded-2xl mb-4 transition-colors duration-300
+                ${currentStep === 1 ? 'bg-gradient-to-br from-violet-100 to-purple-50'
+                  : currentStep === 2 ? 'bg-gradient-to-br from-emerald-100 to-green-50'
+                    : 'bg-gradient-to-br from-rose-100 to-pink-50'
+                }
+              `}>
+                <StepIcon className={`w-6 h-6 ${
+                  currentStep === 1 ? 'text-violet-600'
+                    : currentStep === 2 ? 'text-emerald-600'
+                      : 'text-rose-600'
+                }`} />
+              </div>
+              <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">
+                {t('registration.patientRegistration')}
+              </h1>
+              <p className="text-gray-400 mt-1 text-sm">
+                {stepInfo.subtitle} • {t('common.step')} {currentStep}/{TOTAL_STEPS}
+              </p>
+            </div>
+
+            {/* Mobile step counter */}
+            <div className="lg:hidden flex items-center justify-between mb-4">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                {t('common.step')} {currentStep} / {TOTAL_STEPS}
+              </span>
+              {currentStep === 3 && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
+                  {t('common.optional')}
+                </span>
+              )}
+            </div>
+
+            {/* ── Form Card ── */}
+            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80 overflow-hidden">
+              {/* Progress bar inside card */}
+              <div className="h-1 bg-gray-100">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-500"
+                  style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
+                />
+              </div>
+
+              <div className="p-5 sm:p-6 lg:p-7">
+                <form onSubmit={handleSubmit(onSubmit)}>
+
+                  {/* ── Step 1: Phone Verification ── */}
+                  {currentStep === 1 && (
+                    <div className="space-y-5">
+                      {!otpSent ? (
+                        <>
+                          <div className="text-center mb-2">
+                            <p className="text-sm text-gray-400">
+                              {t('auth.phoneVerificationDesc')}
+                            </p>
+                          </div>
+
+                          <PhoneInput
+                            value={phone}
+                            onChange={handlePhoneChange}
+                            error={phoneError || error}
+                            label={t('auth.phoneNumber')}
+                            placeholder={t('auth.enterPhone')}
+                            autoFocus
+                            size="lg"
+                          />
+
+                          <Button
+                            type="button"
+                            onClick={handleSendOTP}
+                            fullWidth
+                            size="lg"
+                            loading={isLoading}
+                            rightIcon={<ArrowRight size={18} />}
+                            className="!bg-gradient-to-r !from-emerald-600 !to-teal-600 hover:!from-emerald-700 hover:!to-teal-700 !shadow-lg !shadow-emerald-500/20 !rounded-xl sm:!rounded-2xl !py-3.5 sm:!py-4 !text-sm sm:!text-base !font-bold"
+                          >
+                            {t('auth.sendOTP')}
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          {/* Phone display */}
+                          <div className="flex items-center justify-between p-3 sm:p-3.5 bg-gradient-to-r from-emerald-50/80 to-teal-50/80 rounded-xl sm:rounded-2xl border border-emerald-100/80">
+                            <div className="flex items-center gap-2.5 sm:gap-3">
+                              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-white shadow-sm flex items-center justify-center flex-shrink-0">
+                                <Phone size={16} className="text-emerald-600" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[11px] sm:text-xs text-emerald-500 font-medium">{t('auth.phoneNumber')}</p>
+                                <p className="font-bold text-gray-900 text-sm sm:text-base truncate">+91 {phone}</p>
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={handlePhoneEdit}
+                              className="!text-emerald-600 hover:!bg-emerald-100 !rounded-lg !font-semibold !text-xs sm:!text-sm flex-shrink-0"
+                            >
+                              {t('common.edit')}
+                            </Button>
+                          </div>
+
+                          {/* OTP Input */}
+                          <div className="py-2">
+                            <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-3 sm:mb-4 text-center">
+                              {t('auth.enterOTP')}
+                            </label>
+                            <OTPInput
+                              value={otp}
+                              onChange={setOtp}
+                              onComplete={handleOTPComplete}
+                              error={otpError || error}
+                              disabled={isLoading || isVerifying}
+                              autoFocus
+                            />
+                            <p className="text-[11px] text-gray-400 text-center mt-3">
+                              {t('auth.otpSentTo', { phone: `+91 ${phone}` })}
+                            </p>
+                          </div>
+
+                          {/* Verify Button */}
+                          <Button
+                            type="button"
+                            onClick={handleVerifyOTP}
+                            fullWidth
+                            size="lg"
+                            loading={isLoading || isVerifying}
+                            disabled={otp.length !== OTP_LENGTH}
+                            className="!bg-gradient-to-r !from-emerald-600 !to-teal-600 hover:!from-emerald-700 hover:!to-teal-700 !shadow-lg !shadow-emerald-500/20 !rounded-xl sm:!rounded-2xl !py-3.5 sm:!py-4 !font-bold disabled:!opacity-40"
+                          >
+                            {t('auth.verifyAndContinue')}
+                          </Button>
+
+                          {/* Resend OTP */}
+                          <div className="text-center pt-1">
+                            {canResend ? (
+                              <button
+                                type="button"
+                                onClick={handleResendOTP}
+                                disabled={isLoading}
+                                className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm hover:underline transition-all disabled:opacity-50"
+                              >
+                                {t('auth.resendOTP')}
+                              </button>
+                            ) : resendTimer > 0 ? (
+                              <div className="flex items-center justify-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                                  <span className="text-xs font-bold text-emerald-600">{resendTimer}</span>
+                                </div>
+                                <p className="text-sm text-gray-400">
+                                  {t('auth.resendIn', { seconds: resendTimer })}
+                                </p>
+                              </div>
+                            ) : null}
+                          </div>
+                        </>
+                      )}
+
+                      <div id="recaptcha-container" />
+                    </div>
+                  )}
+
+                  {/* ── Step 2: Basic Information ── */}
+                  {currentStep === 2 && (
+                    <div className="space-y-4 sm:space-y-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <Controller
+                          name="first_name"
+                          control={control}
+                          render={({ field }) => (
+                            <Input
+                              {...field}
+                              label={t('registration.firstName')}
+                              placeholder={t('registration.firstNamePlaceholder')}
+                              error={errors.first_name?.message}
+                              required
+                              autoFocus
+                              leftIcon={<User size={16} />}
+                            />
+                          )}
+                        />
+                        <Controller
+                          name="last_name"
+                          control={control}
+                          render={({ field }) => (
+                            <Input
+                              {...field}
+                              label={t('registration.lastName')}
+                              placeholder={t('registration.lastNamePlaceholder')}
+                              error={errors.last_name?.message}
+                            />
+                          )}
+                        />
+                      </div>
+
+                      <Controller
+                        name="date_of_birth"
+                        control={control}
+                        render={({ field }) => (
+                          <Input
+                            {...field}
+                            type="date"
+                            label={t('registration.dateOfBirth')}
+                            error={errors.date_of_birth?.message}
+                            max={todayDate}
+                          />
+                        )}
+                      />
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <Controller
+                          name="gender"
+                          control={control}
+                          render={({ field }) => (
+                            <Select
+                              {...field}
+                              label={t('registration.gender')}
+                              options={genderOptions}
+                              error={errors.gender?.message}
+                            />
+                          )}
+                        />
+                        <Controller
+                          name="preferred_language"
+                          control={control}
+                          render={({ field }) => (
+                            <Select
+                              {...field}
+                              label={t('registration.preferredLanguage')}
+                              options={LANGUAGE_OPTIONS}
+                              error={errors.preferred_language?.message}
+                            />
+                          )}
+                        />
+                      </div>
+
+                      {/* Navigation */}
+                      <div className="flex gap-3 pt-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleBack}
+                          leftIcon={<ArrowLeft size={16} />}
+                          className="!rounded-xl !font-semibold"
+                        >
+                          {t('common.back')}
+                        </Button>
+                        <Button
+                          type="submit"
+                          fullWidth
+                          rightIcon={<ArrowRight size={16} />}
+                          className="!bg-gradient-to-r !from-emerald-600 !to-teal-600 hover:!from-emerald-700 hover:!to-teal-700 !shadow-lg !shadow-emerald-500/20 !rounded-xl !font-bold"
+                        >
+                          {t('common.next')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Step 3: Additional Details ── */}
+                  {currentStep === 3 && (
+                    <div className="space-y-4 sm:space-y-5">
+                      {/* Optional badge */}
+                      <div className="hidden lg:flex items-center justify-center">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-100">
+                          {t('common.optional')}
+                        </span>
+                      </div>
+
+                      {/* Location */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <Controller
+                          name="village"
+                          control={control}
+                          render={({ field }) => (
+                            <Input
+                              {...field}
+                              label={t('registration.village')}
+                              placeholder={t('registration.villagePlaceholder')}
+                              leftIcon={<MapPin size={16} />}
+                            />
+                          )}
+                        />
+                        <Controller
+                          name="district"
+                          control={control}
+                          render={({ field }) => (
+                            <Input
+                              {...field}
+                              label={t('registration.district')}
+                              placeholder={t('registration.districtPlaceholder')}
+                            />
+                          )}
+                        />
+                      </div>
+
+                      <Controller
+                        name="blood_group"
+                        control={control}
+                        render={({ field }) => (
+                          <Select
+                            {...field}
+                            label={t('registration.bloodGroup')}
+                            options={bloodGroupOptions}
+                          />
+                        )}
+                      />
+
+                      {/* Emergency Contact Section */}
+                      <div className="p-4 sm:p-5 bg-gradient-to-br from-red-50/80 via-orange-50/60 to-yellow-50/40 rounded-xl sm:rounded-2xl border border-red-100/50">
+                        <h3 className="text-sm font-bold text-red-800 mb-3 sm:mb-4 flex items-center gap-2">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-100 flex items-center justify-center">
+                            <Phone size={14} className="text-red-600" />
+                          </div>
+                          {t('registration.emergencyContact')}
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                          <Controller
+                            name="emergency_contact_name"
+                            control={control}
+                            render={({ field }) => (
+                              <Input
+                                {...field}
+                                label={t('registration.emergencyContactName')}
+                                placeholder={t('registration.emergencyContactNamePlaceholder')}
+                                className="bg-white/70"
+                              />
+                            )}
+                          />
+                          <Controller
+                            name="emergency_contact_phone"
+                            control={control}
+                            render={({ field }) => (
+                              <Input
+                                {...field}
+                                type="tel"
+                                inputMode="numeric"
+                                label={t('registration.emergencyContactPhone')}
+                                placeholder="9876543210"
+                                error={errors.emergency_contact_phone?.message}
+                                maxLength={PHONE_LENGTH}
+                                onChange={handleEmergencyPhoneChange(field)}
+                                className="bg-white/70"
+                              />
+                            )}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Accessibility Options */}
+                      <div className="p-4 sm:p-5 bg-gradient-to-br from-blue-50/80 via-indigo-50/60 to-purple-50/40 rounded-xl sm:rounded-2xl border border-blue-100/50">
+                        <h3 className="text-sm font-bold text-blue-800 mb-3 sm:mb-4 flex items-center gap-2">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                            <Volume2 size={14} className="text-blue-600" />
+                          </div>
+                          {t('registration.accessibilityOptions')}
+                        </h3>
+                        <div className="space-y-2">
+                          <Controller
+                            name="is_literate"
+                            control={control}
+                            render={({ field }) => (
+                              <label className="flex items-center gap-3 cursor-pointer p-2.5 sm:p-3 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-200 border border-transparent hover:border-blue-200">
+                                <div className="relative flex-shrink-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={field.value}
+                                    onChange={field.onChange}
+                                    className="sr-only peer"
+                                  />
+                                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg border-2 border-gray-300 peer-checked:border-emerald-500 peer-checked:bg-emerald-500 transition-all duration-200 flex items-center justify-center">
+                                    {field.value && (
+                                      <CheckCircle size={14} className="text-white" />
+                                    )}
+                                  </div>
+                                </div>
+                                <span className="text-gray-700 font-medium text-sm">
+                                  {t('registration.isLiterate')}
+                                </span>
+                              </label>
+                            )}
+                          />
+                          <Controller
+                            name="needs_voice_assistance"
+                            control={control}
+                            render={({ field }) => (
+                              <label className="flex items-center gap-3 cursor-pointer p-2.5 sm:p-3 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-200 border border-transparent hover:border-blue-200">
+                                <div className="relative flex-shrink-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={field.value}
+                                    onChange={field.onChange}
+                                    className="sr-only peer"
+                                  />
+                                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg border-2 border-gray-300 peer-checked:border-emerald-500 peer-checked:bg-emerald-500 transition-all duration-200 flex items-center justify-center">
+                                    {field.value && (
+                                      <CheckCircle size={14} className="text-white" />
+                                    )}
+                                  </div>
+                                </div>
+                                <span className="text-gray-700 font-medium text-sm">
+                                  {t('registration.needsVoiceAssistance')}
+                                </span>
+                              </label>
+                            )}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Navigation buttons */}
+                      <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 pt-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleBack}
+                          leftIcon={<ArrowLeft size={16} />}
+                          className="!rounded-xl !font-semibold order-2 sm:order-1"
+                        >
+                          {t('common.back')}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={handleSkip}
+                          className="order-3 sm:order-2 !text-gray-400 hover:!text-gray-600"
+                        >
+                          {t('common.skipForNow')}
+                        </Button>
+                        <Button
+                          type="submit"
+                          fullWidth
+                          loading={isLoading}
+                          rightIcon={<CheckCircle size={16} />}
+                          className="!bg-gradient-to-r !from-emerald-600 !to-teal-600 hover:!from-emerald-700 hover:!to-teal-700 !shadow-lg !shadow-emerald-500/20 !rounded-xl sm:!rounded-2xl !py-3.5 !font-bold order-1 sm:order-3"
+                        >
+                          {t('registration.completeRegistration')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </form>
+              </div>
+            </div>
+
+            {/* Login Link */}
+            <div className="mt-6 sm:mt-8 text-center">
+              <p className="text-gray-400 text-xs sm:text-sm">
+                {t('auth.alreadyHaveAccount')}{' '}
+                <Link
+                  to="/login"
+                  className="text-emerald-600 font-bold hover:text-emerald-700 hover:underline transition-all"
+                >
+                  {t('auth.login')}
+                </Link>
+              </p>
+            </div>
+
+            {/* Mobile copyright */}
+            <p className="lg:hidden mt-6 text-center text-[10px] text-gray-300">
+              © {new Date().getFullYear()} {t('common.appName')}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

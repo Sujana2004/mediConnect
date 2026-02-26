@@ -1170,10 +1170,11 @@ const Consultations = () => {
         // You may need to filter client-side or implement backend support
       }
 
-      const response = await consultationService.getAll(params);
-      const data = response.data;
+      const response = await consultationService.getConsultations(params);
+      const data = response?.data || response || {};
+      const consultationList = data?.results || data?.data || data || [];
 
-      setConsultations(data.results || data || []);
+      setConsultations(Array.isArray(consultationList) ? consultationList : []);
       setPagination({
         count: data.count || 0,
         next: data.next,
@@ -1181,7 +1182,7 @@ const Consultations = () => {
       });
 
       // Calculate stats from data
-      const allConsultations = data.results || data || [];
+      const allConsultations = Array.isArray(consultationList) ? consultationList : [];
       const completed = allConsultations.filter(c => c.status === 'completed');
       const totalDuration = completed.reduce((sum, c) => {
         const dur = c.actual_duration || calculateDuration(c.actual_start, c.actual_end) || 0;

@@ -1,4 +1,5 @@
 // src/pages/patient/BookAppointment.jsx
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -27,16 +28,17 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { 
-  format, 
-  addDays, 
-  startOfMonth, 
-  endOfMonth, 
-  eachDayOfInterval, 
-  isSameMonth, 
-  isSameDay, 
-  isToday, 
-  isBefore, 
+import {
+  format,
+  addDays,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  isSameMonth,
+  isSameDay,
+  isToday,
+  isBefore,
+  isValid,
   startOfDay,
   addMonths,
   subMonths,
@@ -57,22 +59,28 @@ import {
   Select
 } from '../../components/common';
 import { useAuth } from '../../hooks/useAuth';
-import { authService, appointmentService } from '../../services/api';
+import { authService } from '../../services/api';
+import {
+  getAvailableSlots,
+  createAppointment,
+  getDoctorAvailability
+} from '../../services/api';
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
 const STEPS = [
-  { id: 1, title: 'Select Date & Time', icon: Calendar },
-  { id: 2, title: 'Patient Details', icon: User },
-  { id: 3, title: 'Confirm & Pay', icon: CreditCard }
+  { id: 1, title: 'Date & Time', icon: Calendar },
+  { id: 2, title: 'Details', icon: User },
+  { id: 3, title: 'Confirm', icon: CreditCard }
 ];
 
-const CONSULTATION_TYPES = {
-  video: { icon: Video, label: 'Video Consultation', color: 'text-blue-500', bg: 'bg-blue-100' },
-  audio: { icon: Phone, label: 'Audio Consultation', color: 'text-green-500', bg: 'bg-green-100' },
-  in_person: { icon: MapPin, label: 'In-Person Visit', color: 'text-purple-500', bg: 'bg-purple-100' }
+const BOOKING_TYPES = {
+  online: { icon: Video, label: 'Online Consultation', color: 'text-blue-500', bg: 'bg-blue-100' },
+  walk_in: { icon: MapPin, label: 'Walk-in Visit', color: 'text-purple-500', bg: 'bg-purple-100' },
+  phone: { icon: Phone, label: 'Phone Consultation', color: 'text-green-500', bg: 'bg-green-100' },
+  follow_up: { icon: FileText, label: 'Follow-up', color: 'text-orange-500', bg: 'bg-orange-100' }
 };
 
 const BOOKING_FOR_OPTIONS = [
@@ -81,6 +89,60 @@ const BOOKING_FOR_OPTIONS = [
   { value: 'other', label: 'Someone Else' }
 ];
 
+const parseApiDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return isValid(value) ? value : null;
+
+  const stringValue = String(value);
+  const dateOnlyMatch = stringValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    const parsedDate = new Date(Number(year), Number(month) - 1, Number(day));
+    return isValid(parsedDate) ? parsedDate : null;
+  }
+
+  const fallbackDate = new Date(stringValue);
+  return isValid(fallbackDate) ? fallbackDate : null;
+};
+
+const isBackendConnectionIssue = (error) => {
+  if (!error) return false;
+  if (error?.response) return false;
+
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    error?.code === 'ERR_NETWORK' ||
+    message.includes('network error') ||
+    message.includes('connection refused') ||
+    message.includes('failed to fetch')
+  );
+};
+
+const normalizeDoctorData = (doc) => {
+  if (!doc) return null;
+  return {
+    ...doc,
+    id: doc.id,
+    full_name: doc.full_name || doc.name || `${doc.user?.first_name || ''} ${doc.user?.last_name || ''}`.trim() || 'Doctor',
+    first_name: doc.first_name || doc.user?.first_name || '',
+    last_name: doc.last_name || doc.user?.last_name || '',
+    profile_picture: doc.profile_picture || doc.profile_photo || doc.user?.profile_photo || null,
+    rating: parseFloat(doc.rating || doc.average_rating || 0),
+    specialization: doc.specialization || '',
+    specialization_display: doc.specialization_display || doc.specialization || '',
+    experience_years: doc.experience_years || 0,
+    consultation_fee: doc.consultation_fee || 0,
+    total_reviews: doc.total_reviews || 0,
+    languages_spoken: doc.languages_spoken || doc.languages || [],
+    is_available_online: doc.is_available_online !== undefined ? doc.is_available_online : true,
+    hospital_name: doc.hospital_name || '',
+    hospital_address: doc.hospital_address || '',
+    bio: doc.bio || '',
+    availabilities: doc.availabilities || [],
+  };
+};
+
 // ============================================================================
 // HELPER COMPONENTS
 // ============================================================================
@@ -88,14 +150,14 @@ const BOOKING_FOR_OPTIONS = [
 const OfflineState = () => {
   const { t } = useTranslation();
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-        <WifiOff className="w-8 h-8 text-gray-500" />
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+      <div className="w-16 h-16 bg-violet-50 rounded-2xl flex items-center justify-center mb-4">
+        <WifiOff className="w-8 h-8 text-violet-400" />
       </div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+      <h3 className="text-lg font-bold text-gray-900 mb-1">
         {t('common.offline', 'You are offline')}
       </h3>
-      <p className="text-gray-500 text-center">
+      <p className="text-gray-400 text-center text-sm">
         {t('common.checkConnection', 'Please check your internet connection')}
       </p>
     </div>
@@ -105,15 +167,15 @@ const OfflineState = () => {
 const ErrorState = ({ message, onRetry }) => {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4">
-      <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-        <AlertCircle className="w-8 h-8 text-red-500" />
+    <div className="flex flex-col items-center justify-center py-16 px-6">
+      <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-4">
+        <AlertCircle className="w-8 h-8 text-red-400" />
       </div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+      <h3 className="text-lg font-bold text-gray-900 mb-1">
         {t('common.errorOccurred', 'Something went wrong')}
       </h3>
-      <p className="text-gray-500 text-center mb-4">{message}</p>
-      <Button variant="primary" onClick={onRetry}>
+      <p className="text-gray-400 text-center mb-6 text-sm">{message}</p>
+      <Button variant="primary" onClick={onRetry} className="!rounded-xl !bg-violet-600 hover:!bg-violet-700 !px-6">
         <RefreshCw className="w-4 h-4 mr-2" />
         {t('common.retry', 'Try Again')}
       </Button>
@@ -121,31 +183,30 @@ const ErrorState = ({ message, onRetry }) => {
   );
 };
 
-// Step Indicator
 const StepIndicator = ({ steps, currentStep }) => (
-  <div className="flex items-center justify-between px-4 py-4 bg-white border-b">
+  <div className="flex items-center justify-center gap-0 px-6 py-4 bg-white">
     {steps.map((step, index) => {
       const Icon = step.icon;
       const isActive = currentStep === step.id;
       const isCompleted = currentStep > step.id;
-      
+
       return (
         <div key={step.id} className="flex items-center">
           <div className="flex flex-col items-center">
             <div className={`
-              w-10 h-10 rounded-full flex items-center justify-center transition-colors
-              ${isCompleted ? 'bg-green-500 text-white' : 
-                isActive ? 'bg-primary-500 text-white' : 
-                'bg-gray-200 text-gray-500'}
+              w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300
+              ${isCompleted ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200' :
+                isActive ? 'bg-violet-600 text-white shadow-md shadow-violet-200' :
+                'bg-gray-100 text-gray-400'}
             `}>
               {isCompleted ? <CheckCircle className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
             </div>
-            <span className={`text-xs mt-1 font-medium ${isActive ? 'text-primary-600' : 'text-gray-500'}`}>
+            <span className={`text-[10px] mt-1.5 font-semibold tracking-wide ${isActive ? 'text-violet-600' : isCompleted ? 'text-emerald-600' : 'text-gray-400'}`}>
               {step.title}
             </span>
           </div>
           {index < steps.length - 1 && (
-            <div className={`w-12 h-0.5 mx-2 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`} />
+            <div className={`w-10 h-[2px] mx-1.5 rounded-full transition-colors duration-300 ${isCompleted ? 'bg-emerald-500' : 'bg-gray-200'}`} />
           )}
         </div>
       );
@@ -153,95 +214,106 @@ const StepIndicator = ({ steps, currentStep }) => (
   </div>
 );
 
-// Doctor Summary Card
 const DoctorSummaryCard = ({ doctor }) => {
   const { t } = useTranslation();
-  
+
   if (!doctor) return null;
-  
+
   return (
-    <Card className="p-4 mb-4">
-      <div className="flex gap-4">
-        <Avatar
-          src={doctor.profile_picture}
-          name={doctor.full_name || doctor.first_name}
-          size="lg"
-        />
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900 truncate">
-            Dr. {doctor.full_name || `${doctor.first_name} ${doctor.last_name || ''}`}
-          </h3>
-          <p className="text-sm text-primary-600">
-            {doctor.specialization_display || doctor.specialization}
-          </p>
-          <div className="flex items-center gap-3 mt-2 text-sm">
-            {doctor.rating > 0 && (
-              <span className="flex items-center gap-1">
-                <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                {doctor.rating.toFixed(1)}
-              </span>
-            )}
-            {doctor.experience_years > 0 && (
-              <span className="text-gray-500">
-                {doctor.experience_years} {t('doctors.yearsExp', 'years')}
-              </span>
-            )}
-          </div>
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4 flex gap-4 items-center">
+      <div className="relative flex-shrink-0">
+        <div className="rounded-xl ring-2 ring-violet-100 overflow-hidden">
+          <Avatar
+            src={doctor.profile_picture}
+            name={doctor.full_name}
+            size="lg"
+          />
         </div>
       </div>
-    </Card>
+      <div className="flex-1 min-w-0">
+        <h3 className="font-bold text-gray-900 truncate text-sm">
+          Dr. {doctor.full_name}
+        </h3>
+        <p className="text-xs text-violet-600 font-semibold mt-0.5">
+          {doctor.specialization_display || doctor.specialization}
+        </p>
+        <div className="flex items-center gap-3 mt-2">
+          {doctor.rating > 0 && (
+            <span className="flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-lg">
+              <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+              <span className="text-xs font-bold text-amber-700">{doctor.rating.toFixed(1)}</span>
+            </span>
+          )}
+          {doctor.experience_years > 0 && (
+            <span className="flex items-center gap-1 bg-violet-50 px-2 py-0.5 rounded-lg">
+              <Clock className="w-3 h-3 text-violet-400" />
+              <span className="text-xs font-semibold text-violet-600">
+                {doctor.experience_years} {t('doctors.yearsExp', 'yrs')}
+              </span>
+            </span>
+          )}
+        </div>
+      </div>
+      {doctor.consultation_fee > 0 && (
+        <div className="text-right flex-shrink-0">
+          <p className="text-xs text-gray-400">Fee</p>
+          <p className="text-lg font-extrabold text-violet-600">₹{doctor.consultation_fee}</p>
+        </div>
+      )}
+    </div>
   );
 };
 
-// Calendar Component
-const CalendarPicker = ({ selectedDate, onSelectDate, availableDates = [] }) => {
-  const { t } = useTranslation();
+const CalendarPicker = ({ selectedDate, onSelectDate, availableDates = [], strictAvailability = false }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  const availableDateSet = useMemo(() => {
+    return new Set(
+      availableDates
+        .map((dateValue) => String(dateValue).slice(0, 10))
+        .filter(Boolean)
+    );
+  }, [availableDates]);
 
   const days = useMemo(() => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
     const daysInMonth = eachDayOfInterval({ start, end });
-    
-    // Add padding for start of week
+
     const startDay = getDay(start);
     const paddingDays = Array(startDay).fill(null);
-    
+
     return [...paddingDays, ...daysInMonth];
   }, [currentMonth]);
 
   const isDateAvailable = (date) => {
     if (!date) return false;
     if (isBefore(startOfDay(date), startOfDay(new Date()))) return false;
-    if (availableDates.length === 0) return true;
-    return availableDates.some(d => isSameDay(new Date(d), date));
+    if (!strictAvailability) return true;
+    if (availableDateSet.size === 0) return !strictAvailability;
+    return availableDateSet.has(format(date, 'yyyy-MM-dd'));
   };
 
-  const handlePrevMonth = () => {
-    setCurrentMonth(subMonths(currentMonth, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentMonth(addMonths(currentMonth, 1));
-  };
+  const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
+  const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
   return (
-    <div className="bg-white rounded-xl p-4">
-      {/* Month Navigation */}
+    <div className="bg-white rounded-2xl p-4">
+      {/* Month Nav */}
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={handlePrevMonth}
           disabled={isSameMonth(currentMonth, new Date())}
-          className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-2 rounded-xl hover:bg-violet-50 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 transition-colors"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <h3 className="font-semibold text-gray-900">
+        <h3 className="font-bold text-gray-900 text-sm">
           {format(currentMonth, 'MMMM yyyy')}
         </h3>
         <button
           onClick={handleNextMonth}
-          className="p-2 rounded-lg hover:bg-gray-100"
+          className="p-2 rounded-xl hover:bg-violet-50 text-gray-600 transition-colors"
         >
           <ChevronRight className="w-5 h-5" />
         </button>
@@ -249,8 +321,8 @@ const CalendarPicker = ({ selectedDate, onSelectDate, availableDates = [] }) => 
 
       {/* Day Headers */}
       <div className="grid grid-cols-7 gap-1 mb-2">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-          <div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+          <div key={`${day}-${i}`} className="text-center text-[10px] font-bold text-gray-300 uppercase py-2">
             {day}
           </div>
         ))}
@@ -273,14 +345,14 @@ const CalendarPicker = ({ selectedDate, onSelectDate, availableDates = [] }) => 
               onClick={() => isAvailable && onSelectDate(day)}
               disabled={!isAvailable}
               className={`
-                aspect-square flex items-center justify-center rounded-lg text-sm font-medium transition-all
-                ${isSelected 
-                  ? 'bg-primary-500 text-white' 
+                aspect-square flex items-center justify-center rounded-xl text-sm font-semibold transition-all duration-200
+                ${isSelected
+                  ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
                   : isAvailable
                     ? isTodayDate
-                      ? 'bg-primary-100 text-primary-700 hover:bg-primary-200'
-                      : 'hover:bg-gray-100 text-gray-700'
-                    : 'text-gray-300 cursor-not-allowed'
+                      ? 'bg-violet-50 text-violet-700 hover:bg-violet-100 ring-1 ring-violet-200'
+                      : 'hover:bg-violet-50 text-gray-700'
+                    : 'text-gray-200 cursor-not-allowed'
                 }
               `}
             >
@@ -293,7 +365,6 @@ const CalendarPicker = ({ selectedDate, onSelectDate, availableDates = [] }) => 
   );
 };
 
-// Time Slot Grid
 const TimeSlotGrid = ({ slots, selectedSlot, onSelectSlot, isLoading }) => {
   const { t } = useTranslation();
 
@@ -301,63 +372,66 @@ const TimeSlotGrid = ({ slots, selectedSlot, onSelectSlot, isLoading }) => {
     if (!slots?.length) return { morning: [], afternoon: [], evening: [] };
 
     return slots.reduce((acc, slot) => {
-      const timeStr = slot.time || slot.start_time || '';
+      const timeStr = slot.start_time || '';
       const hour = parseInt(timeStr.split(':')[0] || '12');
-      
+
       if (hour < 12) acc.morning.push(slot);
       else if (hour < 17) acc.afternoon.push(slot);
       else acc.evening.push(slot);
-      
+
       return acc;
     }, { morning: [], afternoon: [], evening: [] });
   }, [slots]);
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-8">
-        <Loader size="md" />
+      <div className="flex flex-col items-center justify-center py-8">
+        <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center mb-2">
+          <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
+        </div>
+        <p className="text-xs text-gray-400 font-medium">Loading slots...</p>
       </div>
     );
   }
 
   if (!slots?.length) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        <Clock className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-        <p>{t('booking.noSlots', 'No slots available for this date')}</p>
-        <p className="text-sm mt-1">{t('booking.tryAnotherDate', 'Please try another date')}</p>
+      <div className="text-center py-8 bg-gray-50 rounded-2xl">
+        <Clock className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+        <p className="text-sm font-medium text-gray-500">{t('booking.noSlots', 'No slots available')}</p>
+        <p className="text-xs text-gray-400 mt-0.5">{t('booking.tryAnotherDate', 'Please try another date')}</p>
       </div>
     );
   }
 
-  const renderSlotGroup = (title, slots) => {
-    if (!slots.length) return null;
-    
+  const renderSlotGroup = (title, groupSlots) => {
+    if (!groupSlots.length) return null;
+
     return (
       <div className="mb-4">
-        <h4 className="text-sm font-medium text-gray-500 mb-2">{title}</h4>
+        <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">{title}</h4>
         <div className="flex flex-wrap gap-2">
-          {slots.map((slot) => {
-            const time = slot.time || slot.start_time;
-            const isSelected = selectedSlot?.id === slot.id || selectedSlot?.time === time;
-            const isBooked = slot.is_booked;
-            
+          {groupSlots.map((slot) => {
+            const isSelected = selectedSlot &&
+              (selectedSlot.id === slot.id || selectedSlot.start_time === slot.start_time);
+            const isUnavailable = slot.is_available === false;
+
             return (
               <button
-                key={slot.id || time}
-                onClick={() => !isBooked && onSelectSlot(slot)}
-                disabled={isBooked}
+                key={slot.id || slot.start_time}
+                onClick={() => !isUnavailable && onSelectSlot(slot)}
+                disabled={isUnavailable}
                 className={`
-                  px-4 py-2 rounded-lg text-sm font-medium transition-all
-                  ${isBooked
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed line-through'
+                  px-3.5 py-2 rounded-xl text-sm font-semibold transition-all duration-200
+                  ${isUnavailable
+                    ? 'bg-gray-50 text-gray-300 cursor-not-allowed line-through border border-gray-100'
                     : isSelected
-                      ? 'bg-primary-500 text-white'
-                      : 'bg-white border border-gray-200 text-gray-700 hover:border-primary-500'
+                      ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
+                      : 'bg-white border border-gray-200 text-gray-700 hover:border-violet-300 hover:text-violet-600 hover:bg-violet-50/30'
                   }
                 `}
               >
-                {time}
+                {slot.start_time}
               </button>
             );
           })}
@@ -375,41 +449,36 @@ const TimeSlotGrid = ({ slots, selectedSlot, onSelectSlot, isLoading }) => {
   );
 };
 
-// Consultation Type Selector
-const ConsultationTypeSelector = ({ types, selectedType, onSelectType }) => {
+const BookingTypeSelector = ({ selectedType, onSelectType }) => {
+  const availableTypes = ['online', 'walk_in', 'phone', 'follow_up'];
+
   return (
-    <div className="space-y-3">
-      {types.map((type) => {
-        const config = CONSULTATION_TYPES[type.type] || CONSULTATION_TYPES.video;
+    <div className="grid grid-cols-2 gap-2.5">
+      {availableTypes.map((type) => {
+        const config = BOOKING_TYPES[type];
         const Icon = config.icon;
-        const isSelected = selectedType === type.type;
-        
+        const isSelected = selectedType === type;
+
         return (
           <button
-            key={type.type}
-            onClick={() => type.available && onSelectType(type.type)}
-            disabled={!type.available}
+            key={type}
+            onClick={() => onSelectType(type)}
             className={`
-              w-full p-4 rounded-xl border-2 text-left transition-all
-              ${!type.available
-                ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-50'
-                : isSelected
-                  ? 'border-primary-500 bg-primary-50'
-                  : 'border-gray-200 hover:border-primary-300 bg-white'
+              p-3.5 rounded-2xl border-2 text-left transition-all duration-200
+              ${isSelected
+                ? 'border-violet-500 bg-violet-50/50 shadow-sm shadow-violet-100'
+                : 'border-gray-100 hover:border-violet-200 hover:bg-violet-50/20 bg-white'
               }
             `}
           >
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${config.bg}`}>
-                <Icon className={`w-5 h-5 ${config.color}`} />
+            <div className="flex flex-col items-center text-center gap-2">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isSelected ? 'bg-violet-600 text-white' : config.bg}`}>
+                <Icon className={`w-5 h-5 ${isSelected ? 'text-white' : config.color}`} />
               </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-gray-900">{config.label}</span>
-                  {isSelected && <CheckCircle className="w-5 h-5 text-primary-500" />}
-                </div>
-                <span className="text-sm text-gray-500">₹{type.fee}</span>
-              </div>
+              <span className={`text-xs font-bold ${isSelected ? 'text-violet-700' : 'text-gray-700'}`}>{config.label}</span>
+              {isSelected && (
+                <CheckCircle className="w-4 h-4 text-violet-500" />
+              )}
             </div>
           </button>
         );
@@ -418,59 +487,70 @@ const ConsultationTypeSelector = ({ types, selectedType, onSelectType }) => {
   );
 };
 
-// Booking Summary
-const BookingSummary = ({ doctor, date, slot, consultationType, fee }) => {
+const BookingSummary = ({ doctor, date, slot, bookingType, fee }) => {
   const { t } = useTranslation();
-  const typeConfig = CONSULTATION_TYPES[consultationType] || CONSULTATION_TYPES.video;
+  const typeConfig = BOOKING_TYPES[bookingType] || BOOKING_TYPES.online;
   const TypeIcon = typeConfig.icon;
+  const hasValidDate = date && isValid(date);
 
   return (
-    <Card className="p-4 bg-gray-50">
-      <h3 className="font-semibold text-gray-900 mb-3">
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <h3 className="font-bold text-gray-900 text-sm mb-4 flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+          <FileText className="w-4 h-4 text-violet-500" />
+        </div>
         {t('booking.summary', 'Booking Summary')}
       </h3>
-      
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <Calendar className="w-5 h-5 text-gray-400" />
+
+      <div className="space-y-3.5">
+        <div className="flex items-center gap-3.5">
+          <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
+            <Calendar className="w-4 h-4 text-violet-500" />
+          </div>
           <div>
-            <p className="text-sm text-gray-500">{t('booking.date', 'Date')}</p>
-            <p className="font-medium text-gray-900">
-              {date ? format(date, 'EEEE, MMMM d, yyyy') : '-'}
+            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">{t('booking.date', 'Date')}</p>
+            <p className="font-semibold text-gray-900 text-sm mt-0.5">
+              {hasValidDate ? format(date, 'EEEE, MMMM d, yyyy') : '-'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Clock className="w-5 h-5 text-gray-400" />
+        <div className="flex items-center gap-3.5">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+            <Clock className="w-4 h-4 text-blue-500" />
+          </div>
           <div>
-            <p className="text-sm text-gray-500">{t('booking.time', 'Time')}</p>
-            <p className="font-medium text-gray-900">
-              {slot?.time || slot?.start_time || '-'}
+            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">{t('booking.time', 'Time')}</p>
+            <p className="font-semibold text-gray-900 text-sm mt-0.5">
+              {slot?.start_time || '-'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <TypeIcon className={`w-5 h-5 ${typeConfig.color}`} />
+        <div className="flex items-center gap-3.5">
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+            <TypeIcon className="w-4 h-4 text-emerald-500" />
+          </div>
           <div>
-            <p className="text-sm text-gray-500">{t('booking.type', 'Consultation Type')}</p>
-            <p className="font-medium text-gray-900">{typeConfig.label}</p>
+            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">{t('booking.type', 'Type')}</p>
+            <p className="font-semibold text-gray-900 text-sm mt-0.5">{typeConfig.label}</p>
           </div>
         </div>
 
-        <div className="pt-3 mt-3 border-t border-gray-200">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">{t('booking.consultationFee', 'Consultation Fee')}</span>
-            <span className="font-semibold text-gray-900">₹{fee}</span>
+        {fee && (
+          <div className="pt-3.5 mt-1 border-t border-gray-100">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-400 font-medium">{t('booking.consultationFee', 'Consultation Fee')}</span>
+              <span className="font-semibold text-gray-900">₹{fee}</span>
+            </div>
+            <div className="flex items-center justify-between mt-3 py-3 bg-violet-50 rounded-xl px-3 -mx-1">
+              <span className="font-bold text-violet-900">{t('booking.total', 'Total')}</span>
+              <span className="text-xl font-extrabold text-violet-600">₹{fee}</span>
+            </div>
           </div>
-          <div className="flex items-center justify-between mt-2 text-lg">
-            <span className="font-semibold text-gray-900">{t('booking.total', 'Total')}</span>
-            <span className="font-bold text-primary-600">₹{fee}</span>
-          </div>
-        </div>
+        )}
       </div>
-    </Card>
+    </div>
   );
 };
 
@@ -485,10 +565,9 @@ const BookAppointment = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
 
-  // Get pre-selected data from navigation state
   const preSelectedData = location.state || {};
+  const effectiveDoctorId = doctorId || preSelectedData?.doctor?.id;
 
-  // Online status
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
@@ -502,17 +581,19 @@ const BookAppointment = () => {
     };
   }, []);
 
-  // State
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedDate, setSelectedDate] = useState(
-    preSelectedData.date ? new Date(preSelectedData.date) : new Date()
-  );
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const initialDate = preSelectedData.date ? parseApiDate(preSelectedData.date) : new Date();
+    return isValid(initialDate) ? initialDate : new Date();
+  });
   const [selectedSlot, setSelectedSlot] = useState(preSelectedData.slot || null);
-  const [selectedType, setSelectedType] = useState(preSelectedData.consultationType || 'video');
+  const [selectedBookingType, setSelectedBookingType] = useState(
+    preSelectedData.bookingType || preSelectedData.consultationType || 'online'
+  );
   const [patientDetails, setPatientDetails] = useState({
     bookingFor: 'self',
-    patientName: user?.full_name || '',
-    patientPhone: user?.phone_number || '',
+    patientName: user?.full_name || user?.first_name || '',
+    patientPhone: user?.phone_number || user?.phone || '',
     patientAge: '',
     patientGender: '',
     symptoms: '',
@@ -520,91 +601,141 @@ const BookAppointment = () => {
   });
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  // Fetch doctor details
+  const preSelectedDoctor = useMemo(() => {
+    if (preSelectedData.doctor) {
+      return normalizeDoctorData(preSelectedData.doctor);
+    }
+    return null;
+  }, [preSelectedData.doctor]);
+
   const {
-    data: doctorData,
+    data: doctorRaw,
     isLoading: doctorLoading,
     isError: doctorError,
+    error: doctorQueryError,
     refetch: refetchDoctor
   } = useQuery({
     queryKey: ['doctor', doctorId],
     queryFn: () => authService.getDoctorById(doctorId),
-    enabled: !!doctorId && isOnline,
+    enabled: !!doctorId && isOnline && !preSelectedDoctor,
     staleTime: 1000 * 60 * 10,
-    initialData: preSelectedData.doctor ? { data: preSelectedData.doctor } : undefined
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
-  // Fetch available slots
+  const doctor = useMemo(() => {
+    if (preSelectedDoctor) return preSelectedDoctor;
+    if (!doctorRaw) return null;
+    const raw = doctorRaw?.data || doctorRaw;
+    return normalizeDoctorData(raw);
+  }, [preSelectedDoctor, doctorRaw]);
+
+  const selectedDateKey = useMemo(() => {
+    if (!selectedDate || !isValid(selectedDate)) return null;
+    return format(selectedDate, 'yyyy-MM-dd');
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (!doctorId && !preSelectedDoctor) {
+      navigate('/patient/doctors', { replace: true });
+    }
+  }, [doctorId, preSelectedDoctor, navigate]);
+
   const {
-    data: slotsData,
+    data: availabilityData,
+    isLoading: availabilityLoading,
+    isError: availabilityError,
+    error: availabilityQueryError,
+    refetch: refetchAvailability,
+  } = useQuery({
+    queryKey: ['doctor-availability', effectiveDoctorId],
+    queryFn: () => getDoctorAvailability(effectiveDoctorId, { days: 60 }),
+    enabled: !!effectiveDoctorId && isOnline,
+    staleTime: 1000 * 60 * 5,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const {
+    data: slotsResponse,
     isLoading: slotsLoading,
+    isError: slotsError,
+    error: slotsQueryError,
     refetch: refetchSlots
   } = useQuery({
-    queryKey: ['slots', doctorId, format(selectedDate, 'yyyy-MM-dd')],
-    queryFn: () => appointmentService.getAvailableSlots(doctorId, format(selectedDate, 'yyyy-MM-dd')),
-    enabled: !!doctorId && !!selectedDate && isOnline,
-    staleTime: 1000 * 60 * 2
+    queryKey: ['slots', effectiveDoctorId, selectedDateKey],
+    queryFn: () => getAvailableSlots(effectiveDoctorId, selectedDateKey),
+    enabled: !!effectiveDoctorId && !!selectedDateKey && isOnline,
+    staleTime: 1000 * 60 * 2,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
-  // Create appointment mutation
   const createAppointmentMutation = useMutation({
-    mutationFn: (data) => appointmentService.create(data),
+    mutationFn: (data) => createAppointment(data),
     onSuccess: (response) => {
-      toast.success(t('booking.success', 'Appointment booked successfully!'));
-      navigate('/patient/appointments', { 
-        state: { newAppointment: response.data } 
+      toast.success(t('booking.pendingSuccess', 'Appointment request sent. Waiting for doctor confirmation.'));
+      navigate('/patient/appointments', {
+        state: { newAppointment: response?.data || response }
       });
     },
     onError: (error) => {
-      toast.error(error.response?.data?.message || t('booking.error', 'Failed to book appointment'));
+      const errorMessage = error.response?.data?.message ||
+        error.response?.data?.detail ||
+        (error.response?.data && typeof error.response.data === 'object'
+          ? Object.values(error.response.data).flat().join(', ')
+          : t('booking.error', 'Failed to book appointment'));
+      toast.error(errorMessage);
     }
   });
 
-  // Extract data
-  const doctor = doctorData?.data || doctorData;
-  const slots = slotsData?.data || slotsData || [];
+  const slots = useMemo(() => {
+    const apiSlots = slotsResponse?.data?.slots || slotsResponse?.slots || [];
+    return apiSlots;
+  }, [slotsResponse]);
 
-  // Consultation types
-  const consultationTypes = useMemo(() => {
-    if (!doctor) return [];
-    
-    const types = [];
-    
-    if (doctor.offers_video !== false) {
-      types.push({
-        type: 'video',
-        fee: doctor.video_consultation_fee || doctor.consultation_fee || 500,
-        available: true
-      });
+  const isAvailableOnDate = slotsResponse?.data?.is_available !== false;
+
+  const availableDates = useMemo(() => {
+    return availabilityData?.data?.available_days ||
+           availabilityData?.available_days ||
+           [];
+  }, [availabilityData]);
+
+  const bookingDoctorId = useMemo(() => {
+    return (
+      slotsResponse?.data?.doctor_id ||
+      slotsResponse?.doctor_id ||
+      availabilityData?.data?.doctor_id ||
+      availabilityData?.doctor_id ||
+      doctor?.user?.id ||
+      doctor?.user_id ||
+      doctor?.doctor_user_id ||
+      effectiveDoctorId ||
+      null
+    );
+  }, [slotsResponse, availabilityData, doctor, effectiveDoctorId]);
+
+  useEffect(() => {
+    if (selectedDateKey || !availableDates.length) return;
+
+    const firstAvailableDate = parseApiDate(availableDates[0]);
+    if (isValid(firstAvailableDate)) {
+      setSelectedDate(firstAvailableDate);
+      setSelectedSlot(null);
     }
-    
-    if (doctor.offers_audio !== false) {
-      types.push({
-        type: 'audio',
-        fee: doctor.audio_consultation_fee || doctor.consultation_fee || 400,
-        available: true
-      });
-    }
-    
-    if (doctor.offers_in_person !== false && doctor.hospital_address) {
-      types.push({
-        type: 'in_person',
-        fee: doctor.in_person_fee || doctor.consultation_fee || 600,
-        available: true
-      });
-    }
-    
-    return types;
+  }, [availableDates, selectedDateKey]);
+
+  const consultationFee = useMemo(() => {
+    return doctor?.consultation_fee || null;
   }, [doctor]);
 
-  // Get current fee
-  const currentFee = useMemo(() => {
-    const type = consultationTypes.find(t => t.type === selectedType);
-    return type?.fee || doctor?.consultation_fee || 500;
-  }, [consultationTypes, selectedType, doctor]);
+  const backendUnavailable = useMemo(() => {
+    return [doctorQueryError, availabilityQueryError, slotsQueryError].some(isBackendConnectionIssue);
+  }, [doctorQueryError, availabilityQueryError, slotsQueryError]);
 
-  // Handlers
   const handleDateSelect = useCallback((date) => {
+    if (!date || !isValid(date)) return;
     setSelectedDate(date);
     setSelectedSlot(null);
   }, []);
@@ -613,8 +744,8 @@ const BookAppointment = () => {
     setSelectedSlot(slot);
   }, []);
 
-  const handleTypeSelect = useCallback((type) => {
-    setSelectedType(type);
+  const handleBookingTypeSelect = useCallback((type) => {
+    setSelectedBookingType(type);
   }, []);
 
   const handlePatientDetailsChange = useCallback((field, value) => {
@@ -628,14 +759,14 @@ const BookAppointment = () => {
         return;
       }
     }
-    
+
     if (currentStep === 2) {
       if (patientDetails.bookingFor !== 'self' && !patientDetails.patientName.trim()) {
         toast.error(t('booking.enterPatientName', 'Please enter patient name'));
         return;
       }
     }
-    
+
     setCurrentStep(prev => Math.min(prev + 1, 3));
   }, [currentStep, selectedSlot, patientDetails, t]);
 
@@ -648,25 +779,43 @@ const BookAppointment = () => {
   }, []);
 
   const handleSubmitBooking = useCallback(() => {
+    if (!bookingDoctorId) {
+      toast.error(t('errors.doctorNotFound', 'Doctor not found'));
+      return;
+    }
+
+    if (!selectedSlot?.start_time) {
+      toast.error(t('booking.selectSlot', 'Please select a time slot'));
+      return;
+    }
+
+    if (!selectedDateKey) {
+      toast.error(t('booking.selectDate', 'Please select a valid date'));
+      return;
+    }
+
     const appointmentData = {
-      doctor: doctorId,
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      time_slot: selectedSlot.time || selectedSlot.start_time,
-      slot_id: selectedSlot.id,
-      consultation_type: selectedType,
-      booking_for: patientDetails.bookingFor,
-      patient_name: patientDetails.bookingFor === 'self' ? user?.full_name : patientDetails.patientName,
-      patient_phone: patientDetails.bookingFor === 'self' ? user?.phone_number : patientDetails.patientPhone,
-      patient_age: patientDetails.patientAge,
-      patient_gender: patientDetails.patientGender,
-      symptoms: patientDetails.symptoms,
-      notes: patientDetails.notes,
-      fee: currentFee
+      doctor_id: bookingDoctorId,
+      appointment_date: selectedDateKey,
+      start_time: selectedSlot.start_time,
+      time_slot_id: selectedSlot?.id || undefined,
+      booking_type: selectedBookingType,
+      reason: patientDetails.symptoms || undefined,
+      symptoms: patientDetails.symptoms || undefined,
+      patient_notes: patientDetails.notes || undefined,
     };
 
     createAppointmentMutation.mutate(appointmentData);
     setShowConfirmModal(false);
-  }, [doctorId, selectedDate, selectedSlot, selectedType, patientDetails, user, currentFee, createAppointmentMutation]);
+  }, [
+    bookingDoctorId,
+    t,
+    selectedDateKey,
+    selectedSlot,
+    selectedBookingType,
+    patientDetails,
+    createAppointmentMutation
+  ]);
 
   const handleBack = useCallback(() => {
     if (currentStep > 1) {
@@ -676,25 +825,25 @@ const BookAppointment = () => {
     }
   }, [currentStep, handlePrevStep, navigate]);
 
-  // Offline state
   if (!isOnline) {
     return <OfflineState />;
   }
 
-  // Loading state
   if (doctorLoading && !doctor) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader size="lg" />
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <div className="w-14 h-14 bg-violet-50 rounded-2xl flex items-center justify-center mb-3">
+          <div className="w-7 h-7 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
+        </div>
+        <p className="text-sm text-gray-400 font-medium">Loading...</p>
       </div>
     );
   }
 
-  // Error state
-  if (doctorError || !doctor) {
+  if (!doctorLoading && (doctorError || !doctor)) {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
-        <ErrorState 
+        <ErrorState
           message={t('errors.doctorNotFound', 'Doctor not found')}
           onRetry={refetchDoctor}
         />
@@ -702,87 +851,155 @@ const BookAppointment = () => {
     );
   }
 
+  if (!doctor) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader size="lg" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-gray-50 pb-28">
       {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-20">
-        <div className="px-4 py-3 flex items-center gap-4">
-          <button
-            onClick={handleBack}
-            className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-lg font-semibold text-gray-900">
-            {t('booking.title', 'Book Appointment')}
-          </h1>
+      <div className="sticky top-0 z-20">
+        <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-700 px-4 py-4 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/[0.07]" />
+          <div className="absolute top-10 -left-6 w-20 h-20 rounded-full bg-white/[0.05]" />
+
+          <div className="relative z-10 flex items-center gap-4">
+            <button
+              onClick={handleBack}
+              className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/25 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h1 className="text-base font-bold text-white">
+              {t('booking.title', 'Book Appointment')}
+            </h1>
+          </div>
         </div>
-        
-        {/* Step Indicator */}
-        <StepIndicator steps={STEPS} currentStep={currentStep} />
+
+        {/* Steps */}
+        <div className="bg-white border-b border-gray-100 shadow-sm">
+          <StepIndicator steps={STEPS} currentStep={currentStep} />
+        </div>
       </div>
 
       {/* Content */}
       <div className="p-4">
-        {/* Doctor Summary */}
         <DoctorSummaryCard doctor={doctor} />
 
-        {/* Step 1: Date, Time & Type Selection */}
+        {backendUnavailable && (
+          <div className="flex items-center gap-2 p-3 bg-red-50 rounded-xl mb-4 border border-red-100">
+            <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <span className="text-xs text-red-700 font-medium">
+              {t('booking.backendUnavailable', 'Backend server is not reachable. Please start backend and retry.')}
+            </span>
+          </div>
+        )}
+
+        {/* Step 1: Date, Time & Booking Type */}
         {currentStep === 1 && (
           <div className="space-y-4">
-            {/* Consultation Type */}
-            <Card className="p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">
-                {t('booking.selectType', 'Select Consultation Type')}
+            {/* Booking Type */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <h3 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                  <Video className="w-4 h-4 text-violet-500" />
+                </div>
+                {t('booking.selectType', 'Consultation Type')}
               </h3>
-              <ConsultationTypeSelector
-                types={consultationTypes}
-                selectedType={selectedType}
-                onSelectType={handleTypeSelect}
+              <BookingTypeSelector
+                selectedType={selectedBookingType}
+                onSelectType={handleBookingTypeSelect}
               />
-            </Card>
+            </div>
 
             {/* Date Selection */}
-            <Card className="p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <h3 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                  <Calendar className="w-4 h-4 text-violet-500" />
+                </div>
                 {t('booking.selectDate', 'Select Date')}
               </h3>
               <CalendarPicker
                 selectedDate={selectedDate}
                 onSelectDate={handleDateSelect}
+                availableDates={availableDates}
+                strictAvailability={false}
               />
-            </Card>
+
+              {availabilityError && !availabilityLoading && (
+                <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-xl mt-3 border border-amber-100">
+                  <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                  <span className="text-xs text-amber-700 font-medium">
+                    {t('booking.availabilityError', 'Unable to load doctor availability. Please retry.')}
+                  </span>
+                  <button
+                    onClick={() => refetchAvailability()}
+                    className="ml-auto text-xs font-semibold text-violet-600 hover:text-violet-700"
+                  >
+                    {t('common.retry', 'Retry')}
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Time Selection */}
-            <Card className="p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <h3 className="font-bold text-gray-900 text-sm mb-1 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                  <Clock className="w-4 h-4 text-violet-500" />
+                </div>
                 {t('booking.selectTime', 'Select Time')}
-                {selectedDate && (
-                  <span className="text-sm font-normal text-gray-500 ml-2">
-                    ({format(selectedDate, 'MMM d, yyyy')})
+                {selectedDateKey && (
+                  <span className="text-xs font-medium text-violet-400 ml-auto">
+                    {format(selectedDate, 'MMM d')}
                   </span>
                 )}
               </h3>
-              <TimeSlotGrid
-                slots={slots}
-                selectedSlot={selectedSlot}
-                onSelectSlot={handleSlotSelect}
-                isLoading={slotsLoading}
-              />
-            </Card>
+
+              {!isAvailableOnDate && !slotsLoading && (
+                <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-xl mb-3 mt-3 border border-amber-100">
+                  <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                  <span className="text-xs text-amber-700 font-medium">
+                    {slotsResponse?.data?.reason || t('booking.doctorUnavailable', 'Doctor is not available on this date')}
+                  </span>
+                </div>
+              )}
+
+              <div className="mt-3">
+                <TimeSlotGrid
+                  slots={slots}
+                  selectedSlot={selectedSlot}
+                  onSelectSlot={handleSlotSelect}
+                  isLoading={slotsLoading}
+                />
+
+                {slotsError && !slotsLoading && !backendUnavailable && (
+                  <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-3">
+                    {t('booking.slotLoadError', 'Could not load slots for this date. Please try again.')}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
         {/* Step 2: Patient Details */}
         {currentStep === 2 && (
           <div className="space-y-4">
-            <Card className="p-4">
-              <h3 className="font-semibold text-gray-900 mb-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <h3 className="font-bold text-gray-900 text-sm mb-4 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                  <User className="w-4 h-4 text-violet-500" />
+                </div>
                 {t('booking.patientDetails', 'Patient Details')}
               </h3>
-              
+
               <div className="space-y-4">
-                {/* Booking For */}
                 <Select
                   label={t('booking.bookingFor', 'Booking For')}
                   value={patientDetails.bookingFor}
@@ -790,7 +1007,6 @@ const BookAppointment = () => {
                   options={BOOKING_FOR_OPTIONS}
                 />
 
-                {/* Patient Name (for family/other) */}
                 {patientDetails.bookingFor !== 'self' && (
                   <>
                     <Input
@@ -800,7 +1016,6 @@ const BookAppointment = () => {
                       placeholder="Enter patient name"
                       required
                     />
-                    
                     <Input
                       label={t('booking.patientPhone', 'Patient Phone')}
                       value={patientDetails.patientPhone}
@@ -810,7 +1025,7 @@ const BookAppointment = () => {
                   </>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <Input
                     label={t('booking.age', 'Age')}
                     type="number"
@@ -820,7 +1035,6 @@ const BookAppointment = () => {
                     min="0"
                     max="150"
                   />
-                  
                   <Select
                     label={t('booking.gender', 'Gender')}
                     value={patientDetails.patientGender}
@@ -850,7 +1064,7 @@ const BookAppointment = () => {
                   rows={2}
                 />
               </div>
-            </Card>
+            </div>
           </div>
         )}
 
@@ -861,81 +1075,102 @@ const BookAppointment = () => {
               doctor={doctor}
               date={selectedDate}
               slot={selectedSlot}
-              consultationType={selectedType}
-              fee={currentFee}
+              bookingType={selectedBookingType}
+              fee={consultationFee}
             />
 
             {/* Patient Info Summary */}
-            <Card className="p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <h3 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                  <User className="w-4 h-4 text-violet-500" />
+                </div>
                 {t('booking.patientInfo', 'Patient Information')}
               </h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">{t('booking.name', 'Name')}</span>
-                  <span className="font-medium text-gray-900">
-                    {patientDetails.bookingFor === 'self' ? user?.full_name : patientDetails.patientName}
+              <div className="space-y-2.5 text-sm">
+                <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                  <span className="text-gray-400 font-medium">{t('booking.name', 'Name')}</span>
+                  <span className="font-semibold text-gray-900">
+                    {patientDetails.bookingFor === 'self'
+                      ? (user?.full_name || user?.first_name || 'Patient')
+                      : patientDetails.patientName}
                   </span>
                 </div>
                 {patientDetails.patientAge && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">{t('booking.age', 'Age')}</span>
-                    <span className="font-medium text-gray-900">{patientDetails.patientAge} years</span>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-gray-400 font-medium">{t('booking.age', 'Age')}</span>
+                    <span className="font-semibold text-gray-900">{patientDetails.patientAge} years</span>
                   </div>
                 )}
                 {patientDetails.patientGender && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">{t('booking.gender', 'Gender')}</span>
-                    <span className="font-medium text-gray-900 capitalize">{patientDetails.patientGender}</span>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-gray-400 font-medium">{t('booking.gender', 'Gender')}</span>
+                    <span className="font-semibold text-gray-900 capitalize">{patientDetails.patientGender}</span>
                   </div>
                 )}
                 {patientDetails.symptoms && (
-                  <div className="pt-2 border-t">
-                    <span className="text-gray-500">{t('booking.symptoms', 'Symptoms')}</span>
-                    <p className="font-medium text-gray-900 mt-1">{patientDetails.symptoms}</p>
+                  <div className="pt-2">
+                    <span className="text-gray-400 font-medium text-xs">{t('booking.symptoms', 'Symptoms')}</span>
+                    <p className="font-medium text-gray-900 mt-1 text-sm bg-gray-50 rounded-xl p-3">{patientDetails.symptoms}</p>
                   </div>
                 )}
               </div>
-            </Card>
+            </div>
 
             {/* Policies */}
-            <Card className="p-4 bg-blue-50 border-blue-100">
+            <div className="bg-violet-50/50 rounded-2xl border border-violet-100/50 p-4">
               <div className="flex gap-3">
-                <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-blue-700">
-                  <p className="font-medium mb-1">{t('booking.policies', 'Booking Policies')}</p>
-                  <ul className="list-disc list-inside space-y-1 text-blue-600">
-                    <li>{t('booking.policy1', 'Free cancellation up to 2 hours before appointment')}</li>
-                    <li>{t('booking.policy2', 'Please join 5 minutes before scheduled time')}</li>
-                    <li>{t('booking.policy3', 'Prescription will be sent after consultation')}</li>
+                <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
+                  <Shield className="w-4 h-4 text-violet-500" />
+                </div>
+                <div className="text-sm">
+                  <p className="font-bold text-violet-900 text-xs mb-1.5">{t('booking.policies', 'Booking Policies')}</p>
+                  <ul className="space-y-1.5">
+                    <li className="flex items-start gap-2 text-xs text-violet-700">
+                      <CheckCircle className="w-3.5 h-3.5 text-violet-400 mt-0.5 flex-shrink-0" />
+                      {t('booking.policyApproval', 'Doctor will review and confirm your appointment request.')}
+                    </li>
+                    <li className="flex items-start gap-2 text-xs text-violet-700">
+                      <CheckCircle className="w-3.5 h-3.5 text-violet-400 mt-0.5 flex-shrink-0" />
+                      {t('booking.policy1', 'Free cancellation up to 2 hours before')}
+                    </li>
+                    <li className="flex items-start gap-2 text-xs text-violet-700">
+                      <CheckCircle className="w-3.5 h-3.5 text-violet-400 mt-0.5 flex-shrink-0" />
+                      {t('booking.policy2', 'Join 5 minutes before scheduled time')}
+                    </li>
+                    <li className="flex items-start gap-2 text-xs text-violet-700">
+                      <CheckCircle className="w-3.5 h-3.5 text-violet-400 mt-0.5 flex-shrink-0" />
+                      {t('booking.policy3', 'Prescription sent after consultation')}
+                    </li>
                   </ul>
                 </div>
               </div>
-            </Card>
+            </div>
           </div>
         )}
       </div>
 
       {/* Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 z-30">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 z-30 shadow-2xl shadow-black/5 rounded-t-3xl">
         <div className="flex gap-3">
           {currentStep > 1 && (
             <Button
               variant="outline"
               onClick={handlePrevStep}
-              className="flex-shrink-0"
+              className="flex-shrink-0 !rounded-xl !border-violet-200 !text-violet-600 hover:!bg-violet-50"
             >
               <ChevronLeft className="w-4 h-4 mr-1" />
               {t('common.back', 'Back')}
             </Button>
           )}
-          
+
           {currentStep < 3 ? (
             <Button
               variant="primary"
               onClick={handleNextStep}
               fullWidth
               disabled={currentStep === 1 && !selectedSlot}
+              className="!rounded-xl !bg-violet-600 hover:!bg-violet-700 !font-bold disabled:!bg-gray-200 disabled:!text-gray-400 shadow-lg shadow-violet-200 disabled:shadow-none transition-all duration-200"
             >
               {t('common.continue', 'Continue')}
               <ChevronRight className="w-4 h-4 ml-1" />
@@ -946,9 +1181,13 @@ const BookAppointment = () => {
               onClick={handleConfirmBooking}
               fullWidth
               loading={createAppointmentMutation.isPending}
+              className="!rounded-xl !bg-violet-600 hover:!bg-violet-700 !font-bold shadow-lg shadow-violet-200 transition-all duration-200"
             >
               <CreditCard className="w-4 h-4 mr-2" />
-              {t('booking.payAndBook', 'Pay ₹{{amount}} & Book', { amount: currentFee })}
+              {consultationFee
+                ? t('booking.payAndBook', 'Pay ₹{{amount}} & Book', { amount: consultationFee })
+                : t('booking.confirmBooking', 'Confirm Booking')
+              }
             </Button>
           )}
         </div>
@@ -961,30 +1200,40 @@ const BookAppointment = () => {
         title={t('booking.confirmBooking', 'Confirm Booking')}
         size="sm"
       >
-        <div className="space-y-4">
-          <p className="text-gray-600">
-            {t('booking.confirmMessage', 'You are about to book an appointment with Dr. {{name}} for ₹{{amount}}.', {
-              name: doctor.full_name || doctor.first_name,
-              amount: currentFee
+        <div className="space-y-4 pt-1">
+          <p className="text-gray-500 text-sm">
+            {t('booking.confirmMessage', 'You are about to book an appointment with Dr. {{name}}.', {
+              name: doctor.full_name,
             })}
           </p>
-          
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="flex items-center gap-2 text-sm">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              <span>{format(selectedDate, 'EEEE, MMMM d, yyyy')}</span>
+
+          <div className="flex items-start gap-2 p-3 bg-violet-50 rounded-xl border border-violet-100">
+            <Info className="w-4 h-4 text-violet-500 mt-0.5" />
+            <p className="text-xs text-violet-700 font-medium">
+              {t('booking.pendingNote', 'This request will be marked as pending until the doctor confirms it.')}
+            </p>
+          </div>
+
+          <div className="bg-violet-50 rounded-2xl p-4 space-y-2.5">
+            <div className="flex items-center gap-2.5 text-sm">
+              <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+                <Calendar className="w-4 h-4 text-violet-500" />
+              </div>
+              <span className="font-semibold text-gray-900">{selectedDateKey ? format(selectedDate, 'EEEE, MMMM d, yyyy') : '-'}</span>
             </div>
-            <div className="flex items-center gap-2 text-sm mt-1">
-              <Clock className="w-4 h-4 text-gray-400" />
-              <span>{selectedSlot?.time || selectedSlot?.start_time}</span>
+            <div className="flex items-center gap-2.5 text-sm">
+              <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+                <Clock className="w-4 h-4 text-violet-500" />
+              </div>
+              <span className="font-semibold text-gray-900">{selectedSlot?.start_time}</span>
             </div>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 pt-1">
             <Button
               variant="outline"
               onClick={() => setShowConfirmModal(false)}
-              className="flex-1"
+              className="flex-1 !rounded-xl"
             >
               {t('common.cancel', 'Cancel')}
             </Button>
@@ -992,7 +1241,7 @@ const BookAppointment = () => {
               variant="primary"
               onClick={handleSubmitBooking}
               loading={createAppointmentMutation.isPending}
-              className="flex-1"
+              className="flex-1 !rounded-xl !bg-violet-600 hover:!bg-violet-700"
             >
               {t('common.confirm', 'Confirm')}
             </Button>

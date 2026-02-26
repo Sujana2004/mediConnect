@@ -54,26 +54,20 @@ export const BLOOD_GROUPS = [
 
 // ==================== Doctor Specializations ====================
 export const SPECIALIZATIONS = [
-  { value: 'general_physician', labelKey: 'specializations.general_physician' },
-  { value: 'pediatrician', labelKey: 'specializations.pediatrician' },
-  { value: 'gynecologist', labelKey: 'specializations.gynecologist' },
-  { value: 'dermatologist', labelKey: 'specializations.dermatologist' },
-  { value: 'cardiologist', labelKey: 'specializations.cardiologist' },
-  { value: 'orthopedic', labelKey: 'specializations.orthopedic' },
-  { value: 'neurologist', labelKey: 'specializations.neurologist' },
-  { value: 'psychiatrist', labelKey: 'specializations.psychiatrist' },
-  { value: 'ophthalmologist', labelKey: 'specializations.ophthalmologist' },
+  { value: 'general', labelKey: 'specializations.general' },
+  { value: 'pediatrics', labelKey: 'specializations.pediatrics' },
+  { value: 'gynecology', labelKey: 'specializations.gynecology' },
+  { value: 'orthopedics', labelKey: 'specializations.orthopedics' },
+  { value: 'dermatology', labelKey: 'specializations.dermatology' },
   { value: 'ent', labelKey: 'specializations.ent' },
-  { value: 'dentist', labelKey: 'specializations.dentist' },
-  { value: 'pulmonologist', labelKey: 'specializations.pulmonologist' },
-  { value: 'gastroenterologist', labelKey: 'specializations.gastroenterologist' },
-  { value: 'urologist', labelKey: 'specializations.urologist' },
-  { value: 'endocrinologist', labelKey: 'specializations.endocrinologist' },
-  { value: 'oncologist', labelKey: 'specializations.oncologist' },
-  { value: 'nephrologist', labelKey: 'specializations.nephrologist' },
-  { value: 'rheumatologist', labelKey: 'specializations.rheumatologist' },
+  { value: 'ophthalmology', labelKey: 'specializations.ophthalmology' },
+  { value: 'cardiology', labelKey: 'specializations.cardiology' },
+  { value: 'neurology', labelKey: 'specializations.neurology' },
+  { value: 'psychiatry', labelKey: 'specializations.psychiatry' },
+  { value: 'dentistry', labelKey: 'specializations.dentistry' },
   { value: 'ayurveda', labelKey: 'specializations.ayurveda' },
   { value: 'homeopathy', labelKey: 'specializations.homeopathy' },
+  { value: 'other', labelKey: 'specializations.other' },
 ];
 
 // ==================== Appointment Status ====================

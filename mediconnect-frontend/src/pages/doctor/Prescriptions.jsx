@@ -106,6 +106,35 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'expired', label: 'Expired' }
 ];
 
+const calculatePrescriptionStats = (prescriptionList, totalCount, apiStats) => {
+  const list = Array.isArray(prescriptionList) ? prescriptionList : [];
+  const today = new Date();
+
+  const totalMedicines = list.reduce((sum, prescription) => {
+    const medicineCount = Array.isArray(prescription?.medicines) ? prescription.medicines.length : 0;
+    return sum + medicineCount;
+  }, 0);
+
+  const thisMonth = list.filter((prescription) => {
+    const rawDate = prescription?.date || prescription?.prescription_date || prescription?.created_at;
+    if (!rawDate) return false;
+    const parsedDate = new Date(rawDate);
+    if (Number.isNaN(parsedDate.getTime())) return false;
+    return (
+      parsedDate.getFullYear() === today.getFullYear() &&
+      parsedDate.getMonth() === today.getMonth()
+    );
+  }).length;
+
+  return {
+    total: typeof totalCount === 'number' ? totalCount : list.length,
+    active: list.filter((prescription) => prescription?.status === 'active').length,
+    totalMedicines,
+    thisMonth,
+    monthTrend: apiStats?.monthTrend,
+  };
+};
+
 // ============================================================================
 // SUB-COMPONENTS
 // ============================================================================
@@ -116,25 +145,25 @@ const StatsHeader = ({ stats }) => {
 
   const statItems = [
     {
-      label: t('doctor.totalPrescriptions'),
+      label: t('doctor.totalPrescriptions', 'Total Prescriptions'),
       value: stats?.total || 0,
       icon: FileText,
       color: 'bg-primary-50 text-primary-600'
     },
     {
-      label: t('doctor.activePrescriptions'),
+      label: t('doctor.activePrescriptions', 'Active Prescriptions'),
       value: stats?.active || 0,
       icon: CheckCircle,
       color: 'bg-green-50 text-green-600'
     },
     {
-      label: t('doctor.medicinesPrescribed'),
+      label: t('doctor.medicinesPrescribed', 'Medicines Prescribed'),
       value: stats?.totalMedicines || 0,
       icon: Pill,
       color: 'bg-blue-50 text-blue-600'
     },
     {
-      label: t('doctor.thisMonth'),
+      label: t('doctor.thisMonth', 'This Month'),
       value: stats?.thisMonth || 0,
       icon: Calendar,
       color: 'bg-amber-50 text-amber-600',
@@ -851,7 +880,7 @@ const PrescriptionFormModal = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditMode ? t('doctor.editPrescription') : t('doctor.newPrescription')}
+      title={isEditMode ? t('doctor.editPrescription', 'Edit Prescription') : t('doctor.newPrescription', 'New Prescription')}
       size="xl"
     >
       <div className="space-y-6">
@@ -865,19 +894,19 @@ const PrescriptionFormModal = ({
             <div>
               <p className="font-medium text-gray-900">{formData.patient_name}</p>
               <p className="text-sm text-gray-500">
-                {t('doctor.editingExistingPrescription')}
+                {t('doctor.editingExistingPrescription', 'Editing existing prescription')}
               </p>
             </div>
           </div>
         ) : (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('doctor.selectPatient')} *
+              {t('doctor.selectPatient', 'Select Patient')} *
             </label>
             <SearchInput
               value={formData.patient_name}
               onChange={(value) => setFormData(prev => ({ ...prev, patient_name: value }))}
-              placeholder={t('doctor.searchPatient')}
+              placeholder={t('doctor.searchPatient', 'Search patient by name')}
             />
           </div>
         )}
@@ -885,12 +914,12 @@ const PrescriptionFormModal = ({
         {/* Diagnosis */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t('doctor.diagnosis')}
+            {t('doctor.diagnosis', 'Diagnosis')}
           </label>
           <TextArea
             value={formData.diagnosis}
             onChange={(e) => setFormData(prev => ({ ...prev, diagnosis: e.target.value }))}
-            placeholder={t('doctor.enterDiagnosis')}
+            placeholder={t('doctor.enterDiagnosis', 'Enter diagnosis')}
             rows={2}
           />
         </div>
@@ -899,7 +928,7 @@ const PrescriptionFormModal = ({
         <div>
           <div className="flex items-center justify-between mb-3">
             <label className="text-sm font-medium text-gray-700">
-              {t('doctor.medicines')} ({formData.medicines.length})
+              {t('doctor.medicines', 'Medicines')} ({formData.medicines.length})
             </label>
           </div>
 
@@ -909,7 +938,7 @@ const PrescriptionFormModal = ({
               <SearchInput
                 value={searchQuery}
                 onChange={setSearchQuery}
-                placeholder={t('doctor.searchMedicineToAdd')}
+                placeholder={t('doctor.searchMedicineToAdd', 'Search medicine to add')}
               />
 
               {isSearching && (
@@ -952,14 +981,14 @@ const PrescriptionFormModal = ({
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <Input
-                  label={t('doctor.dosage') + ' *'}
+                  label={t('doctor.dosage', 'Dosage') + ' *'}
                   value={newMedicine.dosage}
                   onChange={(e) => setNewMedicine(prev => ({ ...prev, dosage: e.target.value }))}
                   placeholder="e.g., 500mg"
                 />
 
                 <Select
-                  label={t('doctor.frequency') + ' *'}
+                  label={t('doctor.frequency', 'Frequency') + ' *'}
                   value={newMedicine.frequency}
                   onChange={(e) => setNewMedicine(prev => ({ ...prev, frequency: e.target.value }))}
                   options={[
@@ -976,7 +1005,7 @@ const PrescriptionFormModal = ({
 
                 <div className="flex gap-2">
                   <Input
-                    label={t('doctor.duration') + ' *'}
+                    label={t('doctor.duration', 'Duration') + ' *'}
                     type="number"
                     value={newMedicine.duration}
                     onChange={(e) => setNewMedicine(prev => ({ ...prev, duration: e.target.value }))}
@@ -998,7 +1027,7 @@ const PrescriptionFormModal = ({
                 </div>
 
                 <Input
-                  label={t('doctor.quantity')}
+                  label={t('doctor.quantity', 'Quantity')}
                   value={newMedicine.quantity}
                   onChange={(e) => setNewMedicine(prev => ({ ...prev, quantity: e.target.value }))}
                   placeholder="e.g., 30 tablets"
@@ -1006,10 +1035,10 @@ const PrescriptionFormModal = ({
 
                 <div className="col-span-2">
                   <Input
-                    label={t('doctor.specialInstructions')}
+                    label={t('doctor.specialInstructions', 'Special Instructions')}
                     value={newMedicine.instructions}
                     onChange={(e) => setNewMedicine(prev => ({ ...prev, instructions: e.target.value }))}
-                    placeholder={t('doctor.instructionsPlaceholder')}
+                    placeholder={t('doctor.instructionsPlaceholder', 'e.g., after food, avoid driving')}
                   />
                 </div>
               </div>
@@ -1022,7 +1051,7 @@ const PrescriptionFormModal = ({
                   onClick={handleAddMedicine}
                   disabled={!newMedicine.dosage || !newMedicine.duration}
                 >
-                  {t('doctor.addToPrescription')}
+                  {t('doctor.addToPrescription', 'Add to Prescription')}
                 </Button>
               </div>
             </div>
@@ -1054,7 +1083,7 @@ const PrescriptionFormModal = ({
           ) : (
             <div className="text-center py-6 bg-gray-50 rounded-lg">
               <Pill className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-500">{t('doctor.noMedicinesAdded')}</p>
+              <p className="text-gray-500">{t('doctor.noMedicinesAdded', 'No medicines added')}</p>
             </div>
           )}
         </div>
@@ -1062,12 +1091,12 @@ const PrescriptionFormModal = ({
         {/* General Instructions */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t('doctor.generalInstructions')}
+            {t('doctor.generalInstructions', 'General Instructions')}
           </label>
           <TextArea
             value={formData.general_instructions}
             onChange={(e) => setFormData(prev => ({ ...prev, general_instructions: e.target.value }))}
-            placeholder={t('doctor.generalInstructionsPlaceholder')}
+            placeholder={t('doctor.generalInstructionsPlaceholder', 'Add diet, rest, and caution advice')}
             rows={2}
           />
         </div>
@@ -1076,7 +1105,7 @@ const PrescriptionFormModal = ({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('doctor.followUpAfter')}
+              {t('doctor.followUpAfter', 'Follow-up After')}
             </label>
             <div className="flex items-center gap-2">
               <Input
@@ -1092,7 +1121,7 @@ const PrescriptionFormModal = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('doctor.validFor')}
+              {t('doctor.validFor', 'Valid For')}
             </label>
             <div className="flex items-center gap-2">
               <Input
@@ -1120,7 +1149,7 @@ const PrescriptionFormModal = ({
           loading={isLoading}
           disabled={formData.medicines.length === 0}
         >
-          {isEditMode ? t('common.saveChanges') : t('doctor.createPrescription')}
+          {isEditMode ? t('common.saveChanges', 'Save Changes') : t('doctor.createPrescription', 'Create Prescription')}
         </Button>
       </div>
     </Modal>
@@ -1139,6 +1168,7 @@ const Prescriptions = () => {
   // State
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [prescriptions, setPrescriptions] = useState([]);
   const [stats, setStats] = useState(null);
@@ -1162,6 +1192,8 @@ const Prescriptions = () => {
     try {
       if (pageNum === 1) {
         setIsLoading(true);
+      } else if (append) {
+        setIsLoadingMore(true);
       }
       setError(null);
 
@@ -1174,125 +1206,42 @@ const Prescriptions = () => {
       };
 
       const response = await medicineService.getPrescriptions(params);
-      const data = response.data;
+      const data = response?.data || response || {};
+      const nextBatch = data?.results || data?.data || (Array.isArray(data) ? data : []);
 
       if (append) {
-        setPrescriptions(prev => [...prev, ...(data.results || data || [])]);
+        setPrescriptions(prev => {
+          const merged = [...prev, ...nextBatch];
+          setStats(calculatePrescriptionStats(merged, data.count, data.stats));
+          return merged;
+        });
       } else {
-        setPrescriptions(data.results || data || []);
+        setPrescriptions(nextBatch);
+        setStats(calculatePrescriptionStats(nextBatch, data.count, data.stats));
       }
 
-      setHasMore(data.next !== null);
-      setStats(data.stats || {
-        total: data.count || 0,
-        active: 28,
-        totalMedicines: 156,
-        thisMonth: 45,
-        monthTrend: 12
-      });
+      const canLoadMore = Boolean(data?.next) ||
+        (typeof data?.count === 'number' && pageNum * (params.page_size || 20) < data.count);
+      setHasMore(canLoadMore);
 
     } catch (err) {
       console.error('Error fetching prescriptions:', err);
       setError(t('errors.failedToLoadPrescriptions'));
-
-      // Mock data for demo
-      setPrescriptions([
-        {
-          id: 1,
-          patient_id: 1,
-          patient_name: 'Rajesh Kumar',
-          patient_age: 45,
-          patient_gender: 'male',
-          patient_avatar: null,
-          date: '2024-01-18',
-          status: 'active',
-          diagnosis: 'Type 2 Diabetes - Well controlled',
-          valid_until: '2024-02-18',
-          medicines: [
-            { name: 'Metformin', generic_name: 'Metformin HCL', dosage: '500mg', frequency: 'Twice Daily', duration: '30 days', form: 'tablet', instructions: 'Take after meals' },
-            { name: 'Glimepiride', generic_name: 'Glimepiride', dosage: '1mg', frequency: 'Once Daily', duration: '30 days', form: 'tablet', instructions: 'Take before breakfast' },
-            { name: 'Vitamin B12', generic_name: 'Methylcobalamin', dosage: '1500mcg', frequency: 'Once Daily', duration: '30 days', form: 'tablet' }
-          ],
-          general_instructions: 'Maintain regular diet and exercise. Check blood sugar levels weekly.',
-          follow_up_date: '2024-02-15',
-          consultation_id: 1,
-          consultation_date: '2024-01-18',
-          consultation_type: 'video'
-        },
-        {
-          id: 2,
-          patient_id: 2,
-          patient_name: 'Priya Sharma',
-          patient_age: 32,
-          patient_gender: 'female',
-          patient_avatar: null,
-          date: '2024-01-18',
-          status: 'active',
-          diagnosis: 'Upper Respiratory Infection',
-          valid_until: '2024-01-25',
-          medicines: [
-            { name: 'Azithromycin', dosage: '500mg', frequency: 'Once Daily', duration: '3 days', form: 'tablet' },
-            { name: 'Cetirizine', dosage: '10mg', frequency: 'Once Daily', duration: '5 days', form: 'tablet' },
-            { name: 'Cough Syrup', dosage: '10ml', frequency: 'Three Times Daily', duration: '5 days', form: 'syrup' },
-            { name: 'Paracetamol', dosage: '500mg', frequency: 'As Needed', duration: '5 days', form: 'tablet', instructions: 'Take if fever above 100°F' }
-          ],
-          general_instructions: 'Rest well. Drink warm fluids. Avoid cold foods.',
-          consultation_id: 2,
-          consultation_date: '2024-01-18',
-          consultation_type: 'audio'
-        },
-        {
-          id: 3,
-          patient_id: 4,
-          patient_name: 'Sunita Devi',
-          patient_age: 67,
-          patient_gender: 'female',
-          patient_avatar: null,
-          date: '2024-01-12',
-          status: 'completed',
-          diagnosis: 'Osteoarthritis - Knee',
-          valid_until: '2024-02-12',
-          medicines: [
-            { name: 'Diclofenac', dosage: '50mg', frequency: 'Twice Daily', duration: '14 days', form: 'tablet', instructions: 'Take after meals' },
-            { name: 'Omeprazole', dosage: '20mg', frequency: 'Once Daily', duration: '14 days', form: 'capsule', instructions: 'Take before breakfast' }
-          ],
-          general_instructions: 'Apply warm compress. Gentle knee exercises recommended.',
-          follow_up_date: '2024-01-26',
-          consultation_id: 5,
-          consultation_date: '2024-01-12',
-          consultation_type: 'video'
-        },
-        {
-          id: 4,
-          patient_id: 3,
-          patient_name: 'Amit Patel',
-          patient_age: 58,
-          patient_gender: 'male',
-          patient_avatar: null,
-          date: '2024-01-05',
-          status: 'expired',
-          diagnosis: 'Hypertension',
-          valid_until: '2024-01-15',
-          medicines: [
-            { name: 'Amlodipine', dosage: '5mg', frequency: 'Once Daily', duration: '30 days', form: 'tablet' },
-            { name: 'Telmisartan', dosage: '40mg', frequency: 'Once Daily', duration: '30 days', form: 'tablet' }
-          ],
-          general_instructions: 'Monitor BP daily. Low salt diet recommended.',
-          consultation_id: 3,
-          consultation_date: '2024-01-05',
-          consultation_type: 'video'
-        }
-      ]);
+      if (!append) {
+        setPrescriptions([]);
+      }
+      setHasMore(false);
       setStats({
-        total: 156,
-        active: 28,
-        totalMedicines: 412,
-        thisMonth: 45,
-        monthTrend: 12
+        total: 0,
+        active: 0,
+        totalMedicines: 0,
+        thisMonth: 0,
+        monthTrend: 0
       });
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setIsLoadingMore(false);
     }
   }, [searchQuery, dateFilter, statusFilter, t]);
 
@@ -1323,10 +1272,11 @@ const Prescriptions = () => {
   }, [fetchPrescriptions]);
 
   const handleLoadMore = useCallback(() => {
+    if (!hasMore || isLoadingMore || isLoading) return;
     const nextPage = page + 1;
     setPage(nextPage);
     fetchPrescriptions(nextPage, true);
-  }, [page, fetchPrescriptions]);
+  }, [hasMore, isLoadingMore, isLoading, page, fetchPrescriptions]);
 
   const handleViewPrescription = useCallback((prescription) => {
     setSelectedPrescription(prescription);
@@ -1406,10 +1356,10 @@ const Prescriptions = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {t('doctor.prescriptions')}
+            {t('doctor.prescriptions', 'Prescriptions')}
           </h1>
           <p className="text-gray-500 mt-1">
-            {t('doctor.prescriptionsDesc')}
+            {t('doctor.prescriptionsDesc', 'Create and manage patient prescriptions')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1427,7 +1377,7 @@ const Prescriptions = () => {
             size="sm"
             leftIcon={<Download className="w-4 h-4" />}
           >
-            {t('common.export')}
+            {t('common.export', 'Export')}
           </Button>
           <Button
             variant="primary"
@@ -1435,7 +1385,7 @@ const Prescriptions = () => {
             leftIcon={<Plus className="w-4 h-4" />}
             onClick={handleCreateNew}
           >
-            {t('doctor.newPrescription')}
+            {t('doctor.newPrescription', 'New Prescription')}
           </Button>
         </div>
       </div>
@@ -1493,9 +1443,9 @@ const Prescriptions = () => {
               <Button
                 variant="outline"
                 onClick={handleLoadMore}
-                disabled={isRefreshing}
+                disabled={isRefreshing || isLoadingMore || isLoading}
               >
-                {t('common.loadMore')}
+                {isLoadingMore ? t('common.loading', 'Loading...') : t('common.loadMore')}
               </Button>
             </div>
           )}

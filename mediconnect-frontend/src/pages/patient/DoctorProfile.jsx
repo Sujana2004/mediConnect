@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { format, addDays, parseISO, isSameDay } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import toast from 'react-hot-toast';
 
 import {
@@ -40,25 +40,51 @@ import {
   Modal,
   Tabs
 } from '../../components/common';
-import { authService } from '../../services/api/authService';
-import { appointmentService } from '../../services/api/appointmentService';
+import { authService, getDoctorAvailability, getAvailableSlots } from '../../services/api';
 
-/**
- * Generate next 7 days for date selection
- */
-const generateDateOptions = () => {
-  const dates = [];
-  for (let i = 0; i < 7; i++) {
-    const date = addDays(new Date(), i);
-    dates.push({
-      date,
-      dateString: format(date, 'yyyy-MM-dd'),
-      dayName: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : format(date, 'EEE'),
-      dayNumber: format(date, 'd'),
-      month: format(date, 'MMM')
-    });
-  }
-  return dates;
+const normalizeDoctorData = (doc) => {
+  if (!doc) return null;
+  return {
+    ...doc,
+    full_name: doc.full_name || doc.name || `Dr. ${doc.user?.first_name || ''} ${doc.user?.last_name || ''}`.trim() || 'Doctor',
+    profile_picture: doc.profile_picture || doc.profile_photo || doc.user?.profile_photo || null,
+    rating: parseFloat(doc.rating || doc.average_rating || 0),
+    languages_spoken: doc.languages_spoken || doc.languages || [],
+    consultation_types: doc.consultation_types || (doc.is_available_online ? ['video', 'audio'] : []),
+    is_verified: doc.is_verified !== undefined ? doc.is_verified : true,
+    experience_years: doc.experience_years || 0,
+    consultation_fee: doc.consultation_fee || 0,
+    total_reviews: doc.total_reviews || 0,
+    total_consultations: doc.total_consultations || 0,
+    specialization_display: doc.specialization_display || doc.specialization || '',
+    total_patients: doc.total_patients || doc.total_consultations || 0,
+    hospital_name: doc.hospital_name || '',
+    hospital_address: doc.hospital_address || '',
+    bio: doc.bio || '',
+    qualification: doc.qualification || '',
+    registration_number: doc.registration_number || '',
+    registration_council: doc.registration_council || '',
+    gender: doc.gender || doc.user?.gender || '',
+  };
+};
+
+const buildDateOption = (dateString, index) => {
+  const parsedDate = parseISO(dateString);
+  return {
+    date: parsedDate,
+    dateString,
+    dayName: index === 0 ? 'Today' : index === 1 ? 'Tomorrow' : format(parsedDate, 'EEE'),
+    dayNumber: format(parsedDate, 'd'),
+    month: format(parsedDate, 'MMM')
+  };
+};
+
+const toDisplayTime = (timeString) => {
+  if (!timeString) return '';
+  const [hourStr, minuteStr] = timeString.split(':');
+  const hours = parseInt(hourStr || '0', 10);
+  const minutes = parseInt(minuteStr || '0', 10);
+  return format(new Date(2000, 0, 1, hours, minutes), 'hh:mm a');
 };
 
 /**
@@ -66,19 +92,19 @@ const generateDateOptions = () => {
  */
 const OfflineState = ({ onRetry }) => {
   const { t } = useTranslation();
-  
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-        <WifiOff className="w-8 h-8 text-gray-500" />
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+      <div className="w-16 h-16 bg-violet-50 rounded-2xl flex items-center justify-center mb-4">
+        <WifiOff className="w-8 h-8 text-violet-400" />
       </div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+      <h3 className="text-lg font-bold text-gray-900 mb-1">
         {t('common.offline', 'You are offline')}
       </h3>
-      <p className="text-gray-500 text-center mb-4">
+      <p className="text-gray-400 text-center mb-6 text-sm">
         {t('common.checkConnection', 'Please check your internet connection')}
       </p>
-      <Button variant="primary" onClick={onRetry}>
+      <Button variant="primary" onClick={onRetry} className="!rounded-xl !bg-violet-600 hover:!bg-violet-700 !px-6">
         <RefreshCw className="w-4 h-4 mr-2" />
         {t('common.retry', 'Try Again')}
       </Button>
@@ -89,36 +115,50 @@ const OfflineState = ({ onRetry }) => {
 /**
  * Consultation Type Card Component
  */
-const ConsultationTypeCard = ({ type, icon: Icon, label, description, fee, selected, onSelect, available }) => (
+const ConsultationTypeCard = ({
+  type,
+  icon: Icon,
+  label,
+  description,
+  fee,
+  selected,
+  onSelect,
+  available,
+}) => (
   <button
     onClick={() => available && onSelect(type)}
     disabled={!available}
     className={`
-      w-full p-4 rounded-xl border-2 text-left transition-all
-      ${!available 
-        ? 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-50'
-        : selected
-          ? 'border-primary-500 bg-primary-50'
-          : 'border-gray-200 hover:border-primary-300 bg-white'
+      w-full p-4 rounded-2xl border-2 text-left transition-all duration-200
+      ${
+        !available
+          ? 'opacity-40 cursor-not-allowed border-gray-200 bg-gray-50'
+          : selected
+          ? 'border-violet-500 bg-violet-50/50 shadow-sm shadow-violet-100'
+          : 'border-gray-100 hover:border-violet-200 hover:bg-violet-50/30 bg-white'
       }
     `}
   >
     <div className="flex items-start gap-3">
-      <div className={`
-        w-10 h-10 rounded-lg flex items-center justify-center
-        ${selected ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600'}
-      `}>
+      <div
+        className={`
+        w-11 h-11 rounded-xl flex items-center justify-center transition-colors
+        ${selected ? 'bg-violet-600 text-white' : 'bg-violet-50 text-violet-500'}
+      `}
+      >
         <Icon size={20} />
       </div>
       <div className="flex-1">
         <div className="flex items-center justify-between">
-          <h4 className="font-semibold text-gray-900">{label}</h4>
-          {selected && <CheckCircle size={18} className="text-primary-500" />}
+          <h4 className="font-bold text-gray-900 text-sm">{label}</h4>
+          {selected && (
+            <CheckCircle size={18} className="text-violet-500" />
+          )}
         </div>
-        <p className="text-sm text-gray-500 mt-0.5">{description}</p>
+        <p className="text-xs text-gray-400 mt-0.5">{description}</p>
         <div className="flex items-center gap-1 mt-2">
-          <IndianRupee size={14} className="text-gray-400" />
-          <span className="font-semibold text-gray-900">{fee}</span>
+          <IndianRupee size={14} className="text-violet-500" />
+          <span className="font-bold text-violet-600">{fee}</span>
         </div>
       </div>
     </div>
@@ -133,12 +173,13 @@ const TimeSlotButton = ({ slot, selected, onSelect, disabled }) => (
     onClick={() => !disabled && onSelect(slot)}
     disabled={disabled}
     className={`
-      px-4 py-2.5 rounded-lg text-sm font-medium transition-all
-      ${disabled
-        ? 'bg-gray-100 text-gray-400 cursor-not-allowed line-through'
-        : selected
-          ? 'bg-primary-500 text-white'
-          : 'bg-white border border-gray-200 text-gray-700 hover:border-primary-500 hover:text-primary-600'
+      px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200
+      ${
+        disabled
+          ? 'bg-gray-50 text-gray-300 cursor-not-allowed line-through border border-gray-100'
+          : selected
+          ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
+          : 'bg-white border border-gray-200 text-gray-700 hover:border-violet-300 hover:text-violet-600 hover:bg-violet-50/30'
       }
     `}
   >
@@ -150,36 +191,37 @@ const TimeSlotButton = ({ slot, selected, onSelect, disabled }) => (
  * Review Card Component
  */
 const ReviewCard = ({ review }) => (
-  <div className="p-4 bg-gray-50 rounded-xl">
+  <div className="p-4 bg-white rounded-2xl border border-gray-100">
     <div className="flex items-start gap-3 mb-3">
-      <Avatar
-        name={review.patient_name || 'Anonymous'}
-        size="sm"
-      />
+      <Avatar name={review.patient_name || 'Anonymous'} size="sm" />
       <div className="flex-1">
         <div className="flex items-center justify-between">
-          <h4 className="font-medium text-gray-900">
+          <h4 className="font-semibold text-gray-900 text-sm">
             {review.patient_name || 'Anonymous'}
           </h4>
-          <span className="text-xs text-gray-500">
-            {format(parseISO(review.created_at), 'MMM d, yyyy')}
+          <span className="text-xs text-gray-400">
+            {review.created_at
+              ? format(parseISO(review.created_at), 'MMM d, yyyy')
+              : ''}
           </span>
         </div>
-        <div className="flex items-center gap-1 mt-1">
+        <div className="flex items-center gap-0.5 mt-1">
           {Array.from({ length: 5 }).map((_, i) => (
             <Star
               key={i}
-              size={14}
-              className={i < review.rating ? 'text-amber-400 fill-current' : 'text-gray-300'}
+              size={12}
+              className={
+                i < review.rating
+                  ? 'text-amber-400 fill-current'
+                  : 'text-gray-200'
+              }
             />
           ))}
         </div>
       </div>
     </div>
     {review.comment && (
-      <p className="text-sm text-gray-600 leading-relaxed">
-        {review.comment}
-      </p>
+      <p className="text-sm text-gray-500 leading-relaxed">{review.comment}</p>
     )}
   </div>
 );
@@ -188,13 +230,13 @@ const ReviewCard = ({ review }) => (
  * Info Row Component
  */
 const InfoRow = ({ icon: Icon, label, value, className = '' }) => (
-  <div className={`flex items-start gap-3 ${className}`}>
-    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-      <Icon size={18} className="text-gray-500" />
+  <div className={`flex items-start gap-3.5 ${className}`}>
+    <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
+      <Icon size={18} className="text-violet-500" />
     </div>
     <div>
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="font-medium text-gray-900">{value}</p>
+      <p className="text-xs text-gray-400 font-medium">{label}</p>
+      <p className="font-semibold text-gray-900 text-sm mt-0.5">{value}</p>
     </div>
   </div>
 );
@@ -203,11 +245,11 @@ const InfoRow = ({ icon: Icon, label, value, className = '' }) => (
  * Doctor Profile Page
  */
 const DoctorProfile = () => {
-  const { id } = useParams();
+  const params = useParams();
+  const docId = params.id || params.doctorId;
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  // ✅ 1. Offline detection - INSIDE the component
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
@@ -221,143 +263,180 @@ const DoctorProfile = () => {
     };
   }, []);
 
-  // State
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [selectedType, setSelectedType] = useState(null);
-  const [showBookingModal, setShowBookingModal] = useState(false);
   const [activeTab, setActiveTab] = useState('about');
 
-  // Generate date options
-  const dateOptions = useMemo(() => generateDateOptions(), []);
+  const {
+    data: doctorRaw,
+    isLoading: doctorLoading,
+    isError: doctorError,
+    refetch: refetchDoctor,
+  } = useQuery({
+    queryKey: ['doctor', docId],
+    queryFn: () => authService.getDoctorById(docId),
+    staleTime: 1000 * 60 * 10,
+    enabled: !!docId && isOnline,
+  });
 
-  // Initialize selected date
+  const doctor = useMemo(() => {
+    if (!doctorRaw) return null;
+    const raw = doctorRaw?.data || doctorRaw;
+    return normalizeDoctorData(raw);
+  }, [doctorRaw]);
+
+  const {
+    data: availabilityRaw,
+    isLoading: availabilityLoading,
+    isError: availabilityError,
+    refetch: refetchAvailability,
+  } = useQuery({
+    queryKey: ['doctor-availability', docId],
+    queryFn: () => getDoctorAvailability(docId, { days: 30 }),
+    staleTime: 1000 * 60 * 5,
+    enabled: !!docId && isOnline,
+  });
+
+  const availableDates = useMemo(() => {
+    return availabilityRaw?.data?.available_days || availabilityRaw?.available_days || [];
+  }, [availabilityRaw]);
+
+  const dateOptions = useMemo(() => {
+    return availableDates.slice(0, 14).map((dateString, index) => buildDateOption(dateString, index));
+  }, [availableDates]);
+
   useEffect(() => {
     if (!selectedDate && dateOptions.length > 0) {
       setSelectedDate(dateOptions[0].dateString);
+      return;
     }
-  }, [dateOptions, selectedDate]);
 
-  // Fetch doctor details
-  const {
-    data: doctorData,
-    isLoading: doctorLoading,
-    isError: doctorError,
-    refetch: refetchDoctor  // ✅ Get refetch function
-  } = useQuery({
-    queryKey: ['doctor', id],
-    queryFn: () => authService.getDoctorById(id),
-    staleTime: 1000 * 60 * 10,
-    enabled: isOnline  // ✅ Only fetch when online
-  });
+    if (selectedDate && availableDates.length > 0 && !availableDates.includes(selectedDate)) {
+      setSelectedDate(dateOptions[0]?.dateString || null);
+      setSelectedSlot(null);
+    }
+  }, [dateOptions, selectedDate, availableDates]);
 
-  // Fetch available slots for selected date
   const {
-    data: slotsData,
-    isLoading: slotsLoading
+    data: slotsRaw,
+    isLoading: slotsLoading,
   } = useQuery({
-    queryKey: ['doctorSlots', id, selectedDate],
-    queryFn: () => appointmentService.getAvailableSlots(id, selectedDate),
-    enabled: !!selectedDate && isOnline,
+    queryKey: ['doctor-profile-slots', docId, selectedDate],
+    queryFn: () => getAvailableSlots(docId, selectedDate),
     staleTime: 1000 * 60 * 2,
+    enabled: !!docId && !!selectedDate && isOnline,
   });
 
-  // Fetch reviews
-  const {
-    data: reviewsData,
-    isLoading: reviewsLoading
-  } = useQuery({
-    queryKey: ['doctorReviews', id],
-    queryFn: () => authService.getDoctorReviews(id),
-    staleTime: 1000 * 60 * 5,
-    enabled: isOnline
-  });
+  const slots = useMemo(() => {
+    const apiSlots = slotsRaw?.data?.slots || slotsRaw?.slots || [];
+    return apiSlots.map((slot) => ({
+      ...slot,
+      time: toDisplayTime(slot.start_time),
+    }));
+  }, [slotsRaw]);
 
-  // Extract data
-  const doctor = doctorData?.data || doctorData;
-  const slots = slotsData?.data || slotsData || [];
-  const reviews = reviewsData?.data || reviewsData || [];
+  const reviews = [];
+  const reviewsLoading = false;
 
-  // Consultation types
   const consultationTypes = useMemo(() => {
     if (!doctor) return [];
 
     const types = [];
-    
-    if (doctor.offers_video !== false) {
+    const fee = doctor.consultation_fee || 0;
+
+    if (
+      doctor.consultation_types?.includes('video') ||
+      doctor.is_available_online
+    ) {
       types.push({
         type: 'video',
         icon: Video,
         label: t('doctors.videoConsultation', 'Video Consultation'),
         description: t('doctors.videoDesc', 'Consult via video call'),
-        fee: doctor.video_consultation_fee || doctor.consultation_fee || 0,
-        available: true
+        fee: fee,
+        available: true,
       });
     }
-    
-    if (doctor.offers_audio !== false) {
+
+    if (
+      doctor.consultation_types?.includes('audio') ||
+      doctor.is_available_online
+    ) {
       types.push({
         type: 'audio',
         icon: Phone,
         label: t('doctors.audioConsultation', 'Audio Consultation'),
         description: t('doctors.audioDesc', 'Consult via voice call'),
-        fee: doctor.audio_consultation_fee || doctor.consultation_fee || 0,
-        available: true
+        fee: fee,
+        available: true,
       });
     }
-    
-    if (doctor.offers_in_person !== false) {
+
+    if (doctor.hospital_address) {
       types.push({
         type: 'in_person',
         icon: MapPin,
         label: t('doctors.inPersonConsultation', 'In-Person Visit'),
         description: t('doctors.inPersonDesc', 'Visit at clinic'),
-        fee: doctor.in_person_fee || doctor.consultation_fee || 0,
-        available: !!doctor.hospital_address
+        fee: fee,
+        available: true,
+      });
+    }
+
+    if (types.length === 0) {
+      types.push({
+        type: 'video',
+        icon: Video,
+        label: t('doctors.videoConsultation', 'Video Consultation'),
+        description: t('doctors.videoDesc', 'Consult via video call'),
+        fee: fee,
+        available: true,
       });
     }
 
     return types;
   }, [doctor, t]);
 
-  // Initialize selected type
   useEffect(() => {
     if (!selectedType && consultationTypes.length > 0) {
-      const availableType = consultationTypes.find(t => t.available);
+      const availableType = consultationTypes.find((t) => t.available);
       if (availableType) {
         setSelectedType(availableType.type);
       }
     }
   }, [consultationTypes, selectedType]);
 
-  // Group slots by time period
   const groupedSlots = useMemo(() => {
     if (!slots.length) return { morning: [], afternoon: [], evening: [] };
 
-    return slots.reduce((acc, slot) => {
-      const hour = parseInt(slot.time?.split(':')[0] || slot.start_time?.split(':')[0] || '12');
-      
-      if (hour < 12) {
-        acc.morning.push(slot);
-      } else if (hour < 17) {
-        acc.afternoon.push(slot);
-      } else {
-        acc.evening.push(slot);
-      }
-      
-      return acc;
-    }, { morning: [], afternoon: [], evening: [] });
+    return slots.reduce(
+      (acc, slot) => {
+        const timeStr = slot.start_time || slot.time || '12:00';
+        const hour = parseInt(timeStr.split(':')[0]);
+
+        if (hour < 12) {
+          acc.morning.push(slot);
+        } else if (hour < 17) {
+          acc.afternoon.push(slot);
+        } else {
+          acc.evening.push(slot);
+        }
+
+        return acc;
+      },
+      { morning: [], afternoon: [], evening: [] }
+    );
   }, [slots]);
 
-  // Languages formatted
   const languagesText = useMemo(() => {
-    if (!doctor?.languages_spoken?.length) return '-';
-    return doctor.languages_spoken
-      .map(l => l.charAt(0).toUpperCase() + l.slice(1))
+    const langs = doctor?.languages_spoken || [];
+    if (!langs.length) return '-';
+    return langs
+      .map((l) => l.charAt(0).toUpperCase() + l.slice(1))
       .join(', ');
   }, [doctor?.languages_spoken]);
 
-  // Handlers
   const handleDateSelect = useCallback((dateString) => {
     setSelectedDate(dateString);
     setSelectedSlot(null);
@@ -373,22 +452,23 @@ const DoctorProfile = () => {
 
   const handleBookAppointment = useCallback(() => {
     if (!selectedSlot || !selectedType) return;
-    
-    navigate(`/patient/book/${id}`, {
+
+    navigate(`/patient/appointments/book/${docId}`, {
       state: {
         doctor,
         date: selectedDate,
         slot: selectedSlot,
-        consultationType: selectedType
-      }
+        consultationType: selectedType,
+      },
     });
-  }, [navigate, id, doctor, selectedDate, selectedSlot, selectedType]);
+  }, [navigate, docId, doctor, selectedDate, selectedSlot, selectedType]);
 
-  // ✅ 2. Share with toast feedback - INSIDE the component
   const handleShare = useCallback(async () => {
     const url = window.location.href;
-    const title = `Dr. ${doctor?.full_name || doctor?.first_name} - ${doctor?.specialization || 'Doctor'}`;
-    
+    const title = `${doctor?.full_name || 'Doctor'} - ${
+      doctor?.specialization_display || 'Doctor'
+    }`;
+
     if (navigator.share) {
       try {
         await navigator.share({ title, url });
@@ -409,164 +489,186 @@ const DoctorProfile = () => {
     refetchDoctor();
   }, [refetchDoctor]);
 
-  // Tabs configuration
   const tabs = [
     { id: 'about', label: t('doctorProfile.about', 'About') },
-    { id: 'reviews', label: `${t('doctorProfile.reviews', 'Reviews')} (${reviews.length})` }
+    {
+      id: 'reviews',
+      label: `${t('doctorProfile.reviews', 'Reviews')} (${reviews.length})`,
+    },
   ];
 
-  // ✅ Offline state
   if (!isOnline) {
     return <OfflineState onRetry={() => window.location.reload()} />;
   }
 
-  // Loading state
   if (doctorLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader size="lg" />
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <div className="w-14 h-14 bg-violet-50 rounded-2xl flex items-center justify-center mb-3">
+          <div className="w-7 h-7 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
+        </div>
+        <p className="text-sm text-gray-400 font-medium">Loading profile...</p>
       </div>
     );
   }
 
-  // ✅ 3. Error state with retry - INSIDE the component
   if (doctorError || !doctor) {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
-        <Card className="p-6">
+        <div className="bg-white rounded-2xl border border-gray-100 p-6">
           <EmptyState
             icon={Info}
             title={t('errors.doctorNotFound', 'Doctor not found')}
-            description={t('errors.doctorNotFoundDesc', 'The doctor you are looking for does not exist or has been removed.')}
+            description={t(
+              'errors.doctorNotFoundDesc',
+              'The doctor you are looking for does not exist or has been removed.'
+            )}
             action={
               <div className="flex gap-2">
-                <Button variant="outline" onClick={handleBack}>
+                <Button variant="outline" onClick={handleBack} className="!rounded-xl">
                   {t('common.goBack', 'Go Back')}
                 </Button>
-                <Button variant="primary" onClick={handleRetry}>
+                <Button variant="primary" onClick={handleRetry} className="!rounded-xl !bg-violet-600 hover:!bg-violet-700">
                   <RefreshCw className="w-4 h-4 mr-2" />
                   {t('common.retry', 'Retry')}
                 </Button>
               </div>
             }
           />
-        </Card>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-full bg-gray-50 pb-32">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-20">
-        <div className="px-4 py-3 sm:px-6 flex items-center justify-between">
-          <button
-            onClick={handleBack}
-            className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <h1 className="font-semibold text-gray-900">
-            {t('doctorProfile.title', 'Doctor Profile')}
-          </h1>
-          <button
-            onClick={handleShare}
-            className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-          >
-            <Share2 size={20} />
-          </button>
+      {/* Hero Header */}
+      <div className="relative">
+        {/* Gradient Background */}
+        <div className="bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 pt-4 pb-28 relative overflow-hidden">
+          {/* Decorative */}
+          <div className="absolute -top-10 -right-10 w-44 h-44 rounded-full bg-white/[0.07]" />
+          <div className="absolute top-20 -left-8 w-28 h-28 rounded-full bg-white/[0.05]" />
+          <div className="absolute bottom-6 right-14 w-16 h-16 rounded-full bg-white/[0.06]" />
+
+          {/* Top Bar */}
+          <div className="relative z-10 px-4 py-2 flex items-center justify-between">
+            <button
+              onClick={handleBack}
+              className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/25 transition-colors"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <h1 className="font-bold text-white text-base">
+              {t('doctorProfile.title', 'Doctor Profile')}
+            </h1>
+            <button
+              onClick={handleShare}
+              className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/25 transition-colors"
+            >
+              <Share2 size={20} />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Doctor Info Card */}
-      <div className="px-4 py-4 sm:px-6">
-        <Card className="p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-            {/* Avatar */}
-            <div className="flex flex-col items-center sm:items-start">
-              <Avatar
-                src={doctor.profile_picture}
-                name={doctor.full_name || doctor.first_name}
-                size="2xl"
-                className="w-24 h-24 sm:w-32 sm:h-32"
-              />
-              {doctor.is_verified && (
-                <Badge className="bg-green-100 text-green-700 mt-2">
-                  <CheckCircle size={12} className="mr-1" />
-                  {t('doctors.verified', 'Verified')}
-                </Badge>
-              )}
-            </div>
+        {/* Profile Card */}
+        <div className="px-4 -mt-24 relative z-10">
+          <div className="bg-white rounded-3xl shadow-lg shadow-violet-900/10 p-5 border border-violet-100/30">
+            {/* Avatar + Core Info */}
+            <div className="flex flex-col items-center text-center">
+              {/* Avatar */}
+              <div className="-mt-14 mb-3">
+                <div className="relative">
+                  <div className="rounded-full ring-4 ring-white shadow-lg">
+                    <Avatar
+                      src={doctor.profile_picture}
+                      name={doctor.full_name}
+                      size="2xl"
+                    />
+                  </div>
+                  {doctor.is_verified && (
+                    <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-emerald-500 rounded-full flex items-center justify-center ring-[3px] ring-white">
+                      <CheckCircle size={14} className="text-white" />
+                    </div>
+                  )}
+                </div>
+              </div>
 
-            {/* Info */}
-            <div className="flex-1 text-center sm:text-left">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-                Dr. {doctor.full_name || `${doctor.first_name} ${doctor.last_name || ''}`}
+              {/* Name */}
+              <h2 className="text-xl font-bold text-gray-900">
+                {doctor.full_name}
               </h2>
-              <p className="text-primary-600 font-medium mt-1">
-                {doctor.specialization_display || doctor.specialization || t('common.generalPhysician', 'General Physician')}
+              <p className="text-violet-600 font-semibold text-sm mt-0.5">
+                {doctor.specialization_display}
               </p>
-              
+
               {doctor.qualification && (
-                <p className="text-gray-500 text-sm mt-1">
+                <p className="text-gray-400 text-xs mt-1">
                   {doctor.qualification}
                 </p>
               )}
 
-              {/* Stats */}
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 mt-4">
+              {/* Stats Pills */}
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
                 {doctor.rating > 0 && (
-                  <div className="flex items-center gap-1">
-                    <Star size={16} className="text-amber-400 fill-current" />
-                    <span className="font-semibold">{doctor.rating.toFixed(1)}</span>
-                    <span className="text-gray-400 text-sm">
-                      ({doctor.total_reviews || 0})
+                  <div className="flex items-center gap-1 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100/50">
+                    <Star size={14} className="text-amber-400 fill-current" />
+                    <span className="text-xs font-bold text-amber-700">
+                      {doctor.rating.toFixed(1)}
+                    </span>
+                    <span className="text-xs text-amber-500">
+                      ({doctor.total_reviews})
                     </span>
                   </div>
                 )}
-                
+
                 {doctor.experience_years > 0 && (
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <Clock size={16} className="text-gray-400" />
-                    <span>{doctor.experience_years} {t('doctors.yearsExp', 'years')}</span>
+                  <div className="flex items-center gap-1 bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-100/50">
+                    <Clock size={14} className="text-violet-400" />
+                    <span className="text-xs font-bold text-violet-700">
+                      {doctor.experience_years} {t('doctors.yearsExp', 'years')}
+                    </span>
                   </div>
                 )}
-                
+
                 {doctor.total_patients > 0 && (
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <Users size={16} className="text-gray-400" />
-                    <span>{doctor.total_patients}+ {t('doctors.patients', 'patients')}</span>
+                  <div className="flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100/50">
+                    <Users size={14} className="text-blue-400" />
+                    <span className="text-xs font-bold text-blue-700">
+                      {doctor.total_patients}+ {t('doctors.patients', 'patients')}
+                    </span>
                   </div>
                 )}
               </div>
 
-              {/* Consultation Fee */}
-              <div className="flex items-center justify-center sm:justify-start gap-2 mt-4 p-3 bg-primary-50 rounded-lg">
-                <IndianRupee size={18} className="text-primary-600" />
-                <span className="text-xl font-bold text-primary-600">
-                  {doctor.consultation_fee || 0}
+              {/* Fee Banner */}
+              <div className="flex items-center justify-center gap-2 mt-4 w-full py-3 bg-gradient-to-r from-violet-50 to-purple-50 rounded-2xl border border-violet-100/50">
+                <IndianRupee size={18} className="text-violet-600" />
+                <span className="text-2xl font-extrabold text-violet-600">
+                  {doctor.consultation_fee}
                 </span>
-                <span className="text-primary-600/70">
+                <span className="text-violet-400 text-sm font-medium">
                   {t('doctors.perConsultation', 'per consultation')}
                 </span>
               </div>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Tabs */}
-      <div className="px-4 sm:px-6">
-        <div className="flex gap-2 border-b border-gray-200">
+      <div className="px-4 mt-5">
+        <div className="bg-violet-50/50 rounded-2xl p-1 flex gap-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`
-                px-4 py-3 text-sm font-medium border-b-2 transition-colors
-                ${activeTab === tab.id
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200
+                ${
+                  activeTab === tab.id
+                    ? 'bg-white text-violet-700 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
                 }
               `}
             >
@@ -577,24 +679,30 @@ const DoctorProfile = () => {
       </div>
 
       {/* Tab Content */}
-      <div className="px-4 py-4 sm:px-6">
+      <div className="px-4 py-4">
         {activeTab === 'about' && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* About / Bio */}
             {doctor.bio && (
-              <Card className="p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">
+              <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                <h3 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                    <Info size={16} className="text-violet-500" />
+                  </div>
                   {t('doctorProfile.aboutDoctor', 'About Doctor')}
                 </h3>
-                <p className="text-gray-600 text-sm leading-relaxed">
+                <p className="text-gray-500 text-sm leading-relaxed">
                   {doctor.bio}
                 </p>
-              </Card>
+              </div>
             )}
 
             {/* Details */}
-            <Card className="p-4">
-              <h3 className="font-semibold text-gray-900 mb-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <h3 className="font-bold text-gray-900 text-sm mb-4 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                  <GraduationCap size={16} className="text-violet-500" />
+                </div>
                 {t('doctorProfile.details', 'Details')}
               </h3>
               <div className="space-y-4">
@@ -606,7 +714,13 @@ const DoctorProfile = () => {
                 <InfoRow
                   icon={Award}
                   label={t('doctorProfile.registration', 'Registration')}
-                  value={doctor.registration_number ? `${doctor.registration_number} (${doctor.registration_council || ''})` : '-'}
+                  value={
+                    doctor.registration_number
+                      ? `${doctor.registration_number} (${
+                          doctor.registration_council || ''
+                        })`
+                      : '-'
+                  }
                 />
                 <InfoRow
                   icon={Languages}
@@ -628,12 +742,18 @@ const DoctorProfile = () => {
                   />
                 )}
               </div>
-            </Card>
+            </div>
 
             {/* Consultation Types */}
-            <Card className="p-4">
-              <h3 className="font-semibold text-gray-900 mb-4">
-                {t('doctorProfile.consultationTypes', 'Consultation Types')}
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <h3 className="font-bold text-gray-900 text-sm mb-4 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                  <Video size={16} className="text-violet-500" />
+                </div>
+                {t(
+                  'doctorProfile.consultationTypes',
+                  'Consultation Types'
+                )}
               </h3>
               <div className="space-y-3">
                 {consultationTypes.map((type) => (
@@ -645,12 +765,12 @@ const DoctorProfile = () => {
                   />
                 ))}
               </div>
-            </Card>
+            </div>
           </div>
         )}
 
         {activeTab === 'reviews' && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {reviewsLoading ? (
               <div className="flex justify-center py-8">
                 <Loader size="md" />
@@ -660,129 +780,165 @@ const DoctorProfile = () => {
                 <ReviewCard key={review.id} review={review} />
               ))
             ) : (
-              <Card className="p-6">
-                <EmptyState
-                  icon={MessageCircle}
-                  title={t('doctorProfile.noReviews', 'No Reviews Yet')}
-                  description={t('doctorProfile.noReviewsDesc', 'Be the first to review this doctor')}
-                  compact
-                />
-              </Card>
+              <div className="bg-white rounded-2xl border border-gray-100 p-8">
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-14 h-14 bg-violet-50 rounded-2xl flex items-center justify-center mb-3">
+                    <MessageCircle className="w-7 h-7 text-violet-300" />
+                  </div>
+                  <h3 className="font-bold text-gray-900 text-sm">
+                    {t('doctorProfile.noReviews', 'No Reviews Yet')}
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-1 max-w-xs">
+                    {t(
+                      'doctorProfile.noReviewsDesc',
+                      'Be the first to review this doctor'
+                    )}
+                  </p>
+                </div>
+              </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Booking Section - Fixed at Bottom */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-30">
-        <div className="px-4 py-3 sm:px-6">
+      {/* Booking Section - Fixed Bottom */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-2xl shadow-black/10 z-30 rounded-t-3xl">
+        <div className="px-4 py-4">
+          {availabilityError && !availabilityLoading && (
+            <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-xl mb-3 border border-amber-100">
+              <Info size={16} className="text-amber-500 flex-shrink-0" />
+              <span className="text-xs text-amber-700 font-medium">
+                {t('doctorProfile.availabilityError', 'Unable to load live availability. Please retry.')}
+              </span>
+              <button
+                onClick={() => refetchAvailability()}
+                className="ml-auto text-xs font-semibold text-violet-600 hover:text-violet-700"
+              >
+                {t('common.retry', 'Retry')}
+              </button>
+            </div>
+          )}
+
           {/* Date Selection */}
           <div className="mb-3">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-gray-700">
+            <div className="flex items-center justify-between mb-2.5">
+              <h4 className="text-sm font-bold text-gray-900">
                 {t('doctorProfile.selectDate', 'Select Date')}
               </h4>
               <Link
-                to={`/patient/book/${id}`}
-                className="text-sm text-primary-600 font-medium flex items-center gap-1"
+                to={`/patient/appointments/book/${docId}`}
+                className="text-xs text-violet-600 font-semibold flex items-center gap-0.5 hover:text-violet-700"
               >
                 {t('doctorProfile.viewCalendar', 'View Calendar')}
                 <ChevronRight size={14} />
               </Link>
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+            <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
               {dateOptions.map((dateOption) => (
                 <button
                   key={dateOption.dateString}
                   onClick={() => handleDateSelect(dateOption.dateString)}
                   className={`
-                    flex-shrink-0 w-16 py-2 rounded-xl text-center transition-all
-                    ${selectedDate === dateOption.dateString
-                      ? 'bg-primary-500 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    flex-shrink-0 w-[4.2rem] py-2.5 rounded-2xl text-center transition-all duration-200
+                    ${
+                      selectedDate === dateOption.dateString
+                        ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
+                        : 'bg-gray-50 text-gray-700 hover:bg-violet-50 border border-gray-100'
                     }
                   `}
                 >
-                  <p className="text-xs font-medium opacity-80">
+                  <p className={`text-[10px] font-semibold ${selectedDate === dateOption.dateString ? 'text-violet-200' : 'text-gray-400'}`}>
                     {dateOption.dayName}
                   </p>
-                  <p className="text-lg font-bold">
-                    {dateOption.dayNumber}
-                  </p>
-                  <p className="text-xs opacity-80">
+                  <p className="text-lg font-extrabold">{dateOption.dayNumber}</p>
+                  <p className={`text-[10px] font-medium ${selectedDate === dateOption.dateString ? 'text-violet-200' : 'text-gray-400'}`}>
                     {dateOption.month}
                   </p>
                 </button>
               ))}
+
+              {!availabilityLoading && dateOptions.length === 0 && (
+                <div className="w-full text-center py-4 bg-gray-50 rounded-2xl border border-gray-100">
+                  <p className="text-sm text-gray-500 font-medium">
+                    {t('doctorProfile.noAvailableDays', 'No available days in doctor schedule')}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Time Slots */}
           <div className="mb-4">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">
+            <h4 className="text-sm font-bold text-gray-900 mb-2">
               {t('doctorProfile.selectTime', 'Select Time')}
             </h4>
-            
+
             {slotsLoading ? (
-              <div className="flex justify-center py-4">
+              <div className="flex justify-center py-5">
                 <Loader size="sm" />
               </div>
             ) : slots.length > 0 ? (
-              <div className="space-y-3 max-h-32 overflow-y-auto">
-                {/* Morning */}
+              <div className="space-y-3 max-h-32 overflow-y-auto scrollbar-hide">
                 {groupedSlots.morning.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-500 mb-2">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
                       {t('doctorProfile.morning', 'Morning')}
                     </p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {groupedSlots.morning.map((slot) => (
                         <TimeSlotButton
                           key={slot.id || slot.time}
                           slot={slot}
-                          selected={selectedSlot?.id === slot.id || selectedSlot?.time === slot.time}
+                          selected={
+                            selectedSlot?.id === slot.id ||
+                            selectedSlot?.time === slot.time
+                          }
                           onSelect={handleSlotSelect}
-                          disabled={slot.is_booked}
+                          disabled={slot.is_available === false}
                         />
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Afternoon */}
                 {groupedSlots.afternoon.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-500 mb-2">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
                       {t('doctorProfile.afternoon', 'Afternoon')}
                     </p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {groupedSlots.afternoon.map((slot) => (
                         <TimeSlotButton
                           key={slot.id || slot.time}
                           slot={slot}
-                          selected={selectedSlot?.id === slot.id || selectedSlot?.time === slot.time}
+                          selected={
+                            selectedSlot?.id === slot.id ||
+                            selectedSlot?.time === slot.time
+                          }
                           onSelect={handleSlotSelect}
-                          disabled={slot.is_booked}
+                          disabled={slot.is_available === false}
                         />
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Evening */}
                 {groupedSlots.evening.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-500 mb-2">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
                       {t('doctorProfile.evening', 'Evening')}
                     </p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {groupedSlots.evening.map((slot) => (
                         <TimeSlotButton
                           key={slot.id || slot.time}
                           slot={slot}
-                          selected={selectedSlot?.id === slot.id || selectedSlot?.time === slot.time}
+                          selected={
+                            selectedSlot?.id === slot.id ||
+                            selectedSlot?.time === slot.time
+                          }
                           onSelect={handleSlotSelect}
-                          disabled={slot.is_booked}
+                          disabled={slot.is_available === false}
                         />
                       ))}
                     </div>
@@ -790,24 +946,39 @@ const DoctorProfile = () => {
                 )}
               </div>
             ) : (
-              <p className="text-sm text-gray-500 text-center py-4">
-                {t('doctorProfile.noSlots', 'No slots available for this date')}
-              </p>
+              <div className="text-center py-5 bg-gray-50 rounded-2xl">
+                <Clock className="w-5 h-5 text-gray-300 mx-auto mb-1.5" />
+                <p className="text-sm text-gray-400 font-medium">
+                  {t(
+                    'doctorProfile.noSlots',
+                    'No slots available for this date'
+                  )}
+                </p>
+              </div>
             )}
           </div>
 
           {/* Book Button */}
+          <p className="text-[11px] text-violet-700 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2 mb-3">
+            {t('doctorProfile.pendingApproval', 'Selected slot will be requested first. Doctor confirms the appointment after review.')}
+          </p>
+
           <Button
             fullWidth
             size="lg"
             onClick={handleBookAppointment}
             disabled={!selectedSlot || !selectedType}
             rightIcon={<Calendar size={18} />}
+            className="!rounded-2xl !py-4 !bg-violet-600 hover:!bg-violet-700 !font-bold !text-base disabled:!bg-gray-200 disabled:!text-gray-400 shadow-lg shadow-violet-200 disabled:shadow-none transition-all duration-200"
           >
             {selectedSlot
-              ? t('doctorProfile.bookFor', { time: selectedSlot.time || selectedSlot.start_time })
-              : t('doctorProfile.selectSlotToBook', 'Select a slot to book')
-            }
+              ? t('doctorProfile.bookFor', {
+                  time: selectedSlot.time || selectedSlot.start_time,
+                })
+              : t(
+                  'doctorProfile.selectSlotToBook',
+                  'Select a slot to book'
+                )}
           </Button>
         </div>
       </div>

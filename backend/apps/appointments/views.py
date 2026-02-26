@@ -76,6 +76,7 @@ from .services import (
     QueueService,
     ReminderService,
 )
+from apps.users.models import DoctorProfile
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,35 @@ class IsDoctorOrReadOnly(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
         return hasattr(request.user, 'doctor_profile')
+
+
+class IsVerifiedUser(permissions.BasePermission):
+    """Permission class to allow only verified users."""
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        return getattr(request.user, 'is_phone_verified', False)
+
+
+def resolve_doctor_user_by_any_id(doctor_id):
+    """Resolve doctor user by either User.id or DoctorProfile.id."""
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+
+    try:
+        user = User.objects.get(id=doctor_id)
+        if hasattr(user, 'doctor_profile'):
+            return user
+    except Exception:
+        pass
+
+    doctor_profile = DoctorProfile.objects.select_related('user').filter(id=doctor_id).first()
+    if doctor_profile:
+        return doctor_profile.user
+
+    raise User.DoesNotExist
 
 
 class IsAppointmentParticipant(permissions.BasePermission):
@@ -529,7 +559,7 @@ class AvailableSlotsView(APIView):
     View for getting available slots for a doctor on a specific date.
     """
     
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
     
     @swagger_auto_schema(
         operation_description="Get available slots for a doctor on a date",
@@ -555,18 +585,10 @@ class AvailableSlotsView(APIView):
     )
     def get(self, request, doctor_id):
         """Get available slots."""
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        
         # Validate doctor
         try:
-            doctor = User.objects.get(id=doctor_id)
-            if not hasattr(doctor, 'doctor_profile'):
-                return Response({
-                    'success': False,
-                    'message': 'User is not a doctor.'
-                }, status=status.HTTP_400_BAD_REQUEST)
-        except User.DoesNotExist:
+            doctor = resolve_doctor_user_by_any_id(doctor_id)
+        except Exception:
             return Response({
                 'success': False,
                 'message': 'Doctor not found.'
@@ -1449,7 +1471,7 @@ class DoctorAvailabilityView(APIView):
     View for checking doctor availability.
     """
     
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
     
     @swagger_auto_schema(
         operation_description="Get doctor availability for a date range",
@@ -1479,18 +1501,10 @@ class DoctorAvailabilityView(APIView):
     )
     def get(self, request, doctor_id):
         """Get doctor availability."""
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        
         # Validate doctor
         try:
-            doctor = User.objects.get(id=doctor_id)
-            if not hasattr(doctor, 'doctor_profile'):
-                return Response({
-                    'success': False,
-                    'message': 'User is not a doctor.'
-                }, status=status.HTTP_400_BAD_REQUEST)
-        except User.DoesNotExist:
+            doctor = resolve_doctor_user_by_any_id(doctor_id)
+        except Exception:
             return Response({
                 'success': False,
                 'message': 'Doctor not found.'

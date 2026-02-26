@@ -8,21 +8,18 @@ import useAuth from '../../hooks/useAuth';
 import useLanguage from '../../hooks/useLanguage';
 import useVoice from '../../hooks/useVoice';
 
-/**
- * Layout wrapper for patient pages
- */
 const PatientLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, isPatient, user, fullName } = useAuth();
+  const { isAuthenticated, isPatient, hasHydrated, user, fullName } = useAuth();
   const { t, currentLanguage } = useLanguage();
   const { voiceEnabled, voiceCommandsEnabled } = useVoice();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pageTitle, setPageTitle] = useState('');
 
-  // Redirect if not authenticated or not a patient
   useEffect(() => {
+    if (!hasHydrated) return;
     if (!isAuthenticated) {
       navigate('/login', { replace: true });
       return;
@@ -30,13 +27,12 @@ const PatientLayout = () => {
     if (!isPatient) {
       navigate('/doctor/home', { replace: true });
     }
-  }, [isAuthenticated, isPatient, navigate]);
+  }, [hasHydrated, isAuthenticated, isPatient, navigate]);
 
-  // Update page title based on current route
   useEffect(() => {
     const pathToTitle = {
       '/patient/home': '',
-      '/patient/symptoms': t('symptoms.title'),
+      '/patient/symptom-checker': t('symptoms.title'),
       '/patient/doctors': t('doctors.title'),
       '/patient/appointments': t('appointments.title'),
       '/patient/health-records': t('healthRecords.title'),
@@ -44,36 +40,26 @@ const PatientLayout = () => {
       '/patient/chatbot': t('chatbot.title'),
       '/patient/notifications': t('notifications.title'),
       '/patient/settings': t('settings.title'),
-      '/patient/emergency': t('emergency.title')
+      '/patient/emergency': t('emergency.title'),
+      '/patient/profile': t('profile.title')
     };
-
-    // Find matching title
-    const matchedPath = Object.keys(pathToTitle).find(path => 
+    const matchedPath = Object.keys(pathToTitle).find(path =>
       location.pathname === path || location.pathname.startsWith(path + '/')
     );
-
     setPageTitle(matchedPath ? pathToTitle[matchedPath] : '');
   }, [location.pathname, t, currentLanguage]);
 
-  // Get greeting based on time
   const getGreeting = () => {
     const hour = new Date().getHours();
     const name = user?.first_name || fullName?.split(' ')[0] || '';
-
-    if (hour < 12) {
-      return t('home.greetingMorning', { name });
-    } else if (hour < 17) {
-      return t('home.greetingAfternoon', { name });
-    } else {
-      return t('home.greetingEvening', { name });
-    }
+    if (hour < 12) return t('home.greetingMorning', { name });
+    else if (hour < 17) return t('home.greetingAfternoon', { name });
+    else return t('home.greetingEvening', { name });
   };
 
-  // Determine header props based on current route
   const getHeaderProps = () => {
     const isHome = location.pathname === '/patient/home';
     const isDetail = location.pathname.split('/').length > 3;
-
     return {
       title: isHome ? getGreeting() : pageTitle,
       subtitle: isHome ? t('home.howAreYou') : undefined,
@@ -84,52 +70,39 @@ const PatientLayout = () => {
     };
   };
 
-  // Don't render if not authenticated
-  if (!isAuthenticated || !isPatient) {
-    return null;
-  }
+  if (!hasHydrated) return null;
+  if (!isAuthenticated || !isPatient) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Toast notifications */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-slate-50 to-blue-50/30 relative">
       <Toast />
 
-      {/* Sidebar - Desktop */}
-      <Sidebar 
-        role="patient" 
-        isOpen={true}
-      />
+      {/* Background decorations - z-0 so they stay behind everything */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-violet-200/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-200/20 rounded-full blur-3xl" />
+      </div>
 
-      {/* Sidebar - Mobile */}
-      <Sidebar
-        role="patient"
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        isMobile={true}
-      />
+      {/* Desktop sidebar - z-40 so it's above main content */}
+      <Sidebar role="patient" isOpen={true} />
 
-      {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Header */}
-        <Header
-          {...getHeaderProps()}
-          onMenuClick={() => setSidebarOpen(true)}
-        />
+      {/* Mobile sidebar - z-50 with overlay */}
+      <Sidebar role="patient" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isMobile={true} />
 
-        {/* Page content */}
-        <main className="pb-20 lg:pb-6">
+      {/* Main content area - z-10, but lg:pl-72 ensures it doesn't overlap sidebar */}
+      <div className="lg:pl-72 relative z-10">
+        <Header {...getHeaderProps()} onMenuClick={() => setSidebarOpen(true)} />
+
+        <main className="pb-24 lg:pb-8 px-2 sm:px-4 lg:px-6 pt-2">
           <Outlet />
         </main>
 
-        {/* Bottom Navigation - Mobile */}
         <BottomNavigation role="patient" />
 
-        {/* Floating Voice Button */}
         {voiceEnabled && voiceCommandsEnabled && (
-          <VoiceButton.Floating 
+          <VoiceButton.Floating
             position="bottom-right"
             onTranscript={(text) => {
-              // Voice commands are handled in useVoice hook
               console.log('Voice input:', text);
             }}
           />

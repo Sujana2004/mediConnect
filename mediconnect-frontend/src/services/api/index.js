@@ -25,53 +25,51 @@ export const chatbotService = chatbotServiceDefault;
 export const emergencyService = emergencyServiceDefault;
 export const notificationService = notificationServiceDefault;
 
-// ==================== Auth Service Functions ====================
-export {
-  login,
-  logout,
-  registerPatient,
-  registerDoctor,
-  refreshToken,
-  getProfile,
-  updateProfile,
-  updateProfilePicture,
-  getDoctors,
-  getDoctorById,
-  getHelpers,
-  addHelper,
-  removeHelper,
-  updateHelper,
-  changeLanguage,
-  updateFcmToken,
-} from './authService';
-
 // ==================== Appointment Service Functions ====================
 export {
   getAppointments,
   getAppointmentById,
   createAppointment,
+  updateAppointment,
   cancelAppointment,
   rescheduleAppointment,
   checkInAppointment,
+  checkInViaEndpoint,
   confirmAppointment,
   startAppointment,
   completeAppointment,
+  markNoShow,
   getTodayAppointments,
   getTodaySummary,
   getUpcomingAppointments,
   getAvailableSlots,
+  getTimeSlots,
+  generateSlots,
+  getDoctorAvailability,
   getSchedules,
+  getWeeklySchedule,
   createSchedule,
   bulkUpdateSchedules,
   updateSchedule,
+  patchSchedule,
   deleteSchedule,
   getQueue,
+  getQueueEntry,
   getWaitingQueue,
   callNextPatient,
   performQueueAction,
+  requeuePatient,
+  getQueueStats,
+  getMyQueueStatus,
   getExceptions,
+  getUpcomingExceptions,
+  createException,
   addLeave,
+  addMultiDayLeave,
+  updateException,
   deleteException,
+  getQuickData,
+  healthCheck,
 } from './appointmentService';
 
 // ==================== Consultation Service Functions ====================
@@ -177,32 +175,62 @@ export {
 } from './chatbotService';
 
 // ==================== Emergency Service Functions ====================
+// Note: healthCheck renamed to avoid conflict with appointmentService
 export {
+  // SOS
   triggerSOS,
   quickTriggerSOS,
   getActiveSOS,
   cancelSOS,
+  updateSOSStatus,
   getSOSHistory,
+  getEmergencyTypes,
+  getSOSStatistics,
+
+  // Contacts
   getEmergencyContacts,
   addEmergencyContact,
   updateEmergencyContact,
+  patchEmergencyContact,
   deleteEmergencyContact,
-  setPrimaryContact,
+  reorderContacts,
+
+  // Emergency Services
+  listEmergencyServices,
+  getEmergencyService,
   getNearbyServices,
+  getServicesByDistrict,
   getNearbyHospitals,
   getNearbyAmbulances,
   getNearbyPharmacies,
-  getHelplines,
-  getNationalHelplines,
+
+  // First Aid
   getFirstAidGuides,
-  getFirstAidGuideById,
-  getFirstAidCategories,
-  searchFirstAidGuides,
+  getFirstAidGuide,
+  getCriticalFirstAidGuides,
+  getFirstAidByCategory,
+
+  // Helplines
+  getHelplines,
+  getHelplinesByType,
+  getImportantHelplines,
+
+  // Location
+  getCachedLocation,
+  updateLocation,
+
+  // Quick Data
+  getQuickSOSData,
+  
+  // Health Check (renamed to avoid conflict with appointmentService.healthCheck)
+  healthCheck as emergencyHealthCheck,
 } from './emergencyService';
 
 // ==================== Notification Service Functions ====================
 export {
+  // Notifications
   getNotifications,
+  getAllNotifications,
   getNotificationById,
   markAsRead,
   markOneAsRead,
@@ -210,12 +238,17 @@ export {
   getUnreadCount,
   deleteNotification,
   clearAllNotifications,
-  getPreferences as getNotificationPreferences,
-  updatePreferences as updateNotificationPreferences,
+  getNotificationStats,
+  sendTestNotification,
+  // Preferences
+  getPreferences,
+  updatePreferences,
   toggleNotificationType,
+  updateQuietHours,
+  // Device
   registerDevice,
   unregisterDevice,
-  updateDeviceToken,
+  listDevices,
 } from './notificationService';
 
 // ==================== Default Export ====================

@@ -61,10 +61,11 @@ api.interceptors.response.use(
           return api(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh token failed - logout user
+        // Refresh token failed - clear everything and redirect
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
+        localStorage.removeItem('auth-storage'); // Clear Zustand persisted state
         
         window.location.href = '/login';
         return Promise.reject(refreshError);

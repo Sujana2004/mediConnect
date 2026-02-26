@@ -43,6 +43,7 @@ urlpatterns = [
     path('api/v1/appointments/', include('apps.appointments.urls')),
     path('api/v1/consultation/', include('apps.consultation.urls')),
     path('api/v1/health-records/', include('apps.health_records.urls')),
+    path('api/v1/sync/', include('apps.sync.urls')),
 ]
 
 # Serve media files in development

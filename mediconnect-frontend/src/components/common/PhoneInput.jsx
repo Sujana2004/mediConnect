@@ -1,10 +1,11 @@
 import { forwardRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Phone, AlertCircle, CheckCircle } from 'lucide-react';
+import { Phone, AlertCircle, CheckCircle, Smartphone } from 'lucide-react';
 import useLanguage from '../../hooks/useLanguage';
 
 /**
  * Phone Input component specifically for Indian phone numbers
+ * Enhanced for mobile and desktop responsiveness
  */
 const PhoneInput = forwardRef(({
   value = '',
@@ -29,11 +30,18 @@ const PhoneInput = forwardRef(({
 
   const inputId = id || name || 'phone-input';
 
-  // Size styles
+  // Enhanced size styles for better mobile touch targets
   const sizeStyles = {
-    sm: 'py-2 text-sm',
-    md: 'py-3 text-base',
-    lg: 'py-3.5 text-lg'
+    sm: 'py-2.5 text-sm h-11',
+    md: 'py-3 text-base h-12 sm:h-13',
+    lg: 'py-4 text-lg h-14 sm:h-15'
+  };
+
+  // Enhanced font sizes for mobile readability
+  const inputFontSize = {
+    sm: 'text-sm sm:text-base',
+    md: 'text-base sm:text-lg',
+    lg: 'text-lg sm:text-xl'
   };
 
   // Format phone number (add spaces for readability)
@@ -81,49 +89,54 @@ const PhoneInput = forwardRef(({
       {label && (
         <label 
           htmlFor={inputId}
-          className="block text-sm font-medium text-gray-700 mb-1.5"
+          className="block text-sm sm:text-base font-semibold text-gray-700 mb-2"
         >
           {label}
-          {required && <span className="text-danger-500 ml-1">*</span>}
+          {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
 
       {/* Input wrapper */}
-      <div className="relative">
+      <div className="relative group">
         <div
           className={`
-            flex items-center rounded-xl border-2 bg-white
-            transition-all duration-200
+            flex items-center rounded-2xl border-2 bg-white
+            transition-all duration-300 ease-out
+            shadow-sm hover:shadow-md
             ${error 
-              ? 'border-danger-500 focus-within:ring-2 focus-within:ring-danger-100' 
+              ? 'border-red-400 bg-red-50/30 focus-within:ring-4 focus-within:ring-red-100 focus-within:border-red-500' 
               : isFocused
-                ? 'border-primary-500 ring-4 ring-primary-100'
+                ? 'border-primary-500 ring-4 ring-primary-100 shadow-lg shadow-primary-200/50'
                 : isValid
-                  ? 'border-green-400 hover:border-green-500'
+                  ? 'border-green-400 bg-green-50/30 hover:border-green-500'
                   : 'border-gray-200 hover:border-gray-300'
             }
-            ${disabled ? 'bg-gray-50 opacity-60' : ''}
+            ${disabled ? 'bg-gray-50 opacity-60 cursor-not-allowed' : ''}
           `}
         >
           {/* Country code */}
           {showCountryCode && (
             <div className={`
-              flex items-center gap-2 pl-4 pr-3 border-r border-gray-200
+              flex items-center gap-2 pl-3 sm:pl-4 pr-2 sm:pr-3 
+              border-r-2 border-gray-200
               ${sizeStyles[size]}
             `}>
-              <span className="text-xl">🇮🇳</span>
-              <span className="text-gray-700 font-semibold">+91</span>
+              {/* India Flag Emoji */}
+              <span className="text-xl sm:text-2xl" role="img" aria-label="India">🇮🇳</span>
+              {/* Country Code */}
+              <span className="text-gray-800 font-bold text-sm sm:text-base hidden xs:inline">+91</span>
+              <span className="text-gray-800 font-bold text-sm sm:text-base xs:hidden">91</span>
             </div>
           )}
 
           {/* Phone icon (if no country code) */}
           {!showCountryCode && (
-            <div className="pl-4 pr-2">
-              <Phone size={20} className="text-gray-400" />
+            <div className="pl-3 sm:pl-4 pr-2">
+              <Smartphone size={20} className="text-gray-400" />
             </div>
           )}
 
-          {/* Input field - REMOVED pattern attribute */}
+          {/* Input field */}
           <input
             ref={ref}
             id={inputId}
@@ -139,11 +152,12 @@ const PhoneInput = forwardRef(({
             autoFocus={autoFocus}
             placeholder={placeholder || t('auth.enterPhone', 'Enter phone number')}
             className={`
-              flex-1 px-3 bg-transparent
+              flex-1 px-3 sm:px-4 bg-transparent
               focus:outline-none
               disabled:cursor-not-allowed
               placeholder:text-gray-400
-              font-medium tracking-wide
+              font-semibold tracking-wide
+              ${inputFontSize[size]}
               ${sizeStyles[size]}
             `}
             aria-invalid={error ? 'true' : 'false'}
@@ -153,37 +167,66 @@ const PhoneInput = forwardRef(({
 
           {/* Validation indicator */}
           {cleanValue.length > 0 && (
-            <div className="pr-4">
+            <div className="pr-3 sm:pr-4 flex items-center">
               {isValid ? (
-                <CheckCircle size={20} className="text-green-500" />
+                <div className="flex items-center gap-1.5 text-green-600">
+                  <CheckCircle size={20} className="animate-scale-in" />
+                  <span className="hidden sm:inline text-xs font-semibold">Valid</span>
+                </div>
               ) : cleanValue.length === 10 ? (
-                <AlertCircle size={20} className="text-danger-500" />
+                <div className="flex items-center gap-1.5 text-red-500">
+                  <AlertCircle size={20} className="animate-shake" />
+                  <span className="hidden sm:inline text-xs font-semibold">Invalid</span>
+                </div>
               ) : (
-                <span className="text-xs text-gray-400 font-medium">
+                <span className="text-xs sm:text-sm text-gray-500 font-semibold bg-gray-100 px-2 py-1 rounded-full">
                   {cleanValue.length}/10
                 </span>
               )}
             </div>
           )}
         </div>
+
+        {/* Mobile helper - shows when focused */}
+        {isFocused && cleanValue.length === 0 && (
+          <div className="absolute left-0 right-0 top-full mt-2 sm:hidden">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700 flex items-center gap-2">
+              <Smartphone size={16} className="flex-shrink-0" />
+              <span>Enter 10-digit mobile number</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Error message */}
       {error && (
-        <p 
+        <div 
           id={`${inputId}-error`}
-          className="mt-2 text-sm text-danger-600 flex items-center gap-1.5"
+          className="mt-2 sm:mt-3 text-sm sm:text-base text-red-600 flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3"
           role="alert"
         >
-          <AlertCircle size={14} />
-          {error}
-        </p>
+          <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+          <span className="font-medium">{error}</span>
+        </div>
       )}
 
       {/* Helper text */}
       {!error && cleanValue.length > 0 && cleanValue.length < 10 && (
-        <p className="mt-2 text-sm text-gray-500">
-          {10 - cleanValue.length} {t('common.digitsRemaining', 'more digits needed')}
+        <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-gray-600 flex items-center gap-2">
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 text-gray-600 text-xs font-bold">
+            {10 - cleanValue.length}
+          </span>
+          <span>
+            {10 - cleanValue.length} {t('common.digitsRemaining', 'more digits needed')}
+          </span>
+        </p>
+      )}
+
+      {/* Success message */}
+      {isValid && !error && (
+        <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-green-700 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl p-2.5">
+          <CheckCircle size={14} className="flex-shrink-0" />
+          <span className="font-medium">Valid mobile number ✓</span>
         </p>
       )}
     </div>

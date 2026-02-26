@@ -43,6 +43,7 @@ THIRD_PARTY_APPS = [
     'corsheaders',
     'channels',
     'drf_yasg',
+    'storages',  # Added for Supabase storage
 ]
 
 LOCAL_APPS = [
@@ -55,9 +56,8 @@ LOCAL_APPS = [
     'apps.medicine',
     'apps.emergency',
     'apps.notifications',
-    'apps.translation',
-    'apps.sync',
     'apps.analytics',
+    'apps.sync',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -125,17 +125,24 @@ ASGI_APPLICATION = 'mediconnect.asgi.application'
 # SUPABASE CONFIGURATION
 # ===========================================
 
-SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
-SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
-SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
-SUPABASE_STORAGE_BUCKET = os.environ.get('SUPABASE_STORAGE_BUCKET', 'health-records')
+SUPABASE_URL = config('SUPABASE_URL', default='')
+SUPABASE_ANON_KEY = config('SUPABASE_ANON_KEY', default='')
+SUPABASE_SERVICE_ROLE_KEY = config('SUPABASE_SERVICE_ROLE_KEY', default='')
+SUPABASE_STORAGE_BUCKET = config('SUPABASE_STORAGE_BUCKET', default='health-records')
+
+# Supabase S3-Compatible Storage Configuration
+SUPABASE_S3_ENDPOINT = config('SUPABASE_S3_ENDPOINT', default='')
+SUPABASE_S3_ACCESS_KEY = config('SUPABASE_S3_ACCESS_KEY', default='')
+SUPABASE_S3_SECRET_KEY = config('SUPABASE_S3_SECRET_KEY', default='')
+SUPABASE_S3_REGION = config('SUPABASE_S3_REGION', default='us-east-1')
+SUPABASE_SIGNED_URL_EXPIRY = config('SUPABASE_SIGNED_URL_EXPIRY', default=3600, cast=int)
 
 # Health Records Storage Settings
 HEALTH_RECORDS_STORAGE = {
     'BUCKET_NAME': SUPABASE_STORAGE_BUCKET,
     'MAX_FILE_SIZE_MB': 10,
     'ALLOWED_EXTENSIONS': ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
-    'SIGNED_URL_EXPIRY_SECONDS': 3600,  # 1 hour
+    'SIGNED_URL_EXPIRY_SECONDS': 3600,
 }
 
 
@@ -192,11 +199,26 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
 # ============================================
-# MEDIA FILES
+# MEDIA FILES - Supabase Storage
 # ============================================
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+# ============================================
+# SUPABASE STORAGE CONFIGURATION
+# ============================================
+
+# Use Supabase for media storage if configured
+USE_SUPABASE_STORAGE = config('USE_SUPABASE_STORAGE', default=False, cast=bool)
+
+if USE_SUPABASE_STORAGE and SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+    # ✅ Use Supabase for file storage
+    DEFAULT_FILE_STORAGE = 'mediconnect.storage_backends.SupabaseStorage'
+    MEDIA_URL = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_STORAGE_BUCKET}/"
+    print("📦 Storage: SUPABASE")
+else:
+    # 📁 Use local storage (fallback)
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
+    print("📁 Storage: LOCAL")
 
 
 # ============================================
@@ -309,7 +331,8 @@ CORS_ALLOW_HEADERS = [
 
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer"
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+        "LOCATION": "unique-snowflake",
         # For production with Redis:
         # "BACKEND": "channels_redis.core.RedisChannelLayer",
         # "CONFIG": {
@@ -360,6 +383,9 @@ MAX_DOCUMENT_SIZE_MB = 10
 # ============================================
 # LOGGING
 # ============================================
+# Create logs directory if it doesn't exist
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
 
 LOGGING = {
     'version': 1,
@@ -443,3 +469,34 @@ JITSI_ROOM_EXPIRY_HOURS = config('JITSI_ROOM_EXPIRY_HOURS', default=2, cast=int)
 
 # Consultation Scheduler
 DISABLE_CONSULTATION_SCHEDULER = config('DISABLE_CONSULTATION_SCHEDULER', default=False, cast=bool)
+
+# =============================================================================
+# UPSTASH REDIS SETTINGS (For Sync App)
+# =============================================================================
+
+# Upstash Redis REST API URL
+# Format: https://your-redis-endpoint.upstash.io
+UPSTASH_REDIS_URL = config('UPSTASH_REDIS_REST_URL', default='')
+
+# Upstash Redis REST API Token
+UPSTASH_REDIS_TOKEN = config('UPSTASH_REDIS_REST_TOKEN', default='')
+
+# Sync App Settings
+SYNC_SETTINGS = {
+    # Maximum actions per push request
+    'MAX_ACTIONS_PER_PUSH': 50,
+    
+    # Maximum items per pull response
+    'MAX_ITEMS_PER_PULL': 100,
+    
+    # Rate limiting
+    'RATE_LIMIT_MAX_REQUESTS': 10,  # Max requests per window
+    'RATE_LIMIT_WINDOW': 60,  # Window in seconds
+    
+    # Lock timeout (seconds)
+    'LOCK_TIMEOUT': 30,
+    
+    # Data retention (days)
+    'LOG_RETENTION_DAYS': 30,
+    'ACTION_RETENTION_DAYS': 90,
+}

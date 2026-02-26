@@ -18,11 +18,6 @@ const logger = {
   warn: (...args) => isDev && console.warn(...args),
 };
 
-/**
- * Token refresh deduplication
- */
-let isRefreshing = false;
-let refreshPromise = null;
 
 /**
  * Create safe storage wrapper
@@ -191,6 +186,7 @@ const useAuthStore = create(
       refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
+      hasHydrated: false,
       error: null,
 
       // Actions
@@ -202,6 +198,8 @@ const useAuthStore = create(
       },
 
       setLoading: (isLoading) => set({ isLoading }),
+
+      setHasHydrated: (hasHydrated) => set({ hasHydrated }),
 
       setError: (error) => set({ error }),
 
@@ -380,7 +378,20 @@ const useAuthStore = create(
 
         try {
           const response = await api.get('/auth/profile/');
-          const user = response.data.data || response.data;
+          
+          // Backend returns { success, data: { user, profile } }
+          const responseData = response.data;
+          let user = null;
+
+          if (responseData.data?.user) {
+            // Merge user and profile data for easy access
+            user = {
+              ...responseData.data.user,
+              profile: responseData.data.profile
+            };
+          } else {
+            user = responseData.data || responseData;
+          }
 
           set({ user, isLoading: false });
 
@@ -399,8 +410,20 @@ const useAuthStore = create(
         try {
           const payload = cleanPayload(profileData);
 
-          const response = await api.put('/auth/profile/', payload);
-          const user = response.data.data || response.data;
+          const response = await api.patch('/auth/profile/', payload);
+          
+          // Backend returns { success, message, data: { user, profile } }
+          const responseData = response.data;
+          let user = null;
+
+          if (responseData.data?.user) {
+            user = {
+              ...responseData.data.user,
+              profile: responseData.data.profile
+            };
+          } else {
+            user = responseData.data || responseData;
+          }
 
           set({ user, isLoading: false });
 
@@ -437,61 +460,19 @@ const useAuthStore = create(
 
         clearAuthTokens();
 
-        // Reset refresh state
-        isRefreshing = false;
-        refreshPromise = null;
-
         set({
           user: null,
           accessToken: null,
           refreshToken: null,
           isAuthenticated: false,
           isLoading: false,
+          hasHydrated: true,
           error: null
         });
 
         return { success: true };
       },
 
-      // Refresh access token (with deduplication)
-      refreshAccessToken: async () => {
-        const { refreshToken } = get();
-
-        if (!refreshToken) {
-          return { success: false, error: 'No refresh token' };
-        }
-
-        // Prevent duplicate refresh calls
-        if (isRefreshing && refreshPromise) {
-          return refreshPromise;
-        }
-
-        isRefreshing = true;
-
-        refreshPromise = (async () => {
-          try {
-            const response = await api.post('/auth/token/refresh/', {
-              refresh: refreshToken
-            });
-
-            const { access } = response.data;
-
-            setAuthTokens(access, refreshToken);
-            set({ accessToken: access });
-
-            return { success: true, accessToken: access };
-          } catch (error) {
-            logger.error('❌ Token refresh failed:', error.message);
-            await get().logout();
-            return { success: false, error: 'Session expired' };
-          } finally {
-            isRefreshing = false;
-            refreshPromise = null;
-          }
-        })();
-
-        return refreshPromise;
-      },
 
       // Role checks
       isPatient: () => get().user?.role === 'patient',
@@ -508,10 +489,6 @@ const useAuthStore = create(
       // Reset store
       reset: () => {
         clearAuthTokens();
-        
-        // Reset refresh state
-        isRefreshing = false;
-        refreshPromise = null;
 
         set({
           user: null,
@@ -528,14 +505,26 @@ const useAuthStore = create(
       storage: createJSONStorage(createSafeStorage),
       partialize: (state) => ({
         user: state.user,
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated
+        // Don't persist tokens here - they're in separate localStorage keys
+        // managed by setAuthTokens/clearAuthTokens
       }),
       onRehydrateStorage: () => (state) => {
-        // Restore tokens to axios instance after rehydration
-        if (state && state.accessToken && state.refreshToken) {
-          setAuthTokens(state.accessToken, state.refreshToken);
+        // Restore tokens from separate localStorage keys
+        if (state) {
+          const accessToken = localStorage.getItem('accessToken');
+          const refreshToken = localStorage.getItem('refreshToken');
+          
+          if (accessToken && refreshToken) {
+            state.accessToken = accessToken;
+            state.refreshToken = refreshToken;
+            state.isAuthenticated = true;
+          } else {
+            state.isAuthenticated = false;
+            state.user = null;
+          }
+
+          state.hasHydrated = true;
         }
       }
     }

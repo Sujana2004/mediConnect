@@ -539,8 +539,8 @@ class ChatService:
         self.translation_service = get_free_translation_service()
         
         logger.info(f"ChatService initialized:")
-        logger.info(f"  - AI (Groq): {'✅ Ready' if self.ai_service.is_configured else '❌ Not configured'}")
-        logger.info(f"  - Translation: {'✅ Ready' if self.translation_service.is_configured else '❌ Not configured'}")
+        logger.info(f"  - AI (Groq): {'[OK] Ready' if self.ai_service.is_configured else '[FAIL] Not configured'}")
+        logger.info(f"  - Translation: {'[OK] Ready' if self.translation_service.is_configured else '[FAIL] Not configured'}")
     
     def start_session(self, user, language: str = 'en') -> ChatSession:
         """Start a new chat session."""

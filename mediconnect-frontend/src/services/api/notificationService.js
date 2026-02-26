@@ -57,9 +57,10 @@ const buildEndpoint = (baseEndpoint, id = null, action = null) => {
 // ========== Notifications ==========
 
 /**
- * Get notifications
+ * Get notifications (paginated)
+ * Backend returns: { count, next, previous, results: [...] }
  * @param {Object} [filters] - Filter options
- * @param {boolean} [filters.unread] - Filter unread only
+ * @param {boolean} [filters.unread_only] - Filter unread only
  * @param {string} [filters.type] - Notification type
  * @param {number} [filters.page] - Page number
  * @param {number} [filters.page_size] - Items per page
@@ -72,7 +73,20 @@ export const getNotifications = async (filters = {}) => {
 };
 
 /**
+ * Get ALL notifications (handles pagination internally)
+ * Fetches first page and returns normalized results
+ * @param {Object} [filters] - Filter options
+ * @returns {Promise<Object>} { results: [...], count, next, previous }
+ */
+export const getAllNotifications = async (filters = {}) => {
+  const queryString = buildQueryString({ page_size: 50, ...filters });
+  const response = await api.get(`${NOTIFICATION_ENDPOINTS.NOTIFICATIONS}${queryString}`);
+  return response.data;
+};
+
+/**
  * Get notification by ID
+ * Backend returns: { success, notification: {...} }
  * @param {string|number} notificationId - Notification ID
  * @returns {Promise<Object>} Notification details
  */
@@ -84,37 +98,45 @@ export const getNotificationById = async (notificationId) => {
 
 /**
  * Mark notifications as read
- * @param {Object} markData - Mark data
- * @param {Array<string|number>} [markData.notification_ids] - Specific notification IDs
- * @param {boolean} [markData.mark_all] - Mark all as read
+ * Backend endpoint: POST /notifications/mark-read/
+ * Backend expects: { notification_ids: [...] } or empty for mark all
+ * @param {Array<string>} [notificationIds] - Specific notification IDs (empty = mark all)
  * @returns {Promise<Object>} Confirmation
  */
-export const markAsRead = async (markData) => {
+export const markAsRead = async (notificationIds = []) => {
   const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.NOTIFICATIONS, null, 'mark-read');
-  const response = await api.post(endpoint, markData);
+  const payload = notificationIds.length > 0
+    ? { notification_ids: notificationIds }
+    : {};
+  const response = await api.post(endpoint, payload);
   return response.data;
 };
 
 /**
  * Mark single notification as read
- * @param {string|number} notificationId - Notification ID
+ * Backend endpoint: POST /notifications/<id>/read/
+ * @param {string} notificationId - Notification ID
  * @returns {Promise<Object>} Updated notification
  */
 export const markOneAsRead = async (notificationId) => {
-  return markAsRead({ notification_ids: [notificationId] });
+  const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.NOTIFICATIONS, notificationId, 'read');
+  const response = await api.post(endpoint);
+  return response.data;
 };
 
 /**
  * Mark all notifications as read
+ * Backend endpoint: POST /notifications/mark-read/ with empty body
  * @returns {Promise<Object>} Confirmation
  */
 export const markAllAsRead = async () => {
-  return markAsRead({ mark_all: true });
+  return markAsRead([]);
 };
 
 /**
  * Get unread notifications count
- * @returns {Promise<Object>} Count object { count: number }
+ * Backend returns: { success, unread_count: number }
+ * @returns {Promise<Object>} Count object
  */
 export const getUnreadCount = async () => {
   const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.NOTIFICATIONS, null, 'unread-count');
@@ -124,21 +146,47 @@ export const getUnreadCount = async () => {
 
 /**
  * Delete notification
- * @param {string|number} notificationId - Notification ID
- * @returns {Promise<void>}
+ * Backend endpoint: DELETE /notifications/<id>/delete/
+ * @param {string} notificationId - Notification ID
+ * @returns {Promise<Object>}
  */
 export const deleteNotification = async (notificationId) => {
-  const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.NOTIFICATIONS, notificationId);
+  const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.NOTIFICATIONS, notificationId, 'delete');
   const response = await api.delete(endpoint);
   return response.data;
 };
 
 /**
  * Clear all notifications
+ * Backend endpoint: DELETE /notifications/clear/
+ * @param {boolean} [readOnly=false] - Only clear read notifications
  * @returns {Promise<Object>} Confirmation
  */
-export const clearAllNotifications = async () => {
-  const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.NOTIFICATIONS, null, 'clear-all');
+export const clearAllNotifications = async (readOnly = false) => {
+  const queryString = readOnly ? '?read_only=true' : '';
+  const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.NOTIFICATIONS, null, 'clear');
+  const response = await api.delete(`${endpoint}${queryString}`);
+  return response.data;
+};
+
+/**
+ * Get notification stats
+ * Backend returns: { success, stats: {...} }
+ * @returns {Promise<Object>} Notification statistics
+ */
+export const getNotificationStats = async () => {
+  const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.NOTIFICATIONS, null, 'stats');
+  const response = await api.get(endpoint);
+  return response.data;
+};
+
+/**
+ * Send test notification
+ * Backend endpoint: POST /notifications/test/
+ * @returns {Promise<Object>} Test notification result
+ */
+export const sendTestNotification = async () => {
+  const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.NOTIFICATIONS, null, 'test');
   const response = await api.post(endpoint);
   return response.data;
 };
@@ -147,6 +195,7 @@ export const clearAllNotifications = async () => {
 
 /**
  * Get notification preferences
+ * Backend returns: { success, preferences: {...}, notification_types: [...] }
  * @returns {Promise<Object>} Notification preferences
  */
 export const getPreferences = async () => {
@@ -156,42 +205,56 @@ export const getPreferences = async () => {
 
 /**
  * Update notification preferences
- * @param {Object} preferencesData - Preferences data
- * @param {boolean} [preferencesData.push_enabled] - Push notifications enabled
- * @param {boolean} [preferencesData.sms_enabled] - SMS notifications enabled
- * @param {boolean} [preferencesData.email_enabled] - Email notifications enabled
- * @param {boolean} [preferencesData.appointment_reminders] - Appointment reminders
- * @param {boolean} [preferencesData.medicine_reminders] - Medicine reminders
- * @param {boolean} [preferencesData.health_tips] - Health tips
- * @param {boolean} [preferencesData.promotional] - Promotional notifications
- * @param {string} [preferencesData.quiet_hours_start] - Quiet hours start (HH:MM)
- * @param {string} [preferencesData.quiet_hours_end] - Quiet hours end (HH:MM)
+ * Backend endpoint: PUT/PATCH /notifications/preferences/update/
+ * @param {Object} preferencesData - Preferences to update
  * @returns {Promise<Object>} Updated preferences
  */
 export const updatePreferences = async (preferencesData) => {
   const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.PREFERENCES, null, 'update');
-  const response = await api.put(endpoint, preferencesData);
+  const response = await api.patch(endpoint, preferencesData);
   return response.data;
 };
 
 /**
- * Toggle specific notification type
+ * Update specific notification type preference
+ * Backend endpoint: POST /notifications/preferences/type/
+ * Backend expects: { notification_type: string, enabled: boolean }
  * @param {string} notificationType - Type to toggle
  * @param {boolean} enabled - Enable or disable
  * @returns {Promise<Object>} Updated preferences
  */
 export const toggleNotificationType = async (notificationType, enabled) => {
-  return updatePreferences({ [notificationType]: enabled });
+  const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.PREFERENCES, null, 'type');
+  const response = await api.post(endpoint, {
+    notification_type: notificationType,
+    enabled,
+  });
+  return response.data;
+};
+
+/**
+ * Update quiet hours
+ * Backend endpoint: POST /notifications/preferences/quiet-hours/
+ * @param {Object} quietHoursData - { enabled, start_time, end_time }
+ * @returns {Promise<Object>} Updated quiet hours
+ */
+export const updateQuietHours = async (quietHoursData) => {
+  const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.PREFERENCES, null, 'quiet-hours');
+  const response = await api.post(endpoint, quietHoursData);
+  return response.data;
 };
 
 // ========== Device Registration ==========
 
 /**
  * Register device for push notifications
+ * Backend endpoint: POST /notifications/device/register/
+ * Backend expects: { token, device_type, device_name, device_id }
  * @param {Object} deviceData - Device data
- * @param {string} deviceData.fcm_token - Firebase Cloud Messaging token
+ * @param {string} deviceData.token - Firebase Cloud Messaging token
  * @param {string} [deviceData.device_type] - Device type (android/ios/web)
  * @param {string} [deviceData.device_name] - Device name
+ * @param {string} [deviceData.device_id] - Device ID
  * @returns {Promise<Object>} Registration confirmation
  */
 export const registerDevice = async (deviceData) => {
@@ -202,27 +265,24 @@ export const registerDevice = async (deviceData) => {
 
 /**
  * Unregister device
- * @param {string} fcmToken - FCM token to unregister
+ * Backend endpoint: POST /notifications/device/unregister/
+ * Backend expects: { token: string }
+ * @param {string} token - FCM token to unregister
  * @returns {Promise<Object>} Confirmation
  */
-export const unregisterDevice = async (fcmToken) => {
+export const unregisterDevice = async (token) => {
   const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.DEVICE, null, 'unregister');
-  const response = await api.post(endpoint, { fcm_token: fcmToken });
+  const response = await api.post(endpoint, { token });
   return response.data;
 };
 
 /**
- * Update device token
- * @param {string} oldToken - Old FCM token
- * @param {string} newToken - New FCM token
- * @returns {Promise<Object>} Confirmation
+ * List registered devices
+ * Backend endpoint: GET /notifications/devices/
+ * @returns {Promise<Object>} Device list
  */
-export const updateDeviceToken = async (oldToken, newToken) => {
-  const endpoint = buildEndpoint(NOTIFICATION_ENDPOINTS.DEVICE, null, 'update-token');
-  const response = await api.post(endpoint, {
-    old_token: oldToken,
-    new_token: newToken,
-  });
+export const listDevices = async () => {
+  const response = await api.get('/notifications/devices/');
   return response.data;
 };
 
@@ -233,6 +293,7 @@ export const updateDeviceToken = async (oldToken, newToken) => {
 export default {
   // Notifications
   getNotifications,
+  getAllNotifications,
   getNotificationById,
   markAsRead,
   markOneAsRead,
@@ -240,12 +301,15 @@ export default {
   getUnreadCount,
   deleteNotification,
   clearAllNotifications,
+  getNotificationStats,
+  sendTestNotification,
   // Preferences
   getPreferences,
   updatePreferences,
   toggleNotificationType,
+  updateQuietHours,
   // Device
   registerDevice,
   unregisterDevice,
-  updateDeviceToken,
+  listDevices,
 };

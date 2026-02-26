@@ -19,7 +19,7 @@ from drf_yasg import openapi
 
 from .models import (
     PatientProfile, DoctorProfile, AdminProfile,
-    FamilyHelper, DoctorAvailability, UserActivity
+    FamilyHelper, DoctorAvailability,DoctorLeave, UserActivity  # Added DoctorLeave
 )
 from .serializers import (
     # Token
@@ -32,6 +32,7 @@ from .serializers import (
     DoctorProfileSerializer, DoctorPublicSerializer,
     DoctorRegistrationSerializer, DoctorUpdateSerializer,
     DoctorAvailabilitySerializer, DoctorVerificationSerializer,
+    DoctorLeaveSerializer,  # Added DoctorLeaveSerializer
     # Helper
     FamilyHelperSerializer, AddFamilyHelperSerializer,
     # Admin
@@ -585,6 +586,93 @@ class DoctorAvailabilityView(APIView):
             return Response({
                 'success': False,
                 'message': 'Availability not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+
+# ============================================
+# DOCTOR LEAVE VIEWS
+# ============================================
+
+class DoctorLeaveListCreateView(APIView):
+    """
+    List and create doctor leaves.
+    """
+    permission_classes = [IsDoctor]
+    
+    @swagger_auto_schema(
+        operation_description="Get doctor's leave list",
+        tags=['Doctors']
+    )
+    def get(self, request):
+        doctor_profile = request.user.doctor_profile
+        leaves = DoctorLeave.objects.filter(doctor=doctor_profile).order_by('date')
+        
+        return Response({
+            'success': True,
+            'data': DoctorLeaveSerializer(leaves, many=True).data
+        })
+    
+    @swagger_auto_schema(
+        operation_description="Add a leave",
+        request_body=DoctorLeaveSerializer,
+        tags=['Doctors']
+    )
+    def post(self, request):
+        doctor_profile = request.user.doctor_profile
+        serializer = DoctorLeaveSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            # Check if leave already exists for this date
+            existing = DoctorLeave.objects.filter(
+                doctor=doctor_profile,
+                date=serializer.validated_data['date']
+            ).first()
+            
+            if existing:
+                return Response({
+                    'success': False,
+                    'message': 'Leave already exists for this date'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            leave = serializer.save(doctor=doctor_profile)
+            
+            return Response({
+                'success': True,
+                'message': 'Leave added successfully',
+                'data': DoctorLeaveSerializer(leave).data
+            }, status=status.HTTP_201_CREATED)
+        
+        return Response({
+            'success': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class DoctorLeaveDetailView(APIView):
+    """
+    Delete a doctor leave.
+    """
+    permission_classes = [IsDoctor]
+    
+    @swagger_auto_schema(
+        operation_description="Delete a leave",
+        tags=['Doctors']
+    )
+    def delete(self, request, pk):
+        doctor_profile = request.user.doctor_profile
+        
+        try:
+            leave = DoctorLeave.objects.get(pk=pk, doctor=doctor_profile)
+            leave.delete()
+            
+            return Response({
+                'success': True,
+                'message': 'Leave deleted'
+            })
+        except DoctorLeave.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Leave not found'
             }, status=status.HTTP_404_NOT_FOUND)
 
 

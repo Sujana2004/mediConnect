@@ -1,19 +1,18 @@
+// src/hooks/useVoice.js
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useVoiceStore from '../store/voiceStore';
 import useLanguageStore from '../store/languageStore';
 
-/**
- * Custom hook for voice features
- * - Speech Recognition (voice input)
- * - Speech Synthesis (text-to-speech)
- * - Voice Commands (navigation)
- */
 const useVoice = () => {
   const navigate = useNavigate();
   const recognitionRef = useRef(null);
   const synthesisRef = useRef(null);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // ── FIX: Track accumulated final transcript across
+  //    multiple recognition result events ──
+  const finalTranscriptRef = useRef('');
 
   const {
     voiceEnabled,
@@ -63,9 +62,9 @@ const useVoice = () => {
       'medicine': '/patient/medicines',
       'settings': '/patient/settings',
       'profile': '/patient/settings',
-      'check symptoms': '/patient/symptoms',
-      'symptoms': '/patient/symptoms',
-      'symptom checker': '/patient/symptoms',
+      'check symptoms': '/patient/symptom-checker',
+      'symptoms': '/patient/symptom-checker',
+      'symptom checker': '/patient/symptom-checker',
       'chat': '/patient/chatbot',
       'chatbot': '/patient/chatbot',
       'notifications': '/patient/notifications',
@@ -85,8 +84,8 @@ const useVoice = () => {
       'दवाइयां': '/patient/medicines',
       'दवा': '/patient/medicines',
       'सेटिंग्स': '/patient/settings',
-      'लक्षण': '/patient/symptoms',
-      'लक्षण जांचें': '/patient/symptoms',
+      'लक्षण': '/patient/symptom-checker',
+      'लक्षण जांचें': '/patient/symptom-checker',
       'चैट': '/patient/chatbot',
       'सूचनाएं': '/patient/notifications',
       'आपातकाल': '/patient/emergency',
@@ -103,7 +102,7 @@ const useVoice = () => {
       'రికార్డులు': '/patient/health-records',
       'మందులు': '/patient/medicines',
       'సెట్టింగ్‌లు': '/patient/settings',
-      'లక్షణాలు': '/patient/symptoms',
+      'లక్షణాలు': '/patient/symptom-checker',
       'చాట్': '/patient/chatbot',
       'నోటిఫికేషన్లు': '/patient/notifications',
       'అత్యవసరం': '/patient/emergency',
@@ -112,67 +111,102 @@ const useVoice = () => {
     }
   };
 
-  // Initialize speech recognition
+  // Process voice command
+  const processVoiceCommand = useCallback((command) => {
+    const commands = voiceCommands[currentLanguage] || voiceCommands.en;
+    for (const [phrase, action] of Object.entries(commands)) {
+      if (command.includes(phrase)) {
+        if (action === 'BACK') {
+          navigate(-1);
+        } else {
+          navigate(action);
+        }
+        return true;
+      }
+    }
+    return false;
+  }, [currentLanguage, navigate]);
+
+  // ═══════════════════════════════════════════════════════════
+  // FIX: Initialize speech recognition with continuous = true
+  // and proper transcript accumulation
+  // ═══════════════════════════════════════════════════════════
   const initializeSpeechRecognition = useCallback(() => {
     if (typeof window === 'undefined') return;
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    
+
     if (!SpeechRecognition) {
       setError('Speech recognition is not supported in this browser');
       return;
     }
 
     const recognition = new SpeechRecognition();
-    
-    recognition.continuous = false;
+
+    // ── FIX #1: Enable continuous mode so it doesn't stop
+    //    after the first pause in speech ──
+    recognition.continuous = true;
+
+    // ── FIX #2: Show interim results for real-time feedback ──
     recognition.interimResults = true;
+
     recognition.maxAlternatives = 1;
 
     // Set language
-    const langMap = {
-      'en': 'en-IN',
-      'hi': 'hi-IN',
-      'te': 'te-IN'
-    };
+    const langMap = { 'en': 'en-IN', 'hi': 'hi-IN', 'te': 'te-IN' };
     recognition.lang = langMap[currentLanguage] || 'en-IN';
 
     recognition.onstart = () => {
+      console.log('🎤 Recognition started');
       setIsListening(true);
       clearError();
+      // ── FIX #3: Clear accumulated transcript on fresh start ──
+      finalTranscriptRef.current = '';
       clearTranscript();
     };
 
+    // ═══════════════════════════════════════════════════════
+    // FIX #4: Properly accumulate results across multiple
+    // onresult events. The old code only used the latest
+    // event's transcript, losing all previous words.
+    // ═══════════════════════════════════════════════════════
     recognition.onresult = (event) => {
-      let finalTranscript = '';
-      let interimTranscript = '';
+      let sessionFinal = '';
+      let sessionInterim = '';
 
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript;
+      // Iterate through ALL results from the beginning,
+      // not just from event.resultIndex
+      for (let i = 0; i < event.results.length; i++) {
+        const result = event.results[i];
+        const text = result[0].transcript;
+
+        if (result.isFinal) {
+          sessionFinal += text;
         } else {
-          interimTranscript += transcript;
+          sessionInterim += text;
         }
       }
 
-      if (finalTranscript) {
-        setTranscript(finalTranscript);
-        setInterimTranscript('');
-        
-        // Process voice command if enabled
-        if (voiceCommandsEnabled) {
-          processVoiceCommand(finalTranscript.toLowerCase().trim());
-        }
-      } else {
-        setInterimTranscript(interimTranscript);
+      // Store accumulated final transcript
+      if (sessionFinal) {
+        finalTranscriptRef.current = sessionFinal;
       }
+
+      // Combine final + interim for display
+      const displayText = (finalTranscriptRef.current + ' ' + sessionInterim).trim();
+
+      // Update the store — this is what Chatbot.jsx reads
+      setTranscript(displayText);
+      setInterimTranscript(sessionInterim);
+
+      console.log('🎤 Final:', finalTranscriptRef.current);
+      console.log('🎤 Interim:', sessionInterim);
+      console.log('🎤 Display:', displayText);
     };
 
     recognition.onerror = (event) => {
       let errorMessage = 'Speech recognition error';
-      
+
       switch (event.error) {
         case 'no-speech':
           errorMessage = 'No speech detected. Please try again.';
@@ -186,39 +220,48 @@ const useVoice = () => {
         case 'network':
           errorMessage = 'Network error. Please check your connection.';
           break;
+        case 'aborted':
+          // User stopped — not an error
+          console.log('🎤 Recognition aborted by user');
+          return;
         default:
           errorMessage = `Error: ${event.error}`;
       }
-      
+
       setError(errorMessage);
       setIsListening(false);
     };
 
     recognition.onend = () => {
+      console.log('🎤 Recognition ended');
+
+      // ── FIX #5: Set final accumulated transcript on end
+      //    so Chatbot.jsx has the complete sentence ──
+      if (finalTranscriptRef.current.trim()) {
+        setTranscript(finalTranscriptRef.current.trim());
+      }
+      setInterimTranscript('');
       setIsListening(false);
+
+      // ── FIX #6: Process voice command only with
+      //    the complete final transcript ──
+      if (voiceCommandsEnabled && finalTranscriptRef.current.trim()) {
+        processVoiceCommand(finalTranscriptRef.current.toLowerCase().trim());
+      }
     };
 
     recognitionRef.current = recognition;
-  }, [currentLanguage, voiceCommandsEnabled, setIsListening, setTranscript, setInterimTranscript, setError, clearError, clearTranscript]);
-
-  // Process voice command
-  const processVoiceCommand = useCallback((command) => {
-    const commands = voiceCommands[currentLanguage] || voiceCommands.en;
-    
-    // Find matching command
-    for (const [phrase, action] of Object.entries(commands)) {
-      if (command.includes(phrase)) {
-        if (action === 'BACK') {
-          navigate(-1);
-        } else {
-          navigate(action);
-        }
-        return true;
-      }
-    }
-    
-    return false;
-  }, [currentLanguage, navigate]);
+  }, [
+    currentLanguage,
+    voiceCommandsEnabled,
+    setIsListening,
+    setTranscript,
+    setInterimTranscript,
+    setError,
+    clearError,
+    clearTranscript,
+    processVoiceCommand
+  ]);
 
   // Start listening
   const startListening = useCallback(() => {
@@ -227,40 +270,51 @@ const useVoice = () => {
       return;
     }
 
-    if (!recognitionRef.current) {
-      initializeSpeechRecognition();
-    }
+    // ── FIX: Always reinitialize to get fresh settings ──
+    initializeSpeechRecognition();
 
-    // Update language before starting
-    const langMap = {
-      'en': 'en-IN',
-      'hi': 'hi-IN',
-      'te': 'te-IN'
-    };
-    
-    if (recognitionRef.current) {
-      recognitionRef.current.lang = langMap[currentLanguage] || 'en-IN';
-      
-      try {
-        recognitionRef.current.start();
-      } catch (error) {
-        if (error.name === 'InvalidStateError') {
-          // Already listening
-          recognitionRef.current.stop();
-          setTimeout(() => {
-            recognitionRef.current?.start();
-          }, 100);
-        } else {
-          setError('Failed to start speech recognition');
+    // Small delay to ensure initialization completes
+    setTimeout(() => {
+      if (recognitionRef.current) {
+        // ── FIX: Clear previous accumulated transcript ──
+        finalTranscriptRef.current = '';
+
+        const langMap = { 'en': 'en-IN', 'hi': 'hi-IN', 'te': 'te-IN' };
+        recognitionRef.current.lang = langMap[currentLanguage] || 'en-IN';
+
+        try {
+          recognitionRef.current.start();
+          console.log('🎤 Started listening...');
+        } catch (error) {
+          if (error.name === 'InvalidStateError') {
+            recognitionRef.current.stop();
+            setTimeout(() => {
+              try {
+                finalTranscriptRef.current = '';
+                recognitionRef.current?.start();
+              } catch (e) {
+                console.error('🎤 Failed to restart:', e);
+                setError('Failed to start speech recognition');
+              }
+            }, 200);
+          } else {
+            console.error('🎤 Start error:', error);
+            setError('Failed to start speech recognition');
+          }
         }
       }
-    }
+    }, 50);
   }, [isSupported, currentLanguage, initializeSpeechRecognition, setError]);
 
   // Stop listening
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+        console.log('🎤 Stopped listening');
+      } catch (e) {
+        console.warn('🎤 Stop error (safe to ignore):', e);
+      }
     }
     setIsListening(false);
   }, [setIsListening]);
@@ -274,57 +328,94 @@ const useVoice = () => {
     }
   }, [isListening, startListening, stopListening]);
 
-  // Speak text (text-to-speech)
+  // ============================================
+  // SPEAK FUNCTION (unchanged — already fixed)
+  // ============================================
   const speak = useCallback((text, options = {}) => {
-    if (!isSupported || !text) return;
+    if (!isSupported || !text) {
+      console.warn('🔊 Speech not supported or empty text');
+      return;
+    }
 
-    // Stop any current speech
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      console.warn('🔊 Speech synthesis not available');
+      return;
+    }
+
+    console.log('🔊 speak() called:', text.substring(0, 50) + '...');
+
+    const cleanText = text
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
+      .replace(/#/g, '')
+      .replace(/`/g, '')
+      .replace(/_/g, '')
+      .replace(/~~/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\n+/g, '. ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!cleanText) {
+      console.warn('🔊 No text after cleaning');
+      return;
+    }
+
     if (window.speechSynthesis.speaking) {
+      console.log('🔊 Canceling previous speech');
       window.speechSynthesis.cancel();
     }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Get appropriate voice
-    const voice = getVoiceForLanguage(options.lang || currentLanguage);
-    if (voice) {
-      utterance.voice = voice;
-    }
+    setTimeout(() => {
+      try {
+        const utterance = new SpeechSynthesisUtterance(cleanText);
 
-    // Set language
-    const langMap = {
-      'en': 'en-IN',
-      'hi': 'hi-IN',
-      'te': 'te-IN'
-    };
-    utterance.lang = langMap[options.lang || currentLanguage] || 'en-IN';
+        const langMap = { 'en': 'en-IN', 'hi': 'hi-IN', 'te': 'te-IN' };
+        const targetLang = options.lang || currentLanguage;
+        utterance.lang = langMap[targetLang] || 'en-IN';
 
-    // Set speech properties
-    utterance.rate = options.rate || speechRate;
-    utterance.pitch = options.pitch || speechPitch;
-    utterance.volume = options.volume || speechVolume;
+        const voice = getVoiceForLanguage(targetLang);
+        if (voice) {
+          utterance.voice = voice;
+          console.log('🔊 Using voice:', voice.name);
+        }
 
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-    };
+        utterance.rate = options.rate || speechRate || 1;
+        utterance.pitch = options.pitch || speechPitch || 1;
+        utterance.volume = options.volume || speechVolume || 1;
 
-    utterance.onend = () => {
-      setIsSpeaking(false);
-    };
+        utterance.onstart = () => {
+          console.log('🔊 Speech started');
+          setIsSpeaking(true);
+        };
 
-    utterance.onerror = (event) => {
-      setIsSpeaking(false);
-      if (event.error !== 'canceled') {
+        utterance.onend = () => {
+          console.log('🔊 Speech ended');
+          setIsSpeaking(false);
+        };
+
+        utterance.onerror = (event) => {
+          console.error('🔊 Speech error:', event.error);
+          setIsSpeaking(false);
+          if (event.error !== 'canceled') {
+            setError('Failed to speak text');
+          }
+        };
+
+        window.speechSynthesis.speak(utterance);
+        console.log('🔊 Utterance queued');
+
+      } catch (err) {
+        console.error('🔊 Error in speak:', err);
         setError('Failed to speak text');
       }
-    };
+    }, 150);
 
-    window.speechSynthesis.speak(utterance);
   }, [isSupported, currentLanguage, speechRate, speechPitch, speechVolume, getVoiceForLanguage, setIsSpeaking, setError]);
 
   // Stop speaking
   const stopSpeaking = useCallback(() => {
-    if (window.speechSynthesis.speaking) {
+    if (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.speaking) {
       window.speechSynthesis.cancel();
     }
     setIsSpeaking(false);
@@ -333,7 +424,6 @@ const useVoice = () => {
   // Read page content aloud
   const readPageContent = useCallback((selector = 'main') => {
     const element = document.querySelector(selector);
-    
     if (element) {
       const text = element.innerText || element.textContent;
       speak(text);
@@ -350,9 +440,9 @@ const useVoice = () => {
 
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try { recognitionRef.current.stop(); } catch (e) { /* safe */ }
       }
-      if (window.speechSynthesis.speaking) {
+      if (typeof window !== 'undefined' && window.speechSynthesis?.speaking) {
         window.speechSynthesis.cancel();
       }
     };
@@ -366,7 +456,6 @@ const useVoice = () => {
   }, [currentLanguage, isListening, initializeSpeechRecognition]);
 
   return {
-    // State
     isSupported,
     isInitialized,
     isListening,
@@ -375,31 +464,21 @@ const useVoice = () => {
     interimTranscript,
     error,
     availableVoices,
-    
-    // Settings
     voiceEnabled,
     voiceCommandsEnabled,
     textToSpeechEnabled,
     speechRate,
-    
-    // Speech Recognition Actions
     startListening,
     stopListening,
     toggleListening,
     clearTranscript,
-    
-    // Text-to-Speech Actions
     speak,
     stopSpeaking,
     readPageContent,
-    
-    // Settings Actions
     setVoiceEnabled,
     setVoiceCommandsEnabled,
     setTextToSpeechEnabled,
     setSpeechRate,
-    
-    // Utilities
     clearError,
     processVoiceCommand
   };

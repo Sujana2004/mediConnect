@@ -54,7 +54,7 @@ urlpatterns = [
     # Get available slots for a doctor on a specific date
     # GET /api/v1/appointments/available-slots/<doctor_id>/?date=2025-01-15
     path(
-        'available-slots/<uuid:doctor_id>/',
+        'available-slots/<str:doctor_id>/',
         AvailableSlotsView.as_view(),
         name='available-slots'
     ),
@@ -86,7 +86,7 @@ urlpatterns = [
     # Get doctor availability for date range
     # GET /api/v1/appointments/availability/<doctor_id>/?start_date=2025-01-15&days=30
     path(
-        'availability/<uuid:doctor_id>/',
+        'availability/<str:doctor_id>/',
         DoctorAvailabilityView.as_view(),
         name='doctor-availability'
     ),

@@ -97,49 +97,49 @@ const VITAL_TYPES = {
     label: 'Blood Pressure',
     icon: Heart,
     unit: 'mmHg',
-    color: 'text-red-600 bg-red-100',
+    color: 'text-red-500 bg-red-50',
     normalRange: '90/60 - 120/80'
   },
   heart_rate: {
     label: 'Heart Rate',
     icon: Activity,
     unit: 'bpm',
-    color: 'text-pink-600 bg-pink-100',
+    color: 'text-pink-500 bg-pink-50',
     normalRange: '60 - 100'
   },
   temperature: {
     label: 'Temperature',
     icon: Thermometer,
     unit: '°F',
-    color: 'text-orange-600 bg-orange-100',
+    color: 'text-orange-500 bg-orange-50',
     normalRange: '97.8 - 99.1'
   },
   oxygen_saturation: {
     label: 'Oxygen Saturation',
     icon: Wind,
     unit: '%',
-    color: 'text-blue-600 bg-blue-100',
+    color: 'text-blue-500 bg-blue-50',
     normalRange: '95 - 100'
   },
   blood_sugar: {
     label: 'Blood Sugar',
     icon: Droplet,
     unit: 'mg/dL',
-    color: 'text-purple-600 bg-purple-100',
+    color: 'text-purple-500 bg-purple-50',
     normalRange: '70 - 100 (fasting)'
   },
   weight: {
     label: 'Weight',
     icon: Scale,
     unit: 'kg',
-    color: 'text-green-600 bg-green-100',
+    color: 'text-emerald-500 bg-emerald-50',
     normalRange: 'BMI 18.5 - 24.9'
   },
   height: {
     label: 'Height',
     icon: Ruler,
     unit: 'cm',
-    color: 'text-indigo-600 bg-indigo-100',
+    color: 'text-indigo-500 bg-indigo-50',
     normalRange: '-'
   }
 };
@@ -154,17 +154,16 @@ const DOCUMENT_CATEGORIES = [
 ];
 
 const CONDITION_SEVERITY = {
-  mild: { color: 'bg-green-100 text-green-700', label: 'Mild' },
-  moderate: { color: 'bg-yellow-100 text-yellow-700', label: 'Moderate' },
-  severe: { color: 'bg-red-100 text-red-700', label: 'Severe' },
-  chronic: { color: 'bg-purple-100 text-purple-700', label: 'Chronic' }
+  mild: { color: 'bg-emerald-50 text-emerald-700 border border-emerald-200/50', label: 'Mild' },
+  moderate: { color: 'bg-amber-50 text-amber-700 border border-amber-200/50', label: 'Moderate' },
+  severe: { color: 'bg-red-50 text-red-700 border border-red-200/50', label: 'Severe' },
+  chronic: { color: 'bg-violet-50 text-violet-700 border border-violet-200/50', label: 'Chronic' }
 };
 
 // ============================================================================
 // SUB-COMPONENTS
 // ============================================================================
 
-// Health Summary Card
 const HealthSummaryCard = ({ profile, latestVitals }) => {
   const { t } = useTranslation();
 
@@ -180,82 +179,87 @@ const HealthSummaryCard = ({ profile, latestVitals }) => {
     if (!bmi) return null;
     const val = parseFloat(bmi);
     if (val < 18.5) return { label: 'Underweight', color: 'text-blue-600' };
-    if (val < 25) return { label: 'Normal', color: 'text-green-600' };
-    if (val < 30) return { label: 'Overweight', color: 'text-yellow-600' };
+    if (val < 25) return { label: 'Normal', color: 'text-emerald-600' };
+    if (val < 30) return { label: 'Overweight', color: 'text-amber-600' };
     return { label: 'Obese', color: 'text-red-600' };
   }, [bmi]);
 
   return (
-    <Card className="bg-gradient-to-br from-primary-50 to-blue-50">
-      <div className="flex items-start justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Clipboard className="w-5 h-5 text-primary-600" />
-          {t('healthRecords.healthSummary', 'Health Summary')}
-        </h3>
-        <Badge variant="success">
-          <CheckCircle className="w-3 h-3 mr-1" />
-          {t('healthRecords.upToDate', 'Up to date')}
-        </Badge>
-      </div>
+    <div className="bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 rounded-3xl p-5 relative overflow-hidden">
+      {/* Decorative */}
+      <div className="absolute -top-8 -right-8 w-36 h-36 rounded-full bg-white/[0.07]" />
+      <div className="absolute bottom-4 -left-6 w-24 h-24 rounded-full bg-white/[0.05]" />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white/70 rounded-xl p-3 text-center">
-          <Droplet className="w-6 h-6 text-red-500 mx-auto mb-1" />
-          <p className="text-2xl font-bold text-gray-900">
-            {profile?.blood_group || '-'}
-          </p>
-          <p className="text-xs text-gray-500">{t('healthRecords.bloodType', 'Blood Type')}</p>
+      <div className="relative z-10">
+        <div className="flex items-start justify-between mb-5">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Clipboard className="w-5 h-5 text-violet-200" />
+            {t('healthRecords.healthSummary', 'Health Summary')}
+          </h3>
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2.5 py-1 rounded-full uppercase tracking-wider">
+            <CheckCircle className="w-3 h-3" />
+            {t('healthRecords.upToDate', 'Up to date')}
+          </span>
         </div>
 
-        <div className="bg-white/70 rounded-xl p-3 text-center">
-          <Calendar className="w-6 h-6 text-blue-500 mx-auto mb-1" />
-          <p className="text-2xl font-bold text-gray-900">
-            {profile?.age || '-'}
-          </p>
-          <p className="text-xs text-gray-500">{t('common.years', 'Years')}</p>
-        </div>
-
-        <div className="bg-white/70 rounded-xl p-3 text-center">
-          <Scale className="w-6 h-6 text-green-500 mx-auto mb-1" />
-          <p className={`text-2xl font-bold ${bmiStatus?.color || 'text-gray-900'}`}>
-            {bmi || '-'}
-          </p>
-          <p className="text-xs text-gray-500">
-            BMI {bmiStatus && `(${bmiStatus.label})`}
-          </p>
-        </div>
-
-        <div className="bg-white/70 rounded-xl p-3 text-center">
-          <Stethoscope className="w-6 h-6 text-purple-500 mx-auto mb-1" />
-          <p className="text-lg font-bold text-gray-900">
-            {profile?.last_checkup
-              ? formatDate(profile.last_checkup, 'MMM d')
-              : '-'}
-          </p>
-          <p className="text-xs text-gray-500">{t('healthRecords.lastCheckup', 'Last Checkup')}</p>
-        </div>
-      </div>
-
-      {profile?.allergies?.length > 0 && (
-        <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-xl">
-          <div className="flex items-center gap-2 text-red-700 mb-2">
-            <AlertTriangle className="w-4 h-4" />
-            <span className="font-medium text-sm">{t('common.allergies', 'Allergies')}</span>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-3.5 text-center border border-white/10">
+            <Droplet className="w-5 h-5 text-red-300 mx-auto mb-1.5" />
+            <p className="text-2xl font-extrabold text-white">
+              {profile?.blood_group || '-'}
+            </p>
+            <p className="text-[10px] text-violet-200 font-medium mt-0.5">{t('healthRecords.bloodType', 'Blood Type')}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {profile.allergies.map((allergy, index) => (
-              <Badge key={index} variant="danger" size="sm">
-                {typeof allergy === 'string' ? allergy : allergy.name}
-              </Badge>
-            ))}
+
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-3.5 text-center border border-white/10">
+            <Calendar className="w-5 h-5 text-blue-300 mx-auto mb-1.5" />
+            <p className="text-2xl font-extrabold text-white">
+              {profile?.age || '-'}
+            </p>
+            <p className="text-[10px] text-violet-200 font-medium mt-0.5">{t('common.years', 'Years')}</p>
+          </div>
+
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-3.5 text-center border border-white/10">
+            <Scale className="w-5 h-5 text-emerald-300 mx-auto mb-1.5" />
+            <p className="text-2xl font-extrabold text-white">
+              {bmi || '-'}
+            </p>
+            <p className="text-[10px] text-violet-200 font-medium mt-0.5">
+              BMI {bmiStatus && <span className={`text-emerald-300`}>({bmiStatus.label})</span>}
+            </p>
+          </div>
+
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-3.5 text-center border border-white/10">
+            <Stethoscope className="w-5 h-5 text-purple-300 mx-auto mb-1.5" />
+            <p className="text-lg font-extrabold text-white">
+              {profile?.last_checkup
+                ? formatDate(profile.last_checkup, 'MMM d')
+                : '-'}
+            </p>
+            <p className="text-[10px] text-violet-200 font-medium mt-0.5">{t('healthRecords.lastCheckup', 'Last Checkup')}</p>
           </div>
         </div>
-      )}
-    </Card>
+
+        {profile?.allergies?.length > 0 && (
+          <div className="mt-4 p-3 bg-red-500/20 border border-red-400/20 rounded-2xl">
+            <div className="flex items-center gap-2 text-red-200 mb-2">
+              <AlertTriangle className="w-4 h-4" />
+              <span className="font-semibold text-xs">{t('common.allergies', 'Allergies')}</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {profile.allergies.map((allergy, index) => (
+                <span key={index} className="text-xs font-semibold text-red-100 bg-red-500/30 px-2.5 py-1 rounded-lg">
+                  {typeof allergy === 'string' ? allergy : allergy.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
-// Vitals Section
 const VitalsSection = ({ vitals, latestVitals, onAddVital, onViewHistory }) => {
   const { t } = useTranslation();
   const [expandedVital, setExpandedVital] = useState(null);
@@ -287,15 +291,17 @@ const VitalsSection = ({ vitals, latestVitals, onAddVital, onViewHistory }) => {
     switch (status) {
       case 'high': return 'text-red-600';
       case 'low': return 'text-blue-600';
-      default: return 'text-green-600';
+      default: return 'text-emerald-600';
     }
   }, []);
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-primary-600" />
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center">
+            <Activity className="w-[18px] h-[18px] text-violet-600" />
+          </div>
           {t('healthRecords.vitals', 'Vitals')}
         </h3>
         <div className="flex items-center gap-2">
@@ -305,8 +311,9 @@ const VitalsSection = ({ vitals, latestVitals, onAddVital, onViewHistory }) => {
               size="sm"
               leftIcon={<BarChart3 className="w-4 h-4" />}
               onClick={onViewHistory}
+              className="!rounded-xl !text-xs !border-violet-200 !text-violet-600 hover:!bg-violet-50"
             >
-              {t('healthRecords.viewTrends', 'View Trends')}
+              {t('healthRecords.viewTrends', 'Trends')}
             </Button>
           )}
           <Button
@@ -314,13 +321,14 @@ const VitalsSection = ({ vitals, latestVitals, onAddVital, onViewHistory }) => {
             size="sm"
             leftIcon={<Plus className="w-4 h-4" />}
             onClick={onAddVital}
+            className="!rounded-xl !text-xs !bg-violet-600 hover:!bg-violet-700"
           >
-            {t('healthRecords.addVital', 'Add Vital')}
+            {t('healthRecords.addVital', 'Add')}
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {Object.entries(VITAL_TYPES).map(([key, config]) => {
           const Icon = config.icon;
           const value = latestVitals?.[key];
@@ -331,38 +339,35 @@ const VitalsSection = ({ vitals, latestVitals, onAddVital, onViewHistory }) => {
             <button
               key={key}
               onClick={() => setExpandedVital(expandedVital === key ? null : key)}
-              className={`p-4 rounded-xl border-2 transition-all text-left ${
+              className={`p-3.5 rounded-2xl border-2 transition-all duration-200 text-left group ${
                 expandedVital === key
-                  ? 'border-primary-500 bg-primary-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-violet-500 bg-violet-50/50 shadow-sm shadow-violet-100'
+                  : 'border-gray-100 hover:border-violet-200 hover:bg-violet-50/20'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <div className={`p-2 rounded-lg ${config.color}`}>
+                <div className={`p-2 rounded-xl ${config.color}`}>
                   <Icon className="w-4 h-4" />
                 </div>
                 {value && status !== 'normal' && (
-                  <Badge
-                    variant={status === 'high' ? 'danger' : 'primary'}
-                    size="sm"
-                  >
+                  <span className={`w-6 h-6 rounded-lg flex items-center justify-center ${status === 'high' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>
                     {status === 'high' ? (
-                      <TrendingUp className="w-3 h-3" />
+                      <TrendingUp className="w-3.5 h-3.5" />
                     ) : (
-                      <TrendingDown className="w-3 h-3" />
+                      <TrendingDown className="w-3.5 h-3.5" />
                     )}
-                  </Badge>
+                  </span>
                 )}
               </div>
-              <p className={`text-xl font-bold ${value ? statusColor : 'text-gray-400'}`}>
+              <p className={`text-xl font-extrabold ${value ? statusColor : 'text-gray-300'}`}>
                 {value || '-'}
-                <span className="text-sm font-normal text-gray-500 ml-1">
+                <span className="text-[10px] font-medium text-gray-400 ml-1">
                   {config.unit}
                 </span>
               </p>
-              <p className="text-sm text-gray-600 mt-1">{config.label}</p>
+              <p className="text-xs text-gray-500 font-medium mt-1">{config.label}</p>
               {latestVitals?.[`${key}_date`] && (
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-[10px] text-gray-400 mt-1">
                   {formatDate(latestVitals[`${key}_date`], 'MMM d, h:mm a')}
                 </p>
               )}
@@ -372,37 +377,38 @@ const VitalsSection = ({ vitals, latestVitals, onAddVital, onViewHistory }) => {
       </div>
 
       {expandedVital && (
-        <div className="mt-4 p-4 bg-gray-50 rounded-xl">
+        <div className="mt-4 p-4 bg-violet-50/50 rounded-2xl border border-violet-100/50">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="font-medium text-gray-900">
+            <h4 className="font-bold text-gray-900 text-sm">
               {VITAL_TYPES[expandedVital].label} {t('healthRecords.history', 'History')}
             </h4>
-            <Button variant="ghost" size="sm" onClick={() => setExpandedVital(null)}>
+            <Button variant="ghost" size="sm" onClick={() => setExpandedVital(null)} className="!rounded-xl">
               <X className="w-4 h-4" />
             </Button>
           </div>
           <div className="text-sm text-gray-500">
-            <p>{t('healthRecords.normalRange', 'Normal Range')}: {VITAL_TYPES[expandedVital].normalRange}</p>
-            <div className="h-32 bg-white rounded-lg mt-3 flex items-center justify-center text-gray-400">
-              <LineChart className="w-8 h-8 mr-2" />
-              {t('healthRecords.trendChart', 'Trend Chart')}
+            <p className="text-xs font-medium">{t('healthRecords.normalRange', 'Normal Range')}: {VITAL_TYPES[expandedVital].normalRange}</p>
+            <div className="h-32 bg-white rounded-2xl mt-3 flex items-center justify-center text-gray-300 border border-gray-100">
+              <LineChart className="w-6 h-6 mr-2" />
+              <span className="text-xs font-medium">{t('healthRecords.trendChart', 'Trend Chart')}</span>
             </div>
           </div>
         </div>
       )}
-    </Card>
+    </div>
   );
 };
 
-// Medical Conditions Section
 const ConditionsSection = ({ conditions, onAdd, onEdit, onDelete }) => {
   const { t } = useTranslation();
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Stethoscope className="w-5 h-5 text-primary-600" />
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl bg-pink-50 flex items-center justify-center">
+            <Stethoscope className="w-[18px] h-[18px] text-pink-600" />
+          </div>
           {t('healthRecords.medicalConditions', 'Medical Conditions')}
         </h3>
         <Button
@@ -410,86 +416,90 @@ const ConditionsSection = ({ conditions, onAdd, onEdit, onDelete }) => {
           size="sm"
           leftIcon={<Plus className="w-4 h-4" />}
           onClick={onAdd}
+          className="!rounded-xl !text-xs !border-violet-200 !text-violet-600 hover:!bg-violet-50"
         >
           {t('common.add', 'Add')}
         </Button>
       </div>
 
       {conditions?.length > 0 ? (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {conditions.map((condition, index) => {
             const severityConfig = CONDITION_SEVERITY[condition.severity] || CONDITION_SEVERITY.moderate;
 
             return (
               <div
                 key={condition.id || index}
-                className="flex items-start justify-between p-4 bg-gray-50 rounded-xl"
+                className="flex items-start justify-between p-3.5 bg-gray-50 rounded-2xl hover:bg-gray-100/50 transition-colors group"
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-medium text-gray-900">{condition.name}</h4>
-                    <Badge variant="secondary" size="sm" className={severityConfig.color}>
+                    <h4 className="font-semibold text-gray-900 text-sm">{condition.name}</h4>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${severityConfig.color}`}>
                       {severityConfig.label}
-                    </Badge>
+                    </span>
                     {condition.is_active && (
-                      <Badge variant="primary" size="sm">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-violet-50 text-violet-700 border border-violet-200/50">
                         {t('common.active', 'Active')}
-                      </Badge>
+                      </span>
                     )}
                   </div>
                   {condition.diagnosed_date && (
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-xs text-gray-400 mt-1">
                       {t('healthRecords.diagnosed', 'Diagnosed')}: {formatDate(condition.diagnosed_date, 'MMMM yyyy')}
                     </p>
                   )}
                   {condition.notes && (
-                    <p className="text-sm text-gray-600 mt-2">{condition.notes}</p>
+                    <p className="text-xs text-gray-500 mt-1.5">{condition.notes}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
                     onClick={() => onEdit(condition)}
+                    className="p-2 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-xl transition-colors"
                     aria-label={t('common.edit', 'Edit')}
                   >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                    <Edit className="w-3.5 h-3.5" />
+                  </button>
+                  <button
                     onClick={() => onDelete(condition)}
-                    className="text-red-500 hover:text-red-600"
+                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
                     aria-label={t('common.delete', 'Delete')}
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             );
           })}
         </div>
       ) : (
-        <EmptyState
-          icon={CheckCircle}
-          title={t('healthRecords.noConditions', 'No conditions recorded')}
-          description={t('healthRecords.noConditionsDesc', 'Add your medical conditions for better health tracking')}
-          compact
-        />
+        <div className="text-center py-8">
+          <div className="w-12 h-12 bg-violet-50 rounded-2xl flex items-center justify-center mx-auto mb-2.5">
+            <CheckCircle className="w-5 h-5 text-violet-400" />
+          </div>
+          <p className="text-sm text-gray-500 font-medium">
+            {t('healthRecords.noConditions', 'No conditions recorded')}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {t('healthRecords.noConditionsDesc', 'Add your medical conditions for better health tracking')}
+          </p>
+        </div>
       )}
-    </Card>
+    </div>
   );
 };
 
-// Allergies Section
 const AllergiesSection = ({ allergies, onAdd, onDelete }) => {
   const { t } = useTranslation();
 
   return (
-    <Card>
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5 text-red-500" />
+        <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center">
+            <AlertTriangle className="w-[18px] h-[18px] text-red-500" />
+          </div>
           {t('common.allergies', 'Allergies')}
         </h3>
         <Button
@@ -497,6 +507,7 @@ const AllergiesSection = ({ allergies, onAdd, onDelete }) => {
           size="sm"
           leftIcon={<Plus className="w-4 h-4" />}
           onClick={onAdd}
+          className="!rounded-xl !text-xs !border-violet-200 !text-violet-600 hover:!bg-violet-50"
         >
           {t('common.add', 'Add')}
         </Button>
@@ -509,30 +520,29 @@ const AllergiesSection = ({ allergies, onAdd, onDelete }) => {
             return (
               <div
                 key={allergy.id || index}
-                className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-100 rounded-full"
+                className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-100/50 rounded-xl group hover:bg-red-100/50 transition-colors"
               >
-                <span className="text-red-700 font-medium">{name}</span>
+                <span className="text-red-700 font-semibold text-xs">{name}</span>
                 <button
                   onClick={() => onDelete(allergy)}
-                  className="text-red-400 hover:text-red-600"
+                  className="text-red-300 hover:text-red-600 transition-colors"
                   aria-label={t('common.remove', 'Remove')}
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             );
           })}
         </div>
       ) : (
-        <p className="text-gray-500 text-sm">
+        <p className="text-gray-400 text-xs font-medium py-4 text-center">
           {t('healthRecords.noAllergies', 'No allergies recorded')}
         </p>
       )}
-    </Card>
+    </div>
   );
 };
 
-// Documents Section
 const DocumentsSection = ({
   documents,
   onUpload,
@@ -569,10 +579,12 @@ const DocumentsSection = ({
   }, []);
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Folder className="w-5 h-5 text-primary-600" />
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center">
+            <Folder className="w-[18px] h-[18px] text-indigo-600" />
+          </div>
           {t('healthRecords.documents', 'Documents')}
         </h3>
         <Button
@@ -580,6 +592,7 @@ const DocumentsSection = ({
           size="sm"
           leftIcon={<Upload className="w-4 h-4" />}
           onClick={onUpload}
+          className="!rounded-xl !text-xs !bg-violet-600 hover:!bg-violet-700"
         >
           {t('healthRecords.uploadDocument', 'Upload')}
         </Button>
@@ -593,13 +606,13 @@ const DocumentsSection = ({
           placeholder={t('healthRecords.searchDocuments', 'Search documents...')}
           className="flex-1"
         />
-        <div className="flex gap-2 overflow-x-auto pb-2">
+        <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide">
           <button
             onClick={() => setSelectedCategory('all')}
-            className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
               selectedCategory === 'all'
-                ? 'bg-primary-100 text-primary-700'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-violet-600 text-white shadow-sm shadow-violet-200'
+                : 'bg-violet-50 text-violet-600 hover:bg-violet-100 border border-violet-100'
             }`}
           >
             {t('common.all', 'All')}
@@ -608,10 +621,10 @@ const DocumentsSection = ({
             <button
               key={cat.value}
               onClick={() => setSelectedCategory(cat.value)}
-              className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
                 selectedCategory === cat.value
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'bg-violet-600 text-white shadow-sm shadow-violet-200'
+                  : 'bg-violet-50 text-violet-600 hover:bg-violet-100 border border-violet-100'
               }`}
             >
               {cat.label}
@@ -622,7 +635,7 @@ const DocumentsSection = ({
 
       {/* Documents Grid */}
       {filteredDocuments.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filteredDocuments.map((doc) => {
             const DocIcon = getDocIcon(doc.file_type);
             const category = DOCUMENT_CATEGORIES.find(c => c.value === doc.document_type);
@@ -631,56 +644,52 @@ const DocumentsSection = ({
             return (
               <div
                 key={doc.id}
-                className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow"
+                className="border border-gray-100 rounded-2xl p-4 hover:shadow-lg hover:shadow-violet-100/40 transition-all duration-300 group"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-100 rounded-lg">
-                      <DocIcon className="w-6 h-6 text-gray-600" />
+                    <div className="p-2.5 bg-violet-50 rounded-xl group-hover:bg-violet-100 transition-colors">
+                      <DocIcon className="w-5 h-5 text-violet-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-gray-900 truncate">
+                      <h4 className="font-semibold text-gray-900 truncate text-sm">
                         {doc.title}
                       </h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="secondary" size="sm">
-                          <CategoryIcon className="w-3 h-3 mr-1" />
-                          {category?.label || 'Other'}
-                        </Badge>
-                      </div>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-md mt-1">
+                        <CategoryIcon className="w-3 h-3" />
+                        {category?.label || 'Other'}
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 {doc.description && (
-                  <p className="text-sm text-gray-500 mt-2 line-clamp-2">
+                  <p className="text-xs text-gray-400 mt-2.5 line-clamp-2">
                     {doc.description}
                   </p>
                 )}
 
-                <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-                  <span className="text-xs text-gray-400">
+                <div className="flex items-center justify-between mt-3.5 pt-3 border-t border-gray-50">
+                  <span className="text-[10px] text-gray-400 font-medium">
                     {formatDate(doc.created_at || doc.document_date, 'MMM d, yyyy')}
                   </span>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => onView(doc)} aria-label={t('common.view', 'View')}>
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => onDownload(doc)} aria-label={t('common.download', 'Download')}>
-                      <Download className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => onShare(doc)} aria-label={t('common.share', 'Share')}>
-                      <Share2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                  <div className="flex items-center gap-0.5">
+                    <button onClick={() => onView(doc)} className="p-1.5 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors" aria-label={t('common.view', 'View')}>
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => onDownload(doc)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" aria-label={t('common.download', 'Download')}>
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => onShare(doc)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" aria-label={t('common.share', 'Share')}>
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
                       onClick={() => onDelete(doc)}
-                      className="text-red-500 hover:text-red-600"
+                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                       aria-label={t('common.delete', 'Delete')}
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -688,35 +697,40 @@ const DocumentsSection = ({
           })}
         </div>
       ) : (
-        <EmptyState
-          icon={FolderOpen}
-          title={t('healthRecords.noDocuments', 'No documents yet')}
-          description={t('healthRecords.noDocumentsDesc', 'Upload your medical documents to keep them organized')}
-          action={
-            <Button
-              variant="outline"
-              leftIcon={<Upload className="w-4 h-4" />}
-              onClick={onUpload}
-            >
-              {t('healthRecords.uploadFirst', 'Upload First Document')}
-            </Button>
-          }
-          compact
-        />
+        <div className="text-center py-10">
+          <div className="w-14 h-14 bg-violet-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <FolderOpen className="w-7 h-7 text-violet-300" />
+          </div>
+          <p className="text-sm text-gray-500 font-medium">
+            {t('healthRecords.noDocuments', 'No documents yet')}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5 mb-4">
+            {t('healthRecords.noDocumentsDesc', 'Upload your medical documents to keep them organized')}
+          </p>
+          <Button
+            variant="outline"
+            leftIcon={<Upload className="w-4 h-4" />}
+            onClick={onUpload}
+            className="!rounded-xl !border-violet-200 !text-violet-600 hover:!bg-violet-50 !text-xs"
+          >
+            {t('healthRecords.uploadFirst', 'Upload First Document')}
+          </Button>
+        </div>
       )}
-    </Card>
+    </div>
   );
 };
 
-// Lab Reports Section
 const LabReportsSection = ({ reports, onView, onUpload }) => {
   const { t } = useTranslation();
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <TestTube className="w-5 h-5 text-primary-600" />
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">
+            <TestTube className="w-[18px] h-[18px] text-purple-600" />
+          </div>
           {t('healthRecords.labReports', 'Lab Reports')}
         </h3>
         <Button
@@ -724,63 +738,70 @@ const LabReportsSection = ({ reports, onView, onUpload }) => {
           size="sm"
           leftIcon={<Plus className="w-4 h-4" />}
           onClick={onUpload}
+          className="!rounded-xl !text-xs !border-violet-200 !text-violet-600 hover:!bg-violet-50"
         >
           {t('common.add', 'Add')}
         </Button>
       </div>
 
       {reports?.length > 0 ? (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {reports.map((report) => (
             <button
               key={report.id}
               onClick={() => onView(report)}
-              className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-left"
+              className="w-full flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl hover:bg-violet-50/30 transition-all duration-200 text-left group"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 rounded-lg">
+                <div className="p-2.5 bg-purple-50 rounded-xl group-hover:bg-purple-100 transition-colors">
                   <Microscope className="w-5 h-5 text-purple-600" />
                 </div>
                 <div>
-                  <h4 className="font-medium text-gray-900">{report.name}</h4>
-                  <p className="text-sm text-gray-500">
-                    {report.lab_name} • {formatDate(report.date, 'MMM d, yyyy')}
+                  <h4 className="font-semibold text-gray-900 text-sm">{report.name}</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {report.lab_name} · {formatDate(report.date, 'MMM d, yyyy')}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 {report.has_abnormal && (
-                  <Badge variant="warning" size="sm">
-                    <AlertCircle className="w-3 h-3 mr-1" />
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200/50">
+                    <AlertCircle className="w-3 h-3" />
                     {t('healthRecords.review', 'Review')}
-                  </Badge>
+                  </span>
                 )}
-                <ChevronRight className="w-5 h-5 text-gray-400" />
+                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-violet-500 transition-colors" />
               </div>
             </button>
           ))}
         </div>
       ) : (
-        <EmptyState
-          icon={TestTube}
-          title={t('healthRecords.noLabReports', 'No lab reports')}
-          description={t('healthRecords.noLabReportsDesc', 'Upload your lab reports to track results')}
-          compact
-        />
+        <div className="text-center py-8">
+          <div className="w-12 h-12 bg-violet-50 rounded-2xl flex items-center justify-center mx-auto mb-2.5">
+            <TestTube className="w-5 h-5 text-violet-400" />
+          </div>
+          <p className="text-sm text-gray-500 font-medium">
+            {t('healthRecords.noLabReports', 'No lab reports')}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {t('healthRecords.noLabReportsDesc', 'Upload your lab reports to track results')}
+          </p>
+        </div>
       )}
-    </Card>
+    </div>
   );
 };
 
-// Vaccinations Section
 const VaccinationsSection = ({ vaccinations, onAdd }) => {
   const { t } = useTranslation();
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Syringe className="w-5 h-5 text-primary-600" />
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
+            <Syringe className="w-[18px] h-[18px] text-emerald-600" />
+          </div>
           {t('healthRecords.vaccinations', 'Vaccinations')}
         </h3>
         <Button
@@ -788,59 +809,66 @@ const VaccinationsSection = ({ vaccinations, onAdd }) => {
           size="sm"
           leftIcon={<Plus className="w-4 h-4" />}
           onClick={onAdd}
+          className="!rounded-xl !text-xs !border-violet-200 !text-violet-600 hover:!bg-violet-50"
         >
           {t('common.add', 'Add')}
         </Button>
       </div>
 
       {vaccinations?.length > 0 ? (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {vaccinations.map((vax, index) => (
             <div
               key={vax.id || index}
-              className="flex items-center justify-between p-3 bg-green-50 rounded-xl"
+              className="flex items-center justify-between p-3 bg-emerald-50/50 rounded-2xl border border-emerald-100/50"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-full">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
+                <div className="w-8 h-8 bg-emerald-100 rounded-xl flex items-center justify-center">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
                 </div>
                 <div>
-                  <h4 className="font-medium text-gray-900">{vax.name}</h4>
-                  <p className="text-sm text-gray-500">
+                  <h4 className="font-semibold text-gray-900 text-sm">{vax.name}</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">
                     {formatDate(vax.date, 'MMM d, yyyy')}
-                    {vax.dose && ` • ${t('healthRecords.dose', 'Dose')} ${vax.dose}`}
+                    {vax.dose && ` · ${t('healthRecords.dose', 'Dose')} ${vax.dose}`}
                   </p>
                 </div>
               </div>
               {vax.next_due && (
-                <Badge variant="primary" size="sm">
+                <span className="text-[10px] font-bold text-violet-700 bg-violet-50 px-2.5 py-1 rounded-lg border border-violet-200/50">
                   {t('healthRecords.next', 'Next')}: {formatDate(vax.next_due, 'MMM yyyy')}
-                </Badge>
+                </span>
               )}
             </div>
           ))}
         </div>
       ) : (
-        <EmptyState
-          icon={Syringe}
-          title={t('healthRecords.noVaccinations', 'No vaccinations recorded')}
-          description={t('healthRecords.noVaccinationsDesc', 'Keep track of your immunization history')}
-          compact
-        />
+        <div className="text-center py-8">
+          <div className="w-12 h-12 bg-violet-50 rounded-2xl flex items-center justify-center mx-auto mb-2.5">
+            <Syringe className="w-5 h-5 text-violet-400" />
+          </div>
+          <p className="text-sm text-gray-500 font-medium">
+            {t('healthRecords.noVaccinations', 'No vaccinations recorded')}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {t('healthRecords.noVaccinationsDesc', 'Keep track of your immunization history')}
+          </p>
+        </div>
       )}
-    </Card>
+    </div>
   );
 };
 
-// Family History Section
 const FamilyHistorySection = ({ familyHistory, onAdd, onEdit }) => {
   const { t } = useTranslation();
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <Users className="w-5 h-5 text-primary-600" />
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+            <Users className="w-[18px] h-[18px] text-blue-600" />
+          </div>
           {t('healthRecords.familyHistory', 'Family History')}
         </h3>
         <Button
@@ -848,46 +876,51 @@ const FamilyHistorySection = ({ familyHistory, onAdd, onEdit }) => {
           size="sm"
           leftIcon={<Plus className="w-4 h-4" />}
           onClick={onAdd}
+          className="!rounded-xl !text-xs !border-violet-200 !text-violet-600 hover:!bg-violet-50"
         >
           {t('common.add', 'Add')}
         </Button>
       </div>
 
       {familyHistory?.length > 0 ? (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {familyHistory.map((item, index) => (
             <div
               key={item.id || index}
-              className="flex items-start justify-between p-4 bg-gray-50 rounded-xl"
+              className="flex items-start justify-between p-3.5 bg-gray-50 rounded-2xl group hover:bg-gray-100/50 transition-colors"
             >
               <div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{item.relation}</Badge>
-                  <span className="font-medium text-gray-900">{item.condition}</span>
+                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/50">{item.relation}</span>
+                  <span className="font-semibold text-gray-900 text-sm">{item.condition}</span>
                 </div>
                 {item.notes && (
-                  <p className="text-sm text-gray-500 mt-1">{item.notes}</p>
+                  <p className="text-xs text-gray-400 mt-1">{item.notes}</p>
                 )}
               </div>
-              <Button variant="ghost" size="sm" onClick={() => onEdit(item)} aria-label={t('common.edit', 'Edit')}>
-                <Edit className="w-4 h-4" />
-              </Button>
+              <button onClick={() => onEdit(item)} className="p-2 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-xl opacity-0 group-hover:opacity-100 transition-all" aria-label={t('common.edit', 'Edit')}>
+                <Edit className="w-3.5 h-3.5" />
+              </button>
             </div>
           ))}
         </div>
       ) : (
-        <EmptyState
-          icon={Users}
-          title={t('healthRecords.noFamilyHistory', 'No family history recorded')}
-          description={t('healthRecords.noFamilyHistoryDesc', 'Record hereditary conditions for better health insights')}
-          compact
-        />
+        <div className="text-center py-8">
+          <div className="w-12 h-12 bg-violet-50 rounded-2xl flex items-center justify-center mx-auto mb-2.5">
+            <Users className="w-5 h-5 text-violet-400" />
+          </div>
+          <p className="text-sm text-gray-500 font-medium">
+            {t('healthRecords.noFamilyHistory', 'No family history recorded')}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {t('healthRecords.noFamilyHistoryDesc', 'Record hereditary conditions for better health insights')}
+          </p>
+        </div>
       )}
-    </Card>
+    </div>
   );
 };
 
-// Add Vital Modal
 const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
   const { t } = useTranslation();
   const [formData, setFormData] = useState({
@@ -901,7 +934,6 @@ const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
   const selectedVitalConfig = VITAL_TYPES[formData.type];
 
   const handleSave = useCallback(() => {
-    // Map UI types to API field names
     const vitalData = {};
 
     switch (formData.type) {
@@ -937,7 +969,6 @@ const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
     onSave(vitalData);
   }, [formData, onSave]);
 
-  // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setFormData({ type: 'blood_pressure', value: '', systolic: '', diastolic: '', notes: '' });
@@ -951,7 +982,7 @@ const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
       title={t('healthRecords.addVital', 'Add Vital')}
       size="md"
     >
-      <div className="space-y-4">
+      <div className="space-y-4 pt-1">
         <Select
           label={t('healthRecords.vitalType', 'Vital Type')}
           value={formData.type}
@@ -963,7 +994,7 @@ const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
         />
 
         {formData.type === 'blood_pressure' ? (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <Input
               label={t('healthRecords.systolic', 'Systolic')}
               type="number"
@@ -998,9 +1029,9 @@ const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
         />
 
         {selectedVitalConfig && (
-          <div className="p-3 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-700">
-              <Info className="w-4 h-4 inline mr-1" />
+          <div className="p-3 bg-violet-50 rounded-2xl border border-violet-100/50">
+            <p className="text-xs text-violet-700 font-medium">
+              <Info className="w-3.5 h-3.5 inline mr-1.5 text-violet-400" />
               {t('healthRecords.normalRange', 'Normal range')}: {selectedVitalConfig.normalRange}
             </p>
           </div>
@@ -1008,7 +1039,7 @@ const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
       </div>
 
       <div className="flex justify-end gap-3 mt-6">
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={onClose} className="!rounded-xl">
           {t('common.cancel', 'Cancel')}
         </Button>
         <Button
@@ -1020,6 +1051,7 @@ const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
               ? !formData.systolic || !formData.diastolic
               : !formData.value
           }
+          className="!rounded-xl !bg-violet-600 hover:!bg-violet-700"
         >
           {t('common.save', 'Save')}
         </Button>
@@ -1028,7 +1060,6 @@ const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
   );
 };
 
-// Upload Document Modal
 const UploadDocumentModal = ({ isOpen, onClose, onUpload, isLoading }) => {
   const { t } = useTranslation();
   const fileInputRef = useRef(null);
@@ -1040,7 +1071,6 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, isLoading }) => {
   });
   const [preview, setPreview] = useState(null);
 
-  // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setFormData({ name: '', category: 'prescription', description: '', file: null });
@@ -1080,10 +1110,10 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, isLoading }) => {
       title={t('healthRecords.uploadDocument', 'Upload Document')}
       size="md"
     >
-      <div className="space-y-4">
+      <div className="space-y-4 pt-1">
         <div
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-primary-400 transition-colors"
+          className="border-2 border-dashed border-violet-200 rounded-2xl p-8 text-center cursor-pointer hover:border-violet-400 hover:bg-violet-50/30 transition-all duration-200"
           role="button"
           tabIndex={0}
           onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
@@ -1098,17 +1128,21 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, isLoading }) => {
           />
 
           {preview ? (
-            <img src={preview} alt="Preview" className="max-h-40 mx-auto rounded-lg" />
+            <img src={preview} alt="Preview" className="max-h-40 mx-auto rounded-xl" />
           ) : formData.file ? (
             <div className="flex items-center justify-center gap-3">
-              <File className="w-12 h-12 text-gray-400" />
-              <span className="text-gray-600">{formData.file.name}</span>
+              <div className="w-12 h-12 bg-violet-50 rounded-xl flex items-center justify-center">
+                <File className="w-6 h-6 text-violet-500" />
+              </div>
+              <span className="text-gray-600 text-sm font-medium">{formData.file.name}</span>
             </div>
           ) : (
             <>
-              <Upload className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-600">{t('healthRecords.dragDropFile', 'Click to select file')}</p>
-              <p className="text-sm text-gray-400 mt-1">
+              <div className="w-14 h-14 bg-violet-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Upload className="w-7 h-7 text-violet-400" />
+              </div>
+              <p className="text-gray-600 text-sm font-medium">{t('healthRecords.dragDropFile', 'Click to select file')}</p>
+              <p className="text-xs text-gray-400 mt-1">
                 {t('healthRecords.supportedFormats', 'PDF, Images, DOC (Max 10MB)')}
               </p>
             </>
@@ -1139,7 +1173,7 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, isLoading }) => {
       </div>
 
       <div className="flex justify-end gap-3 mt-6">
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={onClose} className="!rounded-xl">
           {t('common.cancel', 'Cancel')}
         </Button>
         <Button
@@ -1147,6 +1181,7 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, isLoading }) => {
           onClick={handleUpload}
           loading={isLoading}
           disabled={!formData.file || !formData.name}
+          className="!rounded-xl !bg-violet-600 hover:!bg-violet-700"
         >
           {t('common.upload', 'Upload')}
         </Button>
@@ -1155,7 +1190,6 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, isLoading }) => {
   );
 };
 
-// Share Records Modal
 const ShareRecordsModal = ({ isOpen, onClose, sharedWith, onShare, onRevoke, isRevoking }) => {
   const { t } = useTranslation();
 
@@ -1166,45 +1200,47 @@ const ShareRecordsModal = ({ isOpen, onClose, sharedWith, onShare, onRevoke, isR
       title={t('healthRecords.shareRecords', 'Share Records')}
       size="md"
     >
-      <div className="space-y-4">
-        <p className="text-gray-600">
+      <div className="space-y-4 pt-1">
+        <p className="text-gray-500 text-sm">
           {t('healthRecords.shareRecordsDesc', 'Control which doctors can access your health records')}
         </p>
 
         {sharedWith?.length > 0 ? (
-          <div className="space-y-3">
-            <h4 className="font-medium text-gray-900">
+          <div className="space-y-2.5">
+            <h4 className="font-semibold text-gray-900 text-sm">
               {t('healthRecords.currentlySharedWith', 'Currently shared with')}
             </h4>
             {sharedWith.map((doctor) => (
               <div
                 key={doctor.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-xl"
+                className="flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl"
               >
                 <div className="flex items-center gap-3">
                   <Avatar name={doctor.name} src={doctor.avatar} size="sm" />
                   <div>
-                    <p className="font-medium text-gray-900">Dr. {doctor.name}</p>
-                    <p className="text-sm text-gray-500">{doctor.specialization}</p>
+                    <p className="font-semibold text-gray-900 text-sm">Dr. {doctor.name}</p>
+                    <p className="text-xs text-gray-400">{doctor.specialization}</p>
                   </div>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => onRevoke(doctor.id)}
-                  className="text-red-600 border-red-300"
+                  className="!text-red-600 !border-red-200 hover:!bg-red-50 !rounded-xl !text-xs"
                   loading={isRevoking === doctor.id}
                 >
-                  <Lock className="w-4 h-4 mr-1" />
+                  <Lock className="w-3.5 h-3.5 mr-1" />
                   {t('healthRecords.revoke', 'Revoke')}
                 </Button>
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-center py-6 bg-gray-50 rounded-xl">
-            <Share2 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-gray-500">{t('healthRecords.notSharedYet', 'Not shared with anyone')}</p>
+          <div className="text-center py-8 bg-gray-50 rounded-2xl">
+            <div className="w-12 h-12 bg-violet-50 rounded-2xl flex items-center justify-center mx-auto mb-2.5">
+              <Share2 className="w-5 h-5 text-violet-300" />
+            </div>
+            <p className="text-gray-400 text-sm font-medium">{t('healthRecords.notSharedYet', 'Not shared with anyone')}</p>
           </div>
         )}
 
@@ -1213,13 +1249,14 @@ const ShareRecordsModal = ({ isOpen, onClose, sharedWith, onShare, onRevoke, isR
           fullWidth
           leftIcon={<Share2 className="w-4 h-4" />}
           onClick={onShare}
+          className="!rounded-xl !bg-violet-600 hover:!bg-violet-700"
         >
           {t('healthRecords.shareWithDoctor', 'Share with a Doctor')}
         </Button>
       </div>
 
       <div className="flex justify-end mt-6">
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={onClose} className="!rounded-xl">
           {t('common.close', 'Close')}
         </Button>
       </div>
@@ -1227,19 +1264,23 @@ const ShareRecordsModal = ({ isOpen, onClose, sharedWith, onShare, onRevoke, isR
   );
 };
 
-// Delete Confirmation Modal
 const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, title, message, isLoading }) => {
   const { t } = useTranslation();
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
-      <div className="py-4">
-        <p className="text-gray-600">{message}</p>
-        <div className="flex gap-3 mt-6">
-          <Button variant="outline" onClick={onClose} fullWidth>
+      <div className="py-2">
+        <div className="flex items-start gap-3 p-4 bg-red-50 rounded-2xl mb-4 border border-red-100/50">
+          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+          </div>
+          <p className="text-red-700 text-sm font-medium">{message}</p>
+        </div>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={onClose} fullWidth className="!rounded-xl">
             {t('common.cancel', 'Cancel')}
           </Button>
-          <Button variant="danger" onClick={onConfirm} fullWidth loading={isLoading}>
+          <Button variant="danger" onClick={onConfirm} fullWidth loading={isLoading} className="!rounded-xl">
             {t('common.delete', 'Delete')}
           </Button>
         </div>
@@ -1248,7 +1289,6 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, title, message, isLoad
   );
 };
 
-// Add Condition Modal
 const AddConditionModal = ({ isOpen, onClose, onSave, editData, isLoading }) => {
   const { t } = useTranslation();
   const [formData, setFormData] = useState({
@@ -1280,7 +1320,7 @@ const AddConditionModal = ({ isOpen, onClose, onSave, editData, isLoading }) => 
       title={editData ? t('healthRecords.editCondition', 'Edit Condition') : t('healthRecords.addCondition', 'Add Condition')}
       size="md"
     >
-      <div className="space-y-4">
+      <div className="space-y-4 pt-1">
         <Input
           label={t('healthRecords.conditionName', 'Condition Name')}
           value={formData.name}
@@ -1308,8 +1348,8 @@ const AddConditionModal = ({ isOpen, onClose, onSave, editData, isLoading }) => 
         />
       </div>
       <div className="flex justify-end gap-3 mt-6">
-        <Button variant="outline" onClick={onClose}>{t('common.cancel', 'Cancel')}</Button>
-        <Button variant="primary" onClick={() => onSave(formData)} loading={isLoading} disabled={!formData.name.trim()}>
+        <Button variant="outline" onClick={onClose} className="!rounded-xl">{t('common.cancel', 'Cancel')}</Button>
+        <Button variant="primary" onClick={() => onSave(formData)} loading={isLoading} disabled={!formData.name.trim()} className="!rounded-xl !bg-violet-600 hover:!bg-violet-700">
           {t('common.save', 'Save')}
         </Button>
       </div>
@@ -1317,7 +1357,6 @@ const AddConditionModal = ({ isOpen, onClose, onSave, editData, isLoading }) => 
   );
 };
 
-// Add Allergy Modal
 const AddAllergyModal = ({ isOpen, onClose, onSave, isLoading }) => {
   const { t } = useTranslation();
   const [name, setName] = useState('');
@@ -1328,7 +1367,7 @@ const AddAllergyModal = ({ isOpen, onClose, onSave, isLoading }) => {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('healthRecords.addAllergy', 'Add Allergy')} size="sm">
-      <div className="space-y-4">
+      <div className="space-y-4 pt-1">
         <Input
           label={t('healthRecords.allergyName', 'Allergy Name')}
           value={name}
@@ -1338,8 +1377,8 @@ const AddAllergyModal = ({ isOpen, onClose, onSave, isLoading }) => {
         />
       </div>
       <div className="flex justify-end gap-3 mt-6">
-        <Button variant="outline" onClick={onClose}>{t('common.cancel', 'Cancel')}</Button>
-        <Button variant="primary" onClick={() => onSave({ name })} loading={isLoading} disabled={!name.trim()}>
+        <Button variant="outline" onClick={onClose} className="!rounded-xl">{t('common.cancel', 'Cancel')}</Button>
+        <Button variant="primary" onClick={() => onSave({ name })} loading={isLoading} disabled={!name.trim()} className="!rounded-xl !bg-violet-600 hover:!bg-violet-700">
           {t('common.add', 'Add')}
         </Button>
       </div>
@@ -1357,7 +1396,6 @@ const HealthRecords = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  // ── Online status ──
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   useEffect(() => {
     const on = () => setIsOnline(true);
@@ -1367,7 +1405,6 @@ const HealthRecords = () => {
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
   }, []);
 
-  // ── Tab state ──
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'overview';
   const setActiveTab = useCallback((tab) => {
@@ -1378,22 +1415,17 @@ const HealthRecords = () => {
     { id: 'overview', label: t('healthRecords.overview', 'Overview'), icon: Clipboard },
     { id: 'vitals', label: t('healthRecords.vitals', 'Vitals'), icon: Activity },
     { id: 'documents', label: t('healthRecords.documents', 'Documents'), icon: Folder },
-    { id: 'history', label: t('healthRecords.medicalHistory', 'Medical History'), icon: History }
+    { id: 'history', label: t('healthRecords.medicalHistory', 'History'), icon: History }
   ], [t]);
 
-  // ── Modal states ──
   const [showVitalModal, setShowVitalModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showConditionModal, setShowConditionModal] = useState(false);
   const [showAllergyModal, setShowAllergyModal] = useState(false);
   const [editCondition, setEditCondition] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'document'|'condition'|'allergy', item }
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [revokingDoctorId, setRevokingDoctorId] = useState(null);
-
-  // ══════════════════════════════════════════
-  // TanStack Queries
-  // ══════════════════════════════════════════
 
   const { data: profileData, isLoading: profileLoading } = useQuery({
     queryKey: ['healthProfile'],
@@ -1458,9 +1490,7 @@ const HealthRecords = () => {
     enabled: isOnline
   });
 
-  // ── Derived data ──
   const profile = profileData?.data || profileData;
-  // API returns paginated {count, results} - extract first result
   const vitalRecords = vitalsData?.results || [];
   const latestVitals = vitalRecords.length > 0 ? {
     blood_pressure: vitalRecords[0].bp_display || `${vitalRecords[0].systolic_bp}/${vitalRecords[0].diastolic_bp}`,
@@ -1469,7 +1499,7 @@ const HealthRecords = () => {
     oxygen_saturation: vitalRecords[0].oxygen_saturation,
     blood_sugar: vitalRecords[0].blood_sugar,
     weight: vitalRecords[0].weight_kg,
-    height: profile?.height_cm, // Height comes from profile, not vitals
+    height: profile?.height_cm,
     blood_pressure_date: vitalRecords[0].recorded_at,
     heart_rate_date: vitalRecords[0].recorded_at,
     temperature_date: vitalRecords[0].recorded_at,
@@ -1479,7 +1509,6 @@ const HealthRecords = () => {
   } : { height: profile?.height_cm };
   const conditions = conditionsData?.data || conditionsData || [];
   const allergies = allergiesData?.data || allergiesData || [];
-  // API returns paginated response {count, results, next, previous}
   const documents = documentsData?.results || documentsData?.data || documentsData || [];
   const labReports = labReportsData?.data || labReportsData || [];
   const vaccinations = vaccinationsData?.data || vaccinationsData || [];
@@ -1487,10 +1516,6 @@ const HealthRecords = () => {
   const sharedWith = sharingData?.data || sharingData || [];
 
   const isInitialLoading = profileLoading || vitalsLoading;
-
-  // ══════════════════════════════════════════
-  // Mutations
-  // ══════════════════════════════════════════
 
   const addVitalMutation = useMutation({
     mutationFn: (data) => healthRecordsService.addVitals(data),
@@ -1548,7 +1573,6 @@ const HealthRecords = () => {
 
   const deleteMutation = useMutation({
     mutationFn: ({ type, item }) => {
-      // Route to correct service based on type
       switch (type) {
         case 'document':
           return healthRecordsService.deleteDocument?.(item.id) ||
@@ -1566,7 +1590,6 @@ const HealthRecords = () => {
     onSuccess: (_, { type }) => {
       toast.success(t('common.deleted', 'Deleted successfully'));
       setDeleteTarget(null);
-      // Invalidate the right query
       const queryMap = { document: 'documents', condition: 'conditions', allergy: 'allergies' };
       queryClient.invalidateQueries({ queryKey: [queryMap[type]] });
       if (type === 'allergy') {
@@ -1594,10 +1617,6 @@ const HealthRecords = () => {
       setRevokingDoctorId(null);
     }
   });
-
-  // ══════════════════════════════════════════
-  // Handlers
-  // ══════════════════════════════════════════
 
   const handleAddVital = useCallback((data) => {
     addVitalMutation.mutate(data);
@@ -1679,97 +1698,118 @@ const HealthRecords = () => {
     toast.success(t('common.refreshed', 'Refreshed'));
   }, [queryClient, t]);
 
-  // ══════════════════════════════════════════
-  // RENDER: Offline
-  // ══════════════════════════════════════════
   if (!isOnline) {
     return (
       <div className="space-y-6 pb-20 md:pb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+        <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-700 rounded-3xl p-6 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/[0.07]" />
+          <h1 className="text-xl font-bold text-white relative z-10">
             {t('healthRecords.title', 'Health Records')}
           </h1>
         </div>
-        <Card className="p-8">
-          <EmptyState
-            icon={WifiOff}
-            title={t('common.offline', 'You are offline')}
-            description={t('healthRecords.offlineDesc', 'Health records require an internet connection. Please check your connection.')}
-            action={
-              <Button onClick={() => window.location.reload()} leftIcon={<RefreshCw size={18} />}>
-                {t('common.retry', 'Retry')}
-              </Button>
-            }
-          />
-        </Card>
+        <div className="bg-white rounded-2xl border border-gray-100 p-10">
+          <div className="flex flex-col items-center text-center">
+            <div className="w-16 h-16 bg-violet-50 rounded-2xl flex items-center justify-center mb-4">
+              <WifiOff className="w-8 h-8 text-violet-300" />
+            </div>
+            <h3 className="font-bold text-gray-900 mb-1">{t('common.offline', 'You are offline')}</h3>
+            <p className="text-sm text-gray-400 mb-5 max-w-xs">
+              {t('healthRecords.offlineDesc', 'Health records require an internet connection.')}
+            </p>
+            <Button onClick={() => window.location.reload()} leftIcon={<RefreshCw size={18} />} className="!rounded-xl !bg-violet-600 hover:!bg-violet-700">
+              {t('common.retry', 'Retry')}
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
 
-  // ══════════════════════════════════════════
-  // RENDER: Loading
-  // ══════════════════════════════════════════
   if (isInitialLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader size="lg" />
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="w-14 h-14 bg-violet-50 rounded-2xl flex items-center justify-center mb-3">
+          <div className="w-7 h-7 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
+        </div>
+        <p className="text-sm text-gray-400 font-medium">Loading records...</p>
       </div>
     );
   }
 
-  // ══════════════════════════════════════════
-  // RENDER: Main
-  // ══════════════════════════════════════════
   return (
-    <div className="space-y-6 pb-20 md:pb-6">
+    <div className="space-y-5 pb-20 md:pb-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {t('healthRecords.title', 'Health Records')}
-          </h1>
-          <p className="text-gray-500 mt-1">
-            {t('healthRecords.subtitle', 'Manage your complete health history')}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<Share2 className="w-4 h-4" />}
-            onClick={() => setShowShareModal(true)}
-          >
-            {t('healthRecords.share', 'Share')}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<Download className="w-4 h-4" />}
-          >
-            {t('healthRecords.export', 'Export')}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            leftIcon={<RefreshCw className="w-4 h-4" />}
-            onClick={handleRefresh}
-          >
-            {t('common.refresh', 'Refresh')}
-          </Button>
+      <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-700 rounded-3xl p-5 relative overflow-hidden">
+        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/[0.07]" />
+        <div className="absolute bottom-4 -left-6 w-24 h-24 rounded-full bg-white/[0.05]" />
+
+        <div className="relative z-10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 className="text-xl font-bold text-white">
+                {t('healthRecords.title', 'Health Records')}
+              </h1>
+              <p className="text-violet-200 mt-0.5 text-sm">
+                {t('healthRecords.subtitle', 'Manage your complete health history')}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<Share2 className="w-4 h-4" />}
+                onClick={() => setShowShareModal(true)}
+                className="!rounded-xl !border-white/30 !text-white hover:!bg-white/15 !text-xs !font-semibold"
+              >
+                {t('healthRecords.share', 'Share')}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<Download className="w-4 h-4" />}
+                className="!rounded-xl !border-white/30 !text-white hover:!bg-white/15 !text-xs !font-semibold"
+              >
+                {t('healthRecords.export', 'Export')}
+              </Button>
+              <button
+                onClick={handleRefresh}
+                className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <Tabs
-        tabs={tabs}
-        activeTab={activeTab}
-        onChange={setActiveTab}
-        variant="pills"
-      />
+      <div className="bg-white rounded-2xl border border-gray-100 p-1.5">
+        <div className="flex gap-1">
+          {tabs.map((tab) => {
+            const TabIcon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`
+                  flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all duration-200
+                  ${activeTab === tab.id
+                    ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                  }
+                `}
+              >
+                <TabIcon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Content */}
       {activeTab === 'overview' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <HealthSummaryCard profile={profile} latestVitals={latestVitals} />
 
           <VitalsSection
@@ -1778,7 +1818,7 @@ const HealthRecords = () => {
             onViewHistory={() => setActiveTab('vitals')}
           />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <AllergiesSection
               allergies={allergies}
               onAdd={() => setShowAllergyModal(true)}
@@ -1795,7 +1835,7 @@ const HealthRecords = () => {
       )}
 
       {activeTab === 'vitals' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <VitalsSection
             latestVitals={latestVitals}
             onAddVital={() => setShowVitalModal(true)}
@@ -1804,7 +1844,7 @@ const HealthRecords = () => {
       )}
 
       {activeTab === 'documents' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <DocumentsSection
             documents={documents}
             onUpload={() => setShowUploadModal(true)}
@@ -1822,14 +1862,14 @@ const HealthRecords = () => {
       )}
 
       {activeTab === 'history' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <ConditionsSection
             conditions={conditions}
             onAdd={() => { setEditCondition(null); setShowConditionModal(true); }}
             onEdit={handleEditCondition}
             onDelete={(condition) => handleDeleteItem('condition', condition)}
           />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <VaccinationsSection
               vaccinations={vaccinations}
               onAdd={() => toast(t('common.comingSoon', 'Coming soon'), { icon: '🚀' })}
@@ -1843,7 +1883,7 @@ const HealthRecords = () => {
         </div>
       )}
 
-      {/* ── Modals ── */}
+      {/* Modals */}
       <AddVitalModal
         isOpen={showVitalModal}
         onClose={() => setShowVitalModal(false)}

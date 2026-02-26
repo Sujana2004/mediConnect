@@ -24,8 +24,8 @@ import {
   ChatPanel
 } from '../../components/consultation';
 import { Card, Button, Loader, EmptyState, Modal, Avatar } from '../../components/common';
-import { consultationService } from '../../services/api/consultationService';
-import { appointmentService } from '../../services/api/appointmentService';
+import { consultationService } from '../../services/api';
+import { appointmentService } from '../../services/api';
 import { useAuth } from '../../hooks';
 
 const isDev = import.meta.env.DEV;

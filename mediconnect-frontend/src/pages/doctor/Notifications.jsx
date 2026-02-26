@@ -38,7 +38,12 @@ import {
   ToggleLeft,
   ToggleRight,
   ExternalLink,
-  Loader2
+  Loader2,
+  Heart,
+  Activity,
+  Shield,
+  Gift,
+  BellRing
 } from 'lucide-react';
 import { format, formatDistanceToNow, isToday, isYesterday, parseISO } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -57,55 +62,123 @@ import {
 } from '../../components/common';
 
 // ============================================================================
-// CONSTANTS
+// CONSTANTS - Aligned with backend NotificationType values
 // ============================================================================
 
+/**
+ * Maps backend notification_type values to UI config.
+ * Backend types from constants.py NotificationType:
+ *   appointment_reminder, appointment_confirmed, appointment_cancelled,
+ *   appointment_rescheduled, medicine_reminder, medicine_low_stock,
+ *   prescription_ready, health_tip, health_checkup_reminder,
+ *   lab_result_ready, emergency_alert, emergency_contact_alert,
+ *   welcome, account_update, general, chat_message, doctor_response
+ */
 const NOTIFICATION_TYPES = {
-  appointment: {
-    icon: Calendar,
+  // Appointment types
+  appointment_reminder: {
+    icon: BellRing,
     color: 'bg-blue-100 text-blue-600',
-    label: 'Appointment'
+    label: 'Reminder'
   },
-  consultation: {
-    icon: Video,
+  appointment_confirmed: {
+    icon: Calendar,
     color: 'bg-green-100 text-green-600',
-    label: 'Consultation'
+    label: 'Confirmed'
   },
-  patient: {
-    icon: User,
+  appointment_cancelled: {
+    icon: Calendar,
+    color: 'bg-red-100 text-red-600',
+    label: 'Cancelled'
+  },
+  appointment_rescheduled: {
+    icon: Calendar,
+    color: 'bg-orange-100 text-orange-600',
+    label: 'Rescheduled'
+  },
+  // Medicine types
+  medicine_reminder: {
+    icon: Pill,
+    color: 'bg-amber-100 text-amber-600',
+    label: 'Medicine'
+  },
+  medicine_low_stock: {
+    icon: Pill,
+    color: 'bg-yellow-100 text-yellow-600',
+    label: 'Low Stock'
+  },
+  prescription_ready: {
+    icon: FileText,
     color: 'bg-purple-100 text-purple-600',
-    label: 'Patient'
+    label: 'Prescription'
   },
-  message: {
+  // Health types
+  health_tip: {
+    icon: Heart,
+    color: 'bg-pink-100 text-pink-600',
+    label: 'Health Tip'
+  },
+  health_checkup_reminder: {
+    icon: Activity,
+    color: 'bg-cyan-100 text-cyan-600',
+    label: 'Checkup'
+  },
+  lab_result_ready: {
+    icon: Activity,
+    color: 'bg-cyan-100 text-cyan-600',
+    label: 'Lab Result'
+  },
+  // Emergency
+  emergency_alert: {
+    icon: AlertTriangle,
+    color: 'bg-red-100 text-red-600',
+    label: 'Emergency'
+  },
+  emergency_contact_alert: {
+    icon: AlertTriangle,
+    color: 'bg-red-100 text-red-600',
+    label: 'Emergency'
+  },
+  // System
+  welcome: {
+    icon: Gift,
+    color: 'bg-green-100 text-green-600',
+    label: 'Welcome'
+  },
+  account_update: {
+    icon: Shield,
+    color: 'bg-gray-100 text-gray-600',
+    label: 'Account'
+  },
+  general: {
+    icon: Info,
+    color: 'bg-gray-100 text-gray-600',
+    label: 'General'
+  },
+  // Chat
+  chat_message: {
     icon: MessageSquare,
     color: 'bg-primary-100 text-primary-600',
     label: 'Message'
   },
-  prescription: {
-    icon: Pill,
-    color: 'bg-amber-100 text-amber-600',
-    label: 'Prescription'
+  doctor_response: {
+    icon: MessageSquare,
+    color: 'bg-green-100 text-green-600',
+    label: 'Response'
   },
+  // Review
   review: {
     icon: Star,
     color: 'bg-yellow-100 text-yellow-600',
     label: 'Review'
-  },
-  reminder: {
-    icon: Clock,
-    color: 'bg-orange-100 text-orange-600',
-    label: 'Reminder'
-  },
-  alert: {
-    icon: AlertTriangle,
-    color: 'bg-red-100 text-red-600',
-    label: 'Alert'
-  },
-  system: {
-    icon: Info,
-    color: 'bg-gray-100 text-gray-600',
-    label: 'System'
   }
+};
+
+// Default fallback for unknown types
+const DEFAULT_TYPE_CONFIG = {
+  icon: Bell,
+  color: 'bg-gray-100 text-gray-600',
+  label: 'Notification'
 };
 
 const FILTER_OPTIONS = [
@@ -113,10 +186,11 @@ const FILTER_OPTIONS = [
   { value: 'unread', label: 'Unread' },
   { value: 'read', label: 'Read' },
   { value: 'appointment', label: 'Appointments' },
-  { value: 'consultation', label: 'Consultations' },
-  { value: 'patient', label: 'Patients' },
-  { value: 'review', label: 'Reviews' },
-  { value: 'system', label: 'System' }
+  { value: 'medicine', label: 'Medicine' },
+  { value: 'health', label: 'Health' },
+  { value: 'emergency', label: 'Emergency' },
+  { value: 'chat', label: 'Messages' },
+  { value: 'general', label: 'System' }
 ];
 
 // ============================================================================
@@ -158,6 +232,68 @@ const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
   return fallbackMessage;
 };
 
+/**
+ * Normalize backend notification to frontend format.
+ * 
+ * Backend (NotificationListSerializer) returns:
+ *   { id, notification_type, title, body, icon, color, is_read, created_at }
+ * 
+ * Frontend components expect:
+ *   { id, type, title, message, is_read, created_at, data, action_url, actions }
+ */
+const normalizeNotification = (backendNotification) => {
+  return {
+    id: backendNotification.id,
+    type: backendNotification.notification_type || 'general',
+    title: backendNotification.title || '',
+    message: backendNotification.body || '',
+    is_read: backendNotification.is_read ?? false,
+    created_at: backendNotification.created_at,
+    data: backendNotification.data || {},
+    action_url: backendNotification.action_url || '',
+    icon: backendNotification.icon || '',
+    color: backendNotification.color || '',
+    priority: backendNotification.priority || 'normal',
+    action_label: deriveActionLabel(backendNotification),
+    actions: deriveActions(backendNotification),
+  };
+};
+
+/**
+ * Derive action label based on notification type
+ */
+const deriveActionLabel = (notification) => {
+  const type = notification.notification_type || '';
+  if (type.startsWith('appointment')) return 'View Appointment';
+  if (type === 'prescription_ready') return 'View Prescription';
+  if (type === 'lab_result_ready') return 'View Results';
+  if (type === 'chat_message' || type === 'doctor_response') return 'View Message';
+  if (notification.action_url) return 'View Details';
+  return null;
+};
+
+/**
+ * Derive UI actions based on notification type
+ */
+const deriveActions = (notification) => {
+  const actions = [];
+  const type = notification.notification_type || '';
+
+  if (type.startsWith('appointment')) {
+    actions.push({ type: 'view', label: 'View Details' });
+  } else if (type === 'chat_message' || type === 'doctor_response') {
+    actions.push({ type: 'reply', label: 'Reply' });
+  } else if (type === 'prescription_ready') {
+    actions.push({ type: 'view', label: 'View Prescription' });
+  } else if (type === 'lab_result_ready') {
+    actions.push({ type: 'view', label: 'View Results' });
+  } else if (notification.action_url) {
+    actions.push({ type: 'view', label: 'View' });
+  }
+
+  return actions;
+};
+
 // ============================================================================
 // SUB-COMPONENTS
 // ============================================================================
@@ -166,8 +302,6 @@ const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
  * Notification Stats Header
  */
 const NotificationStatsHeader = ({ stats, onMarkAllRead }) => {
-  const { t } = useTranslation();
-
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-xl border border-gray-200 p-4">
       <div className="flex items-center gap-6">
@@ -230,7 +364,6 @@ const FiltersBar = ({
   onFilterChange,
   onClearFilters
 }) => {
-  const { t } = useTranslation();
   const hasFilters = searchQuery || filter !== 'all';
 
   return (
@@ -280,10 +413,9 @@ const NotificationItem = ({
   onClick,
   onNavigate
 }) => {
-  const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
 
-  const typeConfig = NOTIFICATION_TYPES[notification.type] || NOTIFICATION_TYPES.system;
+  const typeConfig = NOTIFICATION_TYPES[notification.type] || DEFAULT_TYPE_CONFIG;
   const TypeIcon = typeConfig.icon;
   const isUnread = !notification.is_read;
 
@@ -393,7 +525,7 @@ const NotificationItem = ({
                       }}
                     />
                     <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-                      {isUnread ? (
+                      {isUnread && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -404,17 +536,6 @@ const NotificationItem = ({
                         >
                           <Check className="w-4 h-4" />
                           Mark as Read
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowActions(false);
-                          }}
-                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                        >
-                          <Mail className="w-4 h-4" />
-                          Mark as Unread
                         </button>
                       )}
                       <button
@@ -451,8 +572,6 @@ const NotificationGroup = ({
   onClick,
   onNavigate
 }) => {
-  const { t } = useTranslation();
-
   const getGroupTitle = () => {
     try {
       const dateObj = parseISO(date);
@@ -489,11 +608,9 @@ const NotificationGroup = ({
  * Notification Detail Modal
  */
 const NotificationDetailModal = ({ isOpen, onClose, notification, onNavigate }) => {
-  const { t } = useTranslation();
-
   if (!notification) return null;
 
-  const typeConfig = NOTIFICATION_TYPES[notification.type] || NOTIFICATION_TYPES.system;
+  const typeConfig = NOTIFICATION_TYPES[notification.type] || DEFAULT_TYPE_CONFIG;
   const TypeIcon = typeConfig.icon;
 
   const handleAction = () => {
@@ -521,7 +638,13 @@ const NotificationDetailModal = ({ isOpen, onClose, notification, onNavigate }) 
               {notification.title}
             </h3>
             <p className="text-sm text-gray-500 mt-1">
-              {format(parseISO(notification.created_at), 'MMMM d, yyyy h:mm a')}
+              {(() => {
+                try {
+                  return format(parseISO(notification.created_at), 'MMMM d, yyyy h:mm a');
+                } catch {
+                  return notification.created_at;
+                }
+              })()}
             </p>
           </div>
           <Badge variant="secondary">
@@ -537,13 +660,20 @@ const NotificationDetailModal = ({ isOpen, onClose, notification, onNavigate }) 
         </div>
 
         {/* Additional Data */}
-        {notification.data && (
+        {notification.data && Object.keys(notification.data).length > 0 && (
           <div className="space-y-2">
             {notification.data.patient_name && (
               <div className="flex items-center gap-2 text-sm">
                 <User className="w-4 h-4 text-gray-400" />
                 <span className="text-gray-600">Patient:</span>
                 <span className="font-medium">{notification.data.patient_name}</span>
+              </div>
+            )}
+            {notification.data.doctor_name && (
+              <div className="flex items-center gap-2 text-sm">
+                <User className="w-4 h-4 text-gray-400" />
+                <span className="text-gray-600">Doctor:</span>
+                <span className="font-medium">{notification.data.doctor_name}</span>
               </div>
             )}
             {notification.data.appointment_time && (
@@ -589,40 +719,82 @@ const NotificationDetailModal = ({ isOpen, onClose, notification, onNavigate }) 
 
 /**
  * Notification Settings Modal
+ * Aligned with backend UserNotificationPreference model and API
  */
-const NotificationSettingsModal = ({ isOpen, onClose, settings, onSave, isLoading }) => {
-  const { t } = useTranslation();
-  const [localSettings, setLocalSettings] = useState({
-    push_enabled: true,
-    email_enabled: true,
-    sms_enabled: false,
-    sound_enabled: true,
-    vibration_enabled: true,
-    quiet_hours_enabled: false,
-    quiet_hours_start: '22:00',
-    quiet_hours_end: '07:00',
-    appointment_reminders: true,
-    consultation_updates: true,
-    patient_messages: true,
-    review_notifications: true,
-    system_updates: true
-  });
+const NotificationSettingsModal = ({ isOpen, onClose, onSave, isLoading: isSaving }) => {
+  const [settings, setSettings] = useState(null);
+  const [notificationTypes, setNotificationTypes] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (settings) {
-      setLocalSettings(settings);
+    if (isOpen) {
+      loadPreferences();
     }
-  }, [settings]);
+  }, [isOpen]);
+
+  const loadPreferences = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Backend returns: { success, preferences: {...}, notification_types: [...] }
+      const response = await notificationService.getPreferences();
+      setSettings(response.preferences || {});
+      setNotificationTypes(response.notification_types || []);
+    } catch (err) {
+      setError(err.message || 'Failed to load preferences');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleToggle = (key) => {
-    setLocalSettings(prev => ({ ...prev, [key]: !prev[key] }));
+    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleSave = () => {
-    onSave(localSettings);
+  const handleTypeToggle = async (notificationType, currentEnabled) => {
+    try {
+      await notificationService.toggleNotificationType(notificationType, !currentEnabled);
+      setNotificationTypes(prev =>
+        prev.map(nt =>
+          nt.type === notificationType ? { ...nt, enabled: !currentEnabled } : nt
+        )
+      );
+      toast.success('Preference updated');
+    } catch (err) {
+      toast.error('Failed to update preference');
+    }
   };
 
-  const SettingToggle = ({ label, description, settingKey, icon: Icon }) => (
+  const handleSave = async () => {
+    try {
+      await notificationService.updatePreferences({
+        notifications_enabled: settings.notifications_enabled,
+        push_enabled: settings.push_enabled,
+        quiet_hours_enabled: settings.quiet_hours_enabled,
+        quiet_hours_start: settings.quiet_hours_start,
+        quiet_hours_end: settings.quiet_hours_end,
+        preferred_language: settings.preferred_language,
+      });
+
+      // Update quiet hours separately if changed
+      if (settings.quiet_hours_enabled !== undefined) {
+        await notificationService.updateQuietHours({
+          enabled: settings.quiet_hours_enabled,
+          start_time: settings.quiet_hours_start || '22:00',
+          end_time: settings.quiet_hours_end || '07:00',
+        });
+      }
+
+      onSave(settings);
+      onClose();
+      toast.success('Settings saved successfully');
+    } catch (err) {
+      toast.error('Failed to save settings');
+    }
+  };
+
+  const SettingToggle = ({ label, description, checked, onChange, disabled, icon: Icon }) => (
     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
       <div className="flex items-center gap-3">
         {Icon && (
@@ -638,14 +810,15 @@ const NotificationSettingsModal = ({ isOpen, onClose, settings, onSave, isLoadin
         </div>
       </div>
       <button
-        onClick={() => handleToggle(settingKey)}
+        onClick={onChange}
+        disabled={disabled}
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-          localSettings[settingKey] ? 'bg-primary-600' : 'bg-gray-200'
-        }`}
+          checked ? 'bg-primary-600' : 'bg-gray-200'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         <span
           className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-            localSettings[settingKey] ? 'translate-x-6' : 'translate-x-1'
+            checked ? 'translate-x-6' : 'translate-x-1'
           }`}
         />
       </button>
@@ -659,150 +832,137 @@ const NotificationSettingsModal = ({ isOpen, onClose, settings, onSave, isLoadin
       title="Notification Settings"
       size="lg"
     >
-      <div className="space-y-6 max-h-[70vh] overflow-y-auto">
-        {/* Delivery Channels */}
-        <div>
-          <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-            <Smartphone className="w-4 h-4 text-primary-600" />
-            Delivery Channels
-          </h4>
-          <div className="space-y-2">
-            <SettingToggle
-              label="Push Notifications"
-              description="Receive notifications on your device"
-              settingKey="push_enabled"
-              icon={Bell}
-            />
-            <SettingToggle
-              label="Email Notifications"
-              description="Receive notifications via email"
-              settingKey="email_enabled"
-              icon={Mail}
-            />
-            <SettingToggle
-              label="SMS Notifications"
-              description="Receive notifications via SMS"
-              settingKey="sms_enabled"
-              icon={MessageSquare}
-            />
-          </div>
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <Loader size="lg" />
         </div>
-
-        {/* Sound & Vibration */}
-        <div>
-          <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-            <Volume2 className="w-4 h-4 text-primary-600" />
-            Sound & Vibration
-          </h4>
-          <div className="space-y-2">
-            <SettingToggle
-              label="Sound"
-              settingKey="sound_enabled"
-              icon={Volume2}
-            />
-            <SettingToggle
-              label="Vibration"
-              settingKey="vibration_enabled"
-              icon={Smartphone}
-            />
-          </div>
+      ) : error ? (
+        <div className="text-center py-8">
+          <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+          <p className="text-gray-600">{error}</p>
+          <Button variant="outline" size="sm" onClick={loadPreferences} className="mt-3">
+            Retry
+          </Button>
         </div>
+      ) : settings ? (
+        <>
+          <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+            {/* General Settings */}
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-primary-600" />
+                General
+              </h4>
+              <div className="space-y-2">
+                <SettingToggle
+                  label="All Notifications"
+                  description="Enable or disable all notifications"
+                  checked={settings.notifications_enabled}
+                  onChange={() => handleToggle('notifications_enabled')}
+                  icon={Bell}
+                />
+                <SettingToggle
+                  label="Push Notifications"
+                  description="Receive push notifications on your device"
+                  checked={settings.push_enabled}
+                  onChange={() => handleToggle('push_enabled')}
+                  disabled={!settings.notifications_enabled}
+                  icon={Smartphone}
+                />
+              </div>
+            </div>
 
-        {/* Quiet Hours */}
-        <div>
-          <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-            <Moon className="w-4 h-4 text-primary-600" />
-            Quiet Hours
-          </h4>
-          <div className="space-y-3">
-            <SettingToggle
-              label="Enable Quiet Hours"
-              description="Mute notifications during specified hours"
-              settingKey="quiet_hours_enabled"
-              icon={Moon}
-            />
-            {localSettings.quiet_hours_enabled && (
-              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl ml-12">
-                <div className="flex items-center gap-2">
-                  <Moon className="w-4 h-4 text-gray-400" />
-                  <input
-                    type="time"
-                    value={localSettings.quiet_hours_start}
-                    onChange={(e) => setLocalSettings(prev => ({ 
-                      ...prev, 
-                      quiet_hours_start: e.target.value 
-                    }))}
-                    className="px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <span className="text-gray-500">to</span>
-                <div className="flex items-center gap-2">
-                  <Sun className="w-4 h-4 text-gray-400" />
-                  <input
-                    type="time"
-                    value={localSettings.quiet_hours_end}
-                    onChange={(e) => setLocalSettings(prev => ({ 
-                      ...prev, 
-                      quiet_hours_end: e.target.value 
-                    }))}
-                    className="px-3 py-2 border border-gray-300 rounded-lg"
-                  />
+            {/* Quiet Hours */}
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                <Moon className="w-4 h-4 text-primary-600" />
+                Quiet Hours
+              </h4>
+              <div className="space-y-3">
+                <SettingToggle
+                  label="Enable Quiet Hours"
+                  description="Mute non-urgent notifications during specified hours"
+                  checked={settings.quiet_hours_enabled}
+                  onChange={() => handleToggle('quiet_hours_enabled')}
+                  icon={Moon}
+                />
+                {settings.quiet_hours_enabled && (
+                  <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl ml-12">
+                    <div className="flex items-center gap-2">
+                      <Moon className="w-4 h-4 text-gray-400" />
+                      <input
+                        type="time"
+                        value={settings.quiet_hours_start || '22:00'}
+                        onChange={(e) => setSettings(prev => ({
+                          ...prev,
+                          quiet_hours_start: e.target.value
+                        }))}
+                        className="px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <span className="text-gray-500">to</span>
+                    <div className="flex items-center gap-2">
+                      <Sun className="w-4 h-4 text-gray-400" />
+                      <input
+                        type="time"
+                        value={settings.quiet_hours_end || '07:00'}
+                        onChange={(e) => setSettings(prev => ({
+                          ...prev,
+                          quiet_hours_end: e.target.value
+                        }))}
+                        className="px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Notification Types from Backend */}
+            {notificationTypes.length > 0 && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-primary-600" />
+                  Notification Types
+                </h4>
+                <div className="space-y-2">
+                  {notificationTypes.map((nt) => {
+                    const typeConfig = NOTIFICATION_TYPES[nt.type] || DEFAULT_TYPE_CONFIG;
+                    const TypeIcon = typeConfig.icon;
+
+                    return (
+                      <SettingToggle
+                        key={nt.type}
+                        label={nt.name}
+                        description={!nt.can_disable ? 'Always enabled' : undefined}
+                        checked={nt.enabled}
+                        onChange={() => handleTypeToggle(nt.type, nt.enabled)}
+                        disabled={!nt.can_disable || !settings.notifications_enabled}
+                        icon={TypeIcon}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}
           </div>
-        </div>
 
-        {/* Notification Types */}
-        <div>
-          <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-            <Filter className="w-4 h-4 text-primary-600" />
-            Notification Types
-          </h4>
-          <div className="space-y-2">
-            <SettingToggle
-              label="Appointment Reminders"
-              settingKey="appointment_reminders"
-              icon={Calendar}
-            />
-            <SettingToggle
-              label="Consultation Updates"
-              settingKey="consultation_updates"
-              icon={Video}
-            />
-            <SettingToggle
-              label="Patient Messages"
-              settingKey="patient_messages"
-              icon={MessageSquare}
-            />
-            <SettingToggle
-              label="Review Notifications"
-              settingKey="review_notifications"
-              icon={Star}
-            />
-            <SettingToggle
-              label="System Updates"
-              settingKey="system_updates"
-              icon={Info}
-            />
+          {/* Actions */}
+          <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-100">
+            <Button variant="outline" onClick={onClose} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSave}
+              leftIcon={isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : undefined}
+              disabled={isSaving}
+            >
+              Save Settings
+            </Button>
           </div>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-100">
-        <Button variant="outline" onClick={onClose} disabled={isLoading}>
-          Cancel
-        </Button>
-        <Button
-          variant="primary"
-          onClick={handleSave}
-          leftIcon={isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : undefined}
-          disabled={isLoading}
-        >
-          Save Settings
-        </Button>
-      </div>
+        </>
+      ) : null}
     </Modal>
   );
 };
@@ -811,8 +971,6 @@ const NotificationSettingsModal = ({ isOpen, onClose, settings, onSave, isLoadin
  * Delete Confirmation Modal
  */
 const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, isLoading, isBulk }) => {
-  const { t } = useTranslation();
-
   return (
     <Modal
       isOpen={isOpen}
@@ -825,7 +983,7 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, isLoading, isBulk }) =
           <Trash2 className="w-6 h-6 text-red-600" />
         </div>
         <p className="text-gray-700">
-          {isBulk 
+          {isBulk
             ? 'Are you sure you want to delete all notifications? This action cannot be undone.'
             : 'Are you sure you want to delete this notification? This action cannot be undone.'
           }
@@ -863,7 +1021,6 @@ const DoctorNotifications = () => {
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [stats, setStats] = useState(null);
-  const [settings, setSettings] = useState(null);
   const [error, setError] = useState(null);
   const [pagination, setPagination] = useState({ count: 0, next: null, previous: null });
 
@@ -891,48 +1048,88 @@ const DoctorNotifications = () => {
         page_size: 50
       };
 
-      // Add filters
-      if (searchQuery) {
-        params.search = searchQuery;
-      }
-      if (filter !== 'all') {
-        if (filter === 'unread') {
-          params.unread_only = true;
-        } else if (filter === 'read') {
-          params.read_only = true;
-        } else {
-          params.type = filter;
-        }
+      // Build filter params matching backend query params
+      if (filter === 'unread') {
+        params.unread_only = 'true';
+      } else if (filter !== 'all' && filter !== 'read') {
+        // Map frontend filter categories to backend notification_type prefixes
+        // Backend filters by exact type, so we pass the category
+        params.type = filter;
       }
 
-      const [notificationsRes, preferencesRes] = await Promise.allSettled([
-        notificationService.getNotifications(params),
-        notificationService.getPreferences()
-      ]);
+      // Note: Backend doesn't support 'read_only' or 'search' params directly
+      // Search is done client-side
 
-      if (notificationsRes.status === 'fulfilled') {
-        const data = notificationsRes.value.data;
-        setNotifications(data.results || data || []);
-        setPagination({
-          count: data.count || 0,
-          next: data.next,
-          previous: data.previous
-        });
+      /**
+       * notificationService.getNotifications() calls:
+       *   api.get('/notifications/?page_size=50&...')
+       * 
+       * Which returns response.data (via axios) which is the Django response:
+       *   { count, next, previous, results: [...] }
+       * 
+       * Each result from NotificationListSerializer:
+       *   { id, notification_type, title, body, icon, color, is_read, created_at }
+       */
+      const data = await notificationService.getNotifications(params);
 
-        // Calculate stats
-        const allNotifications = data.results || data || [];
-        setStats({
-          total: data.count || allNotifications.length,
-          unread: allNotifications.filter(n => !n.is_read).length,
-          read: allNotifications.filter(n => n.is_read).length
-        });
-      } else {
-        throw notificationsRes.reason;
+      // data is already response.data from axios
+      // It's the paginated response: { count, next, previous, results: [...] }
+      const rawNotifications = data.results || [];
+
+      // Normalize backend format to frontend format
+      const normalized = rawNotifications.map(normalizeNotification);
+
+      // Apply client-side search filter
+      let filtered = normalized;
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        filtered = normalized.filter(n =>
+          n.title?.toLowerCase().includes(query) ||
+          n.message?.toLowerCase().includes(query)
+        );
       }
 
-      if (preferencesRes.status === 'fulfilled') {
-        setSettings(preferencesRes.value.data);
+      // Apply client-side 'read' filter (backend doesn't support read_only)
+      if (filter === 'read') {
+        filtered = filtered.filter(n => n.is_read);
       }
+
+      // Apply client-side type filter for grouped categories
+      if (filter === 'appointment') {
+        filtered = filtered.filter(n => n.type?.startsWith('appointment'));
+      } else if (filter === 'medicine') {
+        filtered = filtered.filter(n =>
+          n.type?.startsWith('medicine') || n.type === 'prescription_ready'
+        );
+      } else if (filter === 'health') {
+        filtered = filtered.filter(n =>
+          n.type?.startsWith('health') || n.type === 'lab_result_ready'
+        );
+      } else if (filter === 'emergency') {
+        filtered = filtered.filter(n => n.type?.startsWith('emergency'));
+      } else if (filter === 'chat') {
+        filtered = filtered.filter(n =>
+          n.type === 'chat_message' || n.type === 'doctor_response'
+        );
+      } else if (filter === 'general') {
+        filtered = filtered.filter(n =>
+          ['general', 'welcome', 'account_update'].includes(n.type)
+        );
+      }
+
+      setNotifications(filtered);
+      setPagination({
+        count: data.count || 0,
+        next: data.next,
+        previous: data.previous
+      });
+
+      // Calculate stats from all normalized (not filtered) data
+      setStats({
+        total: data.count || normalized.length,
+        unread: normalized.filter(n => !n.is_read).length,
+        read: normalized.filter(n => n.is_read).length
+      });
 
     } catch (err) {
       console.error('Error fetching notifications:', err);
@@ -945,7 +1142,7 @@ const DoctorNotifications = () => {
     }
   }, [searchQuery, filter]);
 
-  // Initial load
+  // Initial load and on filter change
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
@@ -953,7 +1150,7 @@ const DoctorNotifications = () => {
   // Group notifications by date
   const groupedNotifications = useMemo(() => {
     const groups = {};
-    
+
     notifications.forEach(notification => {
       try {
         const date = format(parseISO(notification.created_at), 'yyyy-MM-dd');
@@ -966,7 +1163,6 @@ const DoctorNotifications = () => {
       }
     });
 
-    // Sort dates descending
     return Object.entries(groups)
       .sort(([a], [b]) => new Date(b) - new Date(a))
       .map(([date, items]) => ({ date, notifications: items }));
@@ -987,35 +1183,43 @@ const DoctorNotifications = () => {
     }
   }, [navigate]);
 
+  /**
+   * Mark single notification as read.
+   * Uses: POST /notifications/<id>/read/
+   */
   const handleMarkAsRead = useCallback(async (notificationId) => {
     try {
-      await notificationService.markAsRead({ notification_ids: [notificationId] });
-      
+      await notificationService.markOneAsRead(notificationId);
+
       setNotifications(prev =>
         prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
       );
-      setStats(prev => ({
+      setStats(prev => prev ? {
         ...prev,
         unread: Math.max(0, prev.unread - 1),
         read: prev.read + 1
-      }));
+      } : prev);
     } catch (err) {
       console.error('Error marking as read:', err);
       toast.error('Failed to mark as read');
     }
   }, []);
 
+  /**
+   * Mark all notifications as read.
+   * Uses: POST /notifications/mark-read/ with empty body
+   */
   const handleMarkAllAsRead = useCallback(async () => {
     try {
       setIsActionLoading(true);
       await notificationService.markAllAsRead();
-      
+
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-      setStats(prev => ({
+      setStats(prev => prev ? {
         ...prev,
         unread: 0,
         read: prev.total
-      }));
+      } : prev);
       toast.success('All notifications marked as read');
     } catch (err) {
       console.error('Error marking all as read:', err);
@@ -1025,16 +1229,29 @@ const DoctorNotifications = () => {
     }
   }, []);
 
+  /**
+   * Delete notification.
+   * Uses: DELETE /notifications/<id>/delete/
+   */
   const handleDeleteNotification = useCallback(async () => {
+    if (!notificationToDelete) return;
+
     try {
       setIsActionLoading(true);
       await notificationService.deleteNotification(notificationToDelete);
-      
+
+      const deletedNotification = notifications.find(n => n.id === notificationToDelete);
       setNotifications(prev => prev.filter(n => n.id !== notificationToDelete));
-      setStats(prev => ({
-        ...prev,
-        total: Math.max(0, prev.total - 1)
-      }));
+      setStats(prev => {
+        if (!prev) return prev;
+        const newStats = { ...prev, total: Math.max(0, prev.total - 1) };
+        if (deletedNotification && !deletedNotification.is_read) {
+          newStats.unread = Math.max(0, prev.unread - 1);
+        } else if (deletedNotification) {
+          newStats.read = Math.max(0, prev.read - 1);
+        }
+        return newStats;
+      });
       setShowDeleteModal(false);
       setNotificationToDelete(null);
       toast.success('Notification deleted');
@@ -1044,27 +1261,18 @@ const DoctorNotifications = () => {
     } finally {
       setIsActionLoading(false);
     }
-  }, [notificationToDelete]);
+  }, [notificationToDelete, notifications]);
 
   const handleNotificationClick = useCallback((notification) => {
     setSelectedNotification(notification);
     setShowDetailModal(true);
   }, []);
 
-  const handleSaveSettings = useCallback(async (newSettings) => {
-    try {
-      setIsActionLoading(true);
-      await notificationService.updatePreferences(newSettings);
-      setSettings(newSettings);
-      setShowSettingsModal(false);
-      toast.success('Settings saved successfully');
-    } catch (err) {
-      console.error('Error saving settings:', err);
-      toast.error('Failed to save settings');
-    } finally {
-      setIsActionLoading(false);
-    }
-  }, []);
+  const handleSaveSettings = useCallback((newSettings) => {
+    // Settings are saved inside the modal component
+    // Just close and refresh
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   const handleClearFilters = useCallback(() => {
     setSearchQuery('');
@@ -1075,7 +1283,6 @@ const DoctorNotifications = () => {
   // RENDER
   // ============================================================================
 
-  // Loading
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -1209,7 +1416,6 @@ const DoctorNotifications = () => {
       <NotificationSettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
-        settings={settings}
         onSave={handleSaveSettings}
         isLoading={isActionLoading}
       />

@@ -1,359 +1,631 @@
 /**
  * Emergency API Service
- * Handles all emergency-related API calls including SOS and first aid
+ * Handles all emergency-related API calls
+ * 
+ * Endpoints aligned with backend:
+ * - SOSAlertViewSet (trigger, quick-trigger, active, cancel, update-status, history, types, statistics)
+ * - EmergencyContactViewSet (CRUD + reorder)
+ * - EmergencyServiceViewSet (list, detail, nearby[POST], by-district)
+ * - FirstAidGuideViewSet (list, detail, critical, by-category)
+ * - EmergencyHelplineViewSet (list, detail, by-type, important)
+ * - LocationView (GET, POST)
+ * - QuickSOSDataView (GET)
  */
 
 import api from '../../config/api';
 
-/**
- * API endpoint constants
- * @readonly
- */
-const EMERGENCY_ENDPOINTS = Object.freeze({
+// ============================================================================
+// ENDPOINT CONSTANTS — match backend urls.py exactly
+// ============================================================================
+
+const ENDPOINTS = Object.freeze({
   SOS: '/emergency/sos/',
   CONTACTS: '/emergency/contacts/',
   SERVICES: '/emergency/services/',
   HELPLINES: '/emergency/helplines/',
   FIRST_AID: '/emergency/first-aid/',
+  LOCATION: '/emergency/location/',
+  QUICK_SOS_DATA: '/emergency/quick-sos-data/',
+  HEALTH: '/emergency/health/',
 });
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+/**
+ * Sanitizes GPS coordinates to match backend DecimalField constraints.
+ * latitude:  max_digits=10, decimal_places=8 (2 integer + 8 decimal)
+ * longitude: max_digits=11, decimal_places=8 (3 integer + 8 decimal)
+ *
+ * @param {Object} data - Object that may contain latitude/longitude
+ * @returns {Object} Same object with coordinates rounded to 8 decimal places
+ */
+const sanitizeCoordinates = (data) => {
+  if (!data) return data;
+  const sanitized = { ...data };
+
+  if (sanitized.latitude !== null && sanitized.latitude !== undefined) {
+    sanitized.latitude = parseFloat(Number(sanitized.latitude).toFixed(8));
+  }
+  if (sanitized.longitude !== null && sanitized.longitude !== undefined) {
+    sanitized.longitude = parseFloat(Number(sanitized.longitude).toFixed(8));
+  }
+
+  return sanitized;
+};
 
 /**
  * Builds query string from filters object
  * @param {Object} filters - Filter key-value pairs
- * @returns {string} Query string (with leading ? if not empty)
+ * @returns {string} Query string (with leading ? if non-empty)
  */
-const buildQueryString = (filters) => {
+const buildQueryString = (filters = {}) => {
   const params = new URLSearchParams();
-
   Object.entries(filters).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       params.append(key, String(value));
     }
   });
-
-  const queryString = params.toString();
-  return queryString ? `?${queryString}` : '';
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
 };
 
 /**
  * Constructs endpoint URL with optional ID and action
- * @param {string} baseEndpoint - Base endpoint path
- * @param {string|number|null} [id] - Optional resource ID
+ * @param {string} base - Base endpoint path
+ * @param {string|null} [id] - Optional resource ID
  * @param {string|null} [action] - Optional action suffix
  * @returns {string} Complete endpoint URL
  */
-const buildEndpoint = (baseEndpoint, id = null, action = null) => {
-  let endpoint = baseEndpoint;
-
-  if (id !== null) {
-    endpoint += `${id}/`;
-  }
-
-  if (action) {
-    endpoint += `${action}/`;
-  }
-
+const buildEndpoint = (base, id = null, action = null) => {
+  let endpoint = base;
+  if (id) endpoint += `${id}/`;
+  if (action) endpoint += `${action}/`;
   return endpoint;
 };
 
-// ========== SOS Alerts ==========
+// ============================================================================
+// SOS ALERTS
+// Backend: SOSAlertViewSet
+// ============================================================================
 
 /**
  * Trigger SOS alert
- * @param {Object} sosData - SOS data
- * @param {string} sosData.emergency_type - Type (medical/accident/fire/other)
- * @param {number} [sosData.latitude] - GPS latitude
- * @param {number} [sosData.longitude] - GPS longitude
- * @param {string} [sosData.description] - Description of emergency
- * @param {string} [sosData.address] - Location address
- * @returns {Promise<Object>} SOS alert data
+ * POST /emergency/sos/trigger/
+ *
+ * @param {Object} sosData
+ * @param {string} sosData.emergency_type - medical|accident|heart|breathing|unconscious|bleeding|burn|poison|snake_bite|pregnancy|child|other
+ * @param {number} [sosData.latitude]
+ * @param {number} [sosData.longitude]
+ * @param {number} [sosData.location_accuracy]
+ * @param {string} [sosData.description]
+ * @returns {Promise<Object>} { success, is_new, message, sos, contacts_notified, nearby_hospitals }
  */
 export const triggerSOS = async (sosData) => {
-  const endpoint = buildEndpoint(EMERGENCY_ENDPOINTS.SOS, null, 'trigger');
-  const response = await api.post(endpoint, sosData);
+  const endpoint = buildEndpoint(ENDPOINTS.SOS, null, 'trigger');
+  const response = await api.post(endpoint, sanitizeCoordinates(sosData));
   return response.data;
 };
 
 /**
- * Quick SOS trigger (minimal data)
- * @param {Object} [quickData] - Minimal SOS data
- * @param {number} [quickData.latitude] - GPS latitude
- * @param {number} [quickData.longitude] - GPS longitude
- * @returns {Promise<Object>} SOS alert data
+ * Quick SOS trigger (one-tap, minimal data)
+ * POST /emergency/sos/quick-trigger/
+ *
+ * @param {Object} [data]
+ * @param {string} [data.emergency_type] - defaults to 'medical'
+ * @param {number} [data.latitude]
+ * @param {number} [data.longitude]
+ * @param {boolean} [data.use_cached_location] - defaults to true
+ * @returns {Promise<Object>} { success, is_new, message, sos_id, status, contacts_notified }
  */
-export const quickTriggerSOS = async (quickData = {}) => {
-  const endpoint = buildEndpoint(EMERGENCY_ENDPOINTS.SOS, null, 'quick-trigger');
-  const response = await api.post(endpoint, quickData);
+export const quickTriggerSOS = async (data = {}) => {
+  const endpoint = buildEndpoint(ENDPOINTS.SOS, null, 'quick-trigger');
+  const response = await api.post(endpoint, sanitizeCoordinates(data));
   return response.data;
 };
 
 /**
  * Get active SOS alert
- * @returns {Promise<Object|null>} Active SOS alert or null
+ * GET /emergency/sos/active/
+ *
+ * @returns {Promise<Object>} { success, has_active, sos: {...}|null }
  */
 export const getActiveSOS = async () => {
-  const endpoint = buildEndpoint(EMERGENCY_ENDPOINTS.SOS, null, 'active');
+  const endpoint = buildEndpoint(ENDPOINTS.SOS, null, 'active');
   const response = await api.get(endpoint);
   return response.data;
 };
 
 /**
  * Cancel SOS alert
- * @param {string|number} sosId - SOS alert ID
- * @param {Object} [cancelData] - Cancellation data
- * @param {string} [cancelData.reason] - Reason for cancellation
- * @returns {Promise<Object>} Cancelled SOS data
+ * POST /emergency/sos/{id}/cancel/
+ *
+ * @param {string} sosId - SOS alert UUID
+ * @param {Object} cancelData
+ * @param {string} cancelData.reason - mistake|resolved|help_arrived|other (REQUIRED)
+ * @param {string} [cancelData.notes]
+ * @returns {Promise<Object>} { success, message, sos }
  */
-export const cancelSOS = async (sosId, cancelData = {}) => {
-  const endpoint = buildEndpoint(EMERGENCY_ENDPOINTS.SOS, sosId, 'cancel');
+export const cancelSOS = async (sosId, cancelData) => {
+  const endpoint = buildEndpoint(ENDPOINTS.SOS, sosId, 'cancel');
   const response = await api.post(endpoint, cancelData);
   return response.data;
 };
 
 /**
- * Get SOS history
- * @param {Object} [filters] - Filter options
- * @param {number} [filters.page] - Page number
- * @param {number} [filters.page_size] - Items per page
- * @returns {Promise<Object>} Paginated SOS history
+ * Update SOS alert status
+ * POST /emergency/sos/{id}/update-status/
+ *
+ * @param {string} sosId - SOS alert UUID
+ * @param {Object} statusData
+ * @param {string} statusData.status - acknowledged|responding|resolved|false_alarm
+ * @param {string} [statusData.acknowledged_by]
+ * @param {number} [statusData.responder_eta] - minutes
+ * @param {string} [statusData.resolution_notes]
+ * @returns {Promise<Object>} { success, message, sos }
  */
-export const getSOSHistory = async (filters = {}) => {
-  const queryString = buildQueryString(filters);
-  const response = await api.get(`${EMERGENCY_ENDPOINTS.SOS}${queryString}`);
+export const updateSOSStatus = async (sosId, statusData) => {
+  const endpoint = buildEndpoint(ENDPOINTS.SOS, sosId, 'update-status');
+  const response = await api.post(endpoint, statusData);
   return response.data;
 };
 
-// ========== Emergency Contacts ==========
+/**
+ * Get SOS history
+ * GET /emergency/sos/history/
+ *
+ * @param {Object} [filters]
+ * @param {number} [filters.limit] - default 20
+ * @param {boolean} [filters.include_active] - default true
+ * @returns {Promise<Object>} { success, count, alerts }
+ */
+export const getSOSHistory = async (filters = {}) => {
+  const endpoint = buildEndpoint(ENDPOINTS.SOS, null, 'history');
+  const qs = buildQueryString(filters);
+  const response = await api.get(`${endpoint}${qs}`);
+  return response.data;
+};
 
 /**
- * Get emergency contacts
- * @returns {Promise<Array>} List of emergency contacts
+ * Get emergency types with translations
+ * GET /emergency/sos/types/?lang=en
+ *
+ * @param {string} [lang] - en|te|hi
+ * @returns {Promise<Object>} { success, language, types: [{code, name, icon}] }
  */
-export const getEmergencyContacts = async () => {
-  const response = await api.get(EMERGENCY_ENDPOINTS.CONTACTS);
+export const getEmergencyTypes = async (lang = 'en') => {
+  const endpoint = buildEndpoint(ENDPOINTS.SOS, null, 'types');
+  const qs = buildQueryString({ lang });
+  const response = await api.get(`${endpoint}${qs}`);
+  return response.data;
+};
+
+/**
+ * Get SOS statistics
+ * GET /emergency/sos/statistics/
+ *
+ * @returns {Promise<Object>} { success, statistics: { total_sos, resolved, cancelled, ... } }
+ */
+export const getSOSStatistics = async () => {
+  const endpoint = buildEndpoint(ENDPOINTS.SOS, null, 'statistics');
+  const response = await api.get(endpoint);
+  return response.data;
+};
+
+// ============================================================================
+// EMERGENCY CONTACTS
+// Backend: EmergencyContactViewSet
+// ============================================================================
+
+/**
+ * Get user's emergency contacts
+ * GET /emergency/contacts/
+ *
+ * @param {Object} [filters]
+ * @param {boolean} [filters.is_active]
+ * @returns {Promise<Object>} { success, count, contacts }
+ */
+export const getEmergencyContacts = async (filters = {}) => {
+  const qs = buildQueryString(filters);
+  const response = await api.get(`${ENDPOINTS.CONTACTS}${qs}`);
   return response.data;
 };
 
 /**
  * Add emergency contact
- * @param {Object} contactData - Contact data
- * @param {string} contactData.name - Contact name
- * @param {string} contactData.phone - Phone number
- * @param {string} contactData.relationship - Relationship
- * @param {boolean} [contactData.is_primary] - Is primary contact
- * @param {boolean} [contactData.notify_on_sos] - Notify on SOS
- * @returns {Promise<Object>} Created contact
+ * POST /emergency/contacts/
+ *
+ * @param {Object} contactData
+ * @param {string} contactData.name
+ * @param {string} contactData.phone_number - 10-digit Indian mobile (6-9 start)
+ * @param {string} contactData.relationship - spouse|parent|child|sibling|relative|friend|neighbor|doctor|other
+ * @param {number} [contactData.priority] - 1 (highest) to 10 (lowest)
+ * @param {boolean} [contactData.notify_on_sos]
+ * @param {boolean} [contactData.share_location]
+ * @returns {Promise<Object>} { success, message, contact }
  */
 export const addEmergencyContact = async (contactData) => {
-  const response = await api.post(EMERGENCY_ENDPOINTS.CONTACTS, contactData);
+  const response = await api.post(ENDPOINTS.CONTACTS, contactData);
   return response.data;
 };
 
 /**
  * Update emergency contact
- * @param {string|number} contactId - Contact ID
- * @param {Object} contactData - Updated data
- * @returns {Promise<Object>} Updated contact
+ * PUT /emergency/contacts/{id}/
+ *
+ * @param {string} contactId - UUID
+ * @param {Object} contactData
+ * @returns {Promise<Object>} { success, message, contact }
  */
 export const updateEmergencyContact = async (contactId, contactData) => {
-  const endpoint = buildEndpoint(EMERGENCY_ENDPOINTS.CONTACTS, contactId);
+  const endpoint = buildEndpoint(ENDPOINTS.CONTACTS, contactId);
   const response = await api.put(endpoint, contactData);
   return response.data;
 };
 
 /**
+ * Partially update emergency contact
+ * PATCH /emergency/contacts/{id}/
+ *
+ * @param {string} contactId - UUID
+ * @param {Object} partialData
+ * @returns {Promise<Object>} { success, message, contact }
+ */
+export const patchEmergencyContact = async (contactId, partialData) => {
+  const endpoint = buildEndpoint(ENDPOINTS.CONTACTS, contactId);
+  const response = await api.patch(endpoint, partialData);
+  return response.data;
+};
+
+/**
  * Delete emergency contact
- * @param {string|number} contactId - Contact ID
- * @returns {Promise<void>}
+ * DELETE /emergency/contacts/{id}/
+ *
+ * @param {string} contactId - UUID
+ * @returns {Promise<Object>} { success, message }
  */
 export const deleteEmergencyContact = async (contactId) => {
-  const endpoint = buildEndpoint(EMERGENCY_ENDPOINTS.CONTACTS, contactId);
+  const endpoint = buildEndpoint(ENDPOINTS.CONTACTS, contactId);
   const response = await api.delete(endpoint);
   return response.data;
 };
 
 /**
- * Set primary emergency contact
- * @param {string|number} contactId - Contact ID
- * @returns {Promise<Object>} Updated contact
+ * Reorder contact priorities
+ * POST /emergency/contacts/reorder/
+ *
+ * @param {Array<{id: string, priority: number}>} contacts
+ * @returns {Promise<Object>} { success, message }
  */
-export const setPrimaryContact = async (contactId) => {
-  const endpoint = buildEndpoint(EMERGENCY_ENDPOINTS.CONTACTS, contactId, 'set-primary');
-  const response = await api.post(endpoint);
+export const reorderContacts = async (contacts) => {
+  const endpoint = buildEndpoint(ENDPOINTS.CONTACTS, null, 'reorder');
+  const response = await api.post(endpoint, { contacts });
   return response.data;
 };
 
-// ========== Nearby Services ==========
+// ============================================================================
+// EMERGENCY SERVICES (hospitals, ambulances, etc.)
+// Backend: EmergencyServiceViewSet (ReadOnly)
+// ============================================================================
 
 /**
- * Get nearby emergency services
- * @param {Object} locationData - Location data
- * @param {number} locationData.latitude - GPS latitude
- * @param {number} locationData.longitude - GPS longitude
- * @param {number} [locationData.radius_km] - Search radius in km (default: 10)
- * @param {string} [locationData.service_type] - Type (hospital/ambulance/pharmacy/blood_bank)
- * @returns {Promise<Array>} List of nearby services
+ * List emergency services
+ * GET /emergency/services/?type=hospital&district=...&is_24x7=true&lat=...&lng=...
+ *
+ * @param {Object} [filters]
+ * @param {string} [filters.type]
+ * @param {string} [filters.district]
+ * @param {boolean} [filters.is_24x7]
+ * @param {boolean} [filters.is_government]
+ * @param {number} [filters.lat] - for distance calc
+ * @param {number} [filters.lng] - for distance calc
+ * @returns {Promise<Object>} { success, count, services }
+ */
+export const listEmergencyServices = async (filters = {}) => {
+  const qs = buildQueryString(filters);
+  const response = await api.get(`${ENDPOINTS.SERVICES}${qs}`);
+  return response.data;
+};
+
+/**
+ * Get emergency service detail
+ * GET /emergency/services/{id}/
+ *
+ * @param {string} serviceId
+ * @returns {Promise<Object>} Service detail
+ */
+export const getEmergencyService = async (serviceId) => {
+  const endpoint = buildEndpoint(ENDPOINTS.SERVICES, serviceId);
+  const response = await api.get(endpoint);
+  return response.data;
+};
+
+/**
+ * Find nearby emergency services
+ * POST /emergency/services/nearby/ (backend uses POST)
+ *
+ * @param {Object} locationData
+ * @param {number} locationData.latitude - REQUIRED
+ * @param {number} locationData.longitude - REQUIRED
+ * @param {number} [locationData.radius_km] - 1-100, default 10
+ * @param {string} [locationData.service_type]
+ * @param {boolean} [locationData.only_24x7]
+ * @param {boolean} [locationData.only_government]
+ * @returns {Promise<Object>} { success, count, search_radius_km, services }
  */
 export const getNearbyServices = async (locationData) => {
-  const queryString = buildQueryString(locationData);
-  const endpoint = buildEndpoint(EMERGENCY_ENDPOINTS.SERVICES, null, 'nearby');
-  const response = await api.get(`${endpoint}${queryString}`);
+  const endpoint = buildEndpoint(ENDPOINTS.SERVICES, null, 'nearby');
+  const response = await api.post(endpoint, sanitizeCoordinates(locationData));
   return response.data;
 };
 
 /**
- * Get nearby hospitals
- * @param {number} latitude - GPS latitude
- * @param {number} longitude - GPS longitude
- * @param {number} [radiusKm] - Search radius
- * @returns {Promise<Array>} List of nearby hospitals
+ * Get services by district
+ * GET /emergency/services/by-district/?district=Hyderabad&type=hospital
+ *
+ * @param {string} district - REQUIRED
+ * @param {string} [serviceType]
+ * @returns {Promise<Object>} { success, district, count, services }
  */
-export const getNearbyHospitals = async (latitude, longitude, radiusKm = 10) => {
-  return getNearbyServices({
-    latitude,
-    longitude,
-    radius_km: radiusKm,
-    service_type: 'hospital',
-  });
-};
-
-/**
- * Get nearby ambulance services
- * @param {number} latitude - GPS latitude
- * @param {number} longitude - GPS longitude
- * @param {number} [radiusKm] - Search radius
- * @returns {Promise<Array>} List of nearby ambulance services
- */
-export const getNearbyAmbulances = async (latitude, longitude, radiusKm = 10) => {
-  return getNearbyServices({
-    latitude,
-    longitude,
-    radius_km: radiusKm,
-    service_type: 'ambulance',
-  });
-};
-
-/**
- * Get nearby pharmacies
- * @param {number} latitude - GPS latitude
- * @param {number} longitude - GPS longitude
- * @param {number} [radiusKm] - Search radius
- * @returns {Promise<Array>} List of nearby pharmacies
- */
-export const getNearbyPharmacies = async (latitude, longitude, radiusKm = 10) => {
-  return getNearbyServices({
-    latitude,
-    longitude,
-    radius_km: radiusKm,
-    service_type: 'pharmacy',
-  });
-};
-
-// ========== Emergency Helplines ==========
-
-/**
- * Get emergency helplines
- * @param {Object} [filters] - Filter options
- * @param {string} [filters.state] - Filter by state
- * @param {string} [filters.category] - Category (medical/police/fire/women/child)
- * @returns {Promise<Array>} List of helplines
- */
-export const getHelplines = async (filters = {}) => {
-  const queryString = buildQueryString(filters);
-  const response = await api.get(`${EMERGENCY_ENDPOINTS.HELPLINES}${queryString}`);
+export const getServicesByDistrict = async (district, serviceType = null) => {
+  const endpoint = buildEndpoint(ENDPOINTS.SERVICES, null, 'by-district');
+  const qs = buildQueryString({ district, type: serviceType });
+  const response = await api.get(`${endpoint}${qs}`);
   return response.data;
 };
 
 /**
- * Get national helplines
- * @returns {Promise<Array>} List of national helplines
+ * Convenience: Get nearby hospitals
  */
-export const getNationalHelplines = async () => {
-  const endpoint = buildEndpoint(EMERGENCY_ENDPOINTS.HELPLINES, null, 'national');
-  const response = await api.get(endpoint);
-  return response.data;
-};
-
-// ========== First Aid Guides ==========
+export const getNearbyHospitals = (latitude, longitude, radiusKm = 10) =>
+  getNearbyServices({ latitude, longitude, radius_km: radiusKm, service_type: 'hospital' });
 
 /**
- * Get first aid guides
- * @param {Object} [filters] - Filter options
- * @param {string} [filters.category] - Category filter
- * @param {string} [filters.language] - Language code
- * @param {string} [filters.search] - Search query
- * @returns {Promise<Array>} List of first aid guides
+ * Convenience: Get nearby ambulances
+ */
+export const getNearbyAmbulances = (latitude, longitude, radiusKm = 20) =>
+  getNearbyServices({ latitude, longitude, radius_km: radiusKm, service_type: 'ambulance' });
+
+/**
+ * Convenience: Get nearby pharmacies
+ */
+export const getNearbyPharmacies = (latitude, longitude, radiusKm = 10) =>
+  getNearbyServices({ latitude, longitude, radius_km: radiusKm, service_type: 'pharmacy' });
+
+// ============================================================================
+// FIRST AID GUIDES
+// Backend: FirstAidGuideViewSet (ReadOnly)
+// ============================================================================
+
+/**
+ * List first aid guides
+ * GET /emergency/first-aid/?category=burns&lang=en
+ *
+ * @param {Object} [filters]
+ * @param {string} [filters.category]
+ * @param {string} [filters.lang] - en|te|hi
+ * @returns {Promise<Object>} { success, count, categories, guides }
  */
 export const getFirstAidGuides = async (filters = {}) => {
-  const queryString = buildQueryString(filters);
-  const response = await api.get(`${EMERGENCY_ENDPOINTS.FIRST_AID}${queryString}`);
+  const qs = buildQueryString(filters);
+  const response = await api.get(`${ENDPOINTS.FIRST_AID}${qs}`);
   return response.data;
 };
 
 /**
- * Get first aid guide by ID
- * @param {string|number} guideId - Guide ID
- * @param {string} [language] - Language code
- * @returns {Promise<Object>} First aid guide details
+ * Get first aid guide detail
+ * GET /emergency/first-aid/{id}/?lang=en
+ *
+ * @param {string} guideId
+ * @param {string} [lang]
+ * @returns {Promise<Object>} Full guide with steps, donts, etc.
  */
-export const getFirstAidGuideById = async (guideId, language = 'en') => {
-  const queryString = buildQueryString({ language });
-  const endpoint = buildEndpoint(EMERGENCY_ENDPOINTS.FIRST_AID, guideId);
-  const response = await api.get(`${endpoint}${queryString}`);
+export const getFirstAidGuide = async (guideId, lang = 'en') => {
+  const endpoint = buildEndpoint(ENDPOINTS.FIRST_AID, guideId);
+  const qs = buildQueryString({ lang });
+  const response = await api.get(`${endpoint}${qs}`);
   return response.data;
 };
 
 /**
- * Get first aid categories
- * @returns {Promise<Array>} List of categories
+ * Get critical/life-threatening first aid guides
+ * GET /emergency/first-aid/critical/?lang=en
+ *
+ * @param {string} [lang]
+ * @returns {Promise<Object>} { success, count, guides }
  */
-export const getFirstAidCategories = async () => {
-  const endpoint = buildEndpoint(EMERGENCY_ENDPOINTS.FIRST_AID, null, 'categories');
-  const response = await api.get(endpoint);
+export const getCriticalFirstAidGuides = async (lang = 'en') => {
+  const endpoint = buildEndpoint(ENDPOINTS.FIRST_AID, null, 'critical');
+  const qs = buildQueryString({ lang });
+  const response = await api.get(`${endpoint}${qs}`);
   return response.data;
 };
 
 /**
- * Search first aid guides
- * @param {string} query - Search query
- * @param {string} [language] - Language code
- * @returns {Promise<Array>} Matching guides
+ * Get first aid guides by category
+ * GET /emergency/first-aid/by-category/{category}/?lang=en
+ *
+ * @param {string} category
+ * @param {string} [lang]
+ * @returns {Promise<Object>} { success, category, count, guides }
  */
-export const searchFirstAidGuides = async (query, language = 'en') => {
-  const queryString = buildQueryString({ q: query, language });
-  const endpoint = buildEndpoint(EMERGENCY_ENDPOINTS.FIRST_AID, null, 'search');
-  const response = await api.get(`${endpoint}${queryString}`);
+export const getFirstAidByCategory = async (category, lang = 'en') => {
+  const endpoint = `${ENDPOINTS.FIRST_AID}by-category/${category}/`;
+  const qs = buildQueryString({ lang });
+  const response = await api.get(`${endpoint}${qs}`);
+  return response.data;
+};
+
+// ============================================================================
+// EMERGENCY HELPLINES
+// Backend: EmergencyHelplineViewSet (ReadOnly)
+// ============================================================================
+
+/**
+ * List emergency helplines
+ * GET /emergency/helplines/?type=ambulance&state=Andhra Pradesh&national_only=true&lang=en
+ *
+ * @param {Object} [filters]
+ * @param {string} [filters.type]
+ * @param {string} [filters.state]
+ * @param {boolean} [filters.national_only]
+ * @param {string} [filters.lang] - en|te|hi
+ * @returns {Promise<Object>} { success, count, types, helplines }
+ */
+export const getHelplines = async (filters = {}) => {
+  const qs = buildQueryString(filters);
+  const response = await api.get(`${ENDPOINTS.HELPLINES}${qs}`);
   return response.data;
 };
 
 /**
- * Emergency service default export
- * Groups all emergency-related API methods
+ * Get helplines by type
+ * GET /emergency/helplines/by-type/{type}/?lang=en
+ *
+ * @param {string} helplineType
+ * @param {string} [lang]
+ * @returns {Promise<Object>} { success, type, count, helplines }
  */
+export const getHelplinesByType = async (helplineType, lang = 'en') => {
+  const endpoint = `${ENDPOINTS.HELPLINES}by-type/${helplineType}/`;
+  const qs = buildQueryString({ lang });
+  const response = await api.get(`${endpoint}${qs}`);
+  return response.data;
+};
+
+/**
+ * Get important helplines (ambulance, police, fire — national)
+ * GET /emergency/helplines/important/?lang=en
+ *
+ * @param {string} [lang]
+ * @returns {Promise<Object>} { success, helplines }
+ */
+export const getImportantHelplines = async (lang = 'en') => {
+  const endpoint = buildEndpoint(ENDPOINTS.HELPLINES, null, 'important');
+  const qs = buildQueryString({ lang });
+  const response = await api.get(`${endpoint}${qs}`);
+  return response.data;
+};
+
+// ============================================================================
+// LOCATION
+// Backend: LocationView
+// ============================================================================
+
+/**
+ * Get cached user location
+ * GET /emergency/location/
+ *
+ * @returns {Promise<Object>} { success, has_location, location: {...}|null }
+ */
+export const getCachedLocation = async () => {
+  const response = await api.get(ENDPOINTS.LOCATION);
+  return response.data;
+};
+
+/**
+ * Update user location
+ * POST /emergency/location/update/
+ *
+ * @param {Object} locationData
+ * @param {number} locationData.latitude
+ * @param {number} locationData.longitude
+ * @param {number} [locationData.accuracy] - GPS accuracy in meters
+ * @param {string} [locationData.address] - reverse geocoded address
+ * @returns {Promise<Object>} { success, message, location }
+ */
+export const updateLocation = async (locationData) => {
+  const response = await api.post(
+    `${ENDPOINTS.LOCATION}update/`,
+    sanitizeCoordinates(locationData)
+  );
+  return response.data;
+};
+
+// ============================================================================
+// QUICK SOS DATA (all data in one call)
+// Backend: QuickSOSDataView
+// ============================================================================
+
+/**
+ * Get all SOS screen data in one call
+ * GET /emergency/quick-sos-data/?lang=en
+ *
+ * @param {string} [lang] - en|te|hi
+ * @returns {Promise<Object>} { success, language, data }
+ */
+export const getQuickSOSData = async (lang = 'en') => {
+  const qs = buildQueryString({ lang });
+  const response = await api.get(`${ENDPOINTS.QUICK_SOS_DATA}${qs}`);
+  return response.data;
+};
+
+// ============================================================================
+// HEALTH CHECK
+// ============================================================================
+
+/**
+ * Health check
+ * GET /emergency/health/
+ *
+ * @returns {Promise<Object>} { status, app, database, data }
+ */
+export const healthCheck = async () => {
+  const response = await api.get(ENDPOINTS.HEALTH);
+  return response.data;
+};
+
+// ============================================================================
+// DEFAULT EXPORT
+// ============================================================================
+
 export default {
   // SOS
   triggerSOS,
   quickTriggerSOS,
   getActiveSOS,
   cancelSOS,
+  updateSOSStatus,
   getSOSHistory,
+  getEmergencyTypes,
+  getSOSStatistics,
+
   // Contacts
   getEmergencyContacts,
   addEmergencyContact,
   updateEmergencyContact,
+  patchEmergencyContact,
   deleteEmergencyContact,
-  setPrimaryContact,
-  // Nearby Services
+  reorderContacts,
+
+  // Emergency Services
+  listEmergencyServices,
+  getEmergencyService,
   getNearbyServices,
+  getServicesByDistrict,
   getNearbyHospitals,
   getNearbyAmbulances,
   getNearbyPharmacies,
-  // Helplines
-  getHelplines,
-  getNationalHelplines,
+
   // First Aid
   getFirstAidGuides,
-  getFirstAidGuideById,
-  getFirstAidCategories,
-  searchFirstAidGuides,
+  getFirstAidGuide,
+  getCriticalFirstAidGuides,
+  getFirstAidByCategory,
+
+  // Helplines
+  getHelplines,
+  getHelplinesByType,
+  getImportantHelplines,
+
+  // Location
+  getCachedLocation,
+  updateLocation,
+
+  // Quick Data
+  getQuickSOSData,
+
+  // Health
+  healthCheck,
 };

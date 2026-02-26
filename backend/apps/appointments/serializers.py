@@ -23,6 +23,27 @@ from .models import (
     AppointmentQueue,
     AppointmentReminder,
 )
+from apps.users.models import DoctorProfile
+
+
+def resolve_doctor_user_by_any_id(doctor_id):
+    """Resolve doctor user by either User.id or DoctorProfile.id."""
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+
+    try:
+        user = User.objects.get(id=doctor_id)
+        if hasattr(user, 'doctor_profile'):
+            return user
+    except User.DoesNotExist:
+        pass
+
+    doctor_profile = DoctorProfile.objects.select_related('user').filter(id=doctor_id).first()
+    if doctor_profile:
+        return doctor_profile.user
+
+    raise User.DoesNotExist
 
 
 # =============================================================================
@@ -412,7 +433,7 @@ class AppointmentListSerializer(serializers.ModelSerializer):
 class AppointmentCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating appointments."""
     
-    doctor_id = serializers.UUIDField(write_only=True)
+    doctor_id = serializers.CharField(write_only=True)
     time_slot_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     
     class Meta:
@@ -430,16 +451,10 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
     
     def validate_doctor_id(self, value):
         """Validate doctor exists and is a doctor."""
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        
         try:
-            doctor = User.objects.get(id=value)
-            # Check if user is a doctor (has doctor profile)
-            if not hasattr(doctor, 'doctor_profile'):
-                raise serializers.ValidationError('User is not a registered doctor.')
+            resolve_doctor_user_by_any_id(value)
             return value
-        except User.DoesNotExist:
+        except Exception:
             raise serializers.ValidationError('Doctor not found.')
     
     def validate_appointment_date(self, value):
@@ -463,15 +478,16 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
     
     def validate(self, attrs):
         """Validate appointment booking."""
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        
         doctor_id = attrs.get('doctor_id')
         appointment_date = attrs.get('appointment_date')
         start_time = attrs.get('start_time')
         time_slot_id = attrs.get('time_slot_id')
-        
-        doctor = User.objects.get(id=doctor_id)
+
+        try:
+            doctor = resolve_doctor_user_by_any_id(doctor_id)
+        except Exception:
+            raise serializers.ValidationError({'doctor_id': 'Doctor not found.'})
+
         patient = self.context['request'].user
         
         # Check patient is not the doctor
