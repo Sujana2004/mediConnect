@@ -10,6 +10,12 @@ export default defineConfig({
       },
     }),
   ],
+  
+  // Add this to fix lucide-react issues
+  optimizeDeps: {
+    include: ['lucide-react'],
+  },
+  
   build: {
     rollupOptions: {
       output: {
@@ -21,8 +27,18 @@ export default defineConfig({
               return 'vendor-firebase';
             }
             
-            // React ecosystem
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+            // ⚠️ IMPORTANT: Check lucide-react BEFORE react
+            // Icons - must be checked before generic 'react' check
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons';
+            }
+            
+            // React ecosystem (checked AFTER lucide-react)
+            if (
+              id.includes('node_modules/react/') || 
+              id.includes('node_modules/react-dom/') || 
+              id.includes('node_modules/react-router')
+            ) {
               return 'vendor-react';
             }
             
@@ -34,11 +50,6 @@ export default defineConfig({
             // UI/Animation
             if (id.includes('framer-motion')) {
               return 'vendor-motion';
-            }
-            
-            // Icons
-            if (id.includes('lucide-react')) {
-              return 'vendor-icons';
             }
             
             // Date utilities
@@ -62,7 +73,19 @@ export default defineConfig({
         },
       },
     },
-    // Optional: Suppress warnings for slightly larger chunks
+    // Suppress warnings for slightly larger chunks
     chunkSizeWarningLimit: 550,
+    
+    // Add this for better compatibility
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
+  },
+  
+  // Add resolve alias for lucide-react
+  resolve: {
+    alias: {
+      'lucide-react': 'lucide-react/dist/esm/lucide-react',
+    },
   },
 });
