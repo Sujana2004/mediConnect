@@ -296,7 +296,7 @@ SIMPLE_JWT = {
 
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://localhost:5173',
+    default='http://localhost:3000,http://localhost:5173,https://medi-connect-seven-woad.vercel.app',
     cast=Csv()
 )
 
