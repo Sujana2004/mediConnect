@@ -8,7 +8,7 @@ services:
     region: singapore  # Choose: singapore, oregon, frankfurt, ohio
     plan: free
     buildCommand: "./build.sh"
-    startCommand: "gunicorn mediconnect.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 --max-requests 500"
+    startCommand: "gunicorn mediconnect.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 300"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.7

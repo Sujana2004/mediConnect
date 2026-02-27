@@ -42,9 +42,12 @@ THIRD_PARTY_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'channels',
-    'drf_yasg',
     'storages',  # Added for Supabase storage
 ]
+
+# Add drf_yasg only in DEBUG mode (saves ~50MB RAM in production)
+if DEBUG:
+    THIRD_PARTY_APPS.append('drf_yasg')
 
 LOCAL_APPS = [
     'apps.users',

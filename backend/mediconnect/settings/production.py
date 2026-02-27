@@ -239,3 +239,15 @@ DISABLE_APPOINTMENT_SCHEDULER = True
 DISABLE_CONSULTATION_SCHEDULER = True
 
 print("📅 APScheduler: DISABLED (using external cron)")
+
+# =============================================================================
+# DISABLE SWAGGER IN PRODUCTION (Saves ~50MB memory)
+# =============================================================================
+
+# Prevent drf-yasg from loading views at startup
+SWAGGER_SETTINGS = {
+    'USE_SESSION_AUTH': False,
+    'DOC_EXPANSION': 'none',
+}
+
+print("📚 Swagger: DISABLED (Production)")
