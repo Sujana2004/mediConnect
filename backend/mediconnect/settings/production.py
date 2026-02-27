@@ -214,10 +214,28 @@ REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
 
 
 # =============================================================================
-# DISABLE SCHEDULERS IN PRODUCTION (Optional)
-# Set to True if you want to disable background tasks
+# DISABLE SCHEDULERS IN PRODUCTION (Saves memory on free tier)
 # =============================================================================
 
-DISABLE_MEDICINE_SCHEDULER = config('DISABLE_MEDICINE_SCHEDULER', default=False, cast=bool)
-DISABLE_APPOINTMENT_SCHEDULER = config('DISABLE_APPOINTMENT_SCHEDULER', default=False, cast=bool)
-DISABLE_CONSULTATION_SCHEDULER = config('DISABLE_CONSULTATION_SCHEDULER', default=False, cast=bool)
+# # Disable all schedulers to prevent memory issues
+# DISABLE_MEDICINE_SCHEDULER = config('DISABLE_MEDICINE_SCHEDULER', default=True, cast=bool)
+# DISABLE_APPOINTMENT_SCHEDULER = config('DISABLE_APPOINTMENT_SCHEDULER', default=True, cast=bool)
+# DISABLE_CONSULTATION_SCHEDULER = config('DISABLE_CONSULTATION_SCHEDULER', default=True, cast=bool)
+
+# print(f" Medicine Scheduler: {'DISABLED' if DISABLE_MEDICINE_SCHEDULER else 'ENABLED'}")
+# print(f" Appointment Scheduler: {'DISABLED' if DISABLE_APPOINTMENT_SCHEDULER else 'ENABLED'}")
+# print(f" Consultation Scheduler: {'DISABLED' if DISABLE_CONSULTATION_SCHEDULER else 'ENABLED'}")
+
+# =============================================================================
+# CRON JOB SETTINGS
+# =============================================================================
+
+# Secret key for cron job authentication
+CRON_SECRET = config('CRON_SECRET', default='')
+
+# Disable APScheduler (using external cron instead)
+DISABLE_MEDICINE_SCHEDULER = True
+DISABLE_APPOINTMENT_SCHEDULER = True
+DISABLE_CONSULTATION_SCHEDULER = True
+
+print("📅 APScheduler: DISABLED (using external cron)")

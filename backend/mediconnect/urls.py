@@ -44,6 +44,8 @@ urlpatterns = [
     path('api/v1/consultation/', include('apps.consultation.urls')),
     path('api/v1/health-records/', include('apps.health_records.urls')),
     path('api/v1/sync/', include('apps.sync.urls')),
+    # Cron job endpoints (external scheduler)
+    path('api/v1/cron/', include('apps.cron.urls')),
 ]
 
 # Serve media files in development

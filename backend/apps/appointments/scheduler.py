@@ -7,10 +7,16 @@ Background tasks for:
 3. Marking no-shows
 4. Generating time slots
 5. Cleaning up old data
+
+Optimized for production (Render free tier):
+- Can be disabled via settings
+- Database connection safety
+- Memory efficient
 """
 
 import logging
-from datetime import datetime, timedelta
+import sys
+from datetime import timedelta
 from django.utils import timezone
 from django.conf import settings
 
@@ -21,9 +27,51 @@ _scheduler_initialized = False
 _scheduler = None
 
 
+def is_scheduler_disabled():
+    """Check if scheduler should be disabled."""
+    return getattr(settings, 'DISABLE_APPOINTMENT_SCHEDULER', False)
+
+
+def safe_db_operation(func):
+    """Decorator to safely handle database operations."""
+    def wrapper(*args, **kwargs):
+        if is_scheduler_disabled():
+            return None
+        
+        try:
+            from django.db import connection
+            
+            # Check database connection first
+            try:
+                connection.ensure_connection()
+            except Exception as db_error:
+                logger.warning(f"[SCHEDULER] Database not available: {db_error}")
+                return None
+            
+            result = func(*args, **kwargs)
+            return result
+            
+        except Exception as e:
+            logger.error(f"[SCHEDULER] Error in {func.__name__}: {e}")
+            return None
+        finally:
+            # Always close connection
+            try:
+                from django.db import connection
+                connection.close()
+            except:
+                pass
+    
+    return wrapper
+
+
 def get_scheduler():
     """Get or create the APScheduler instance."""
     global _scheduler
+    
+    # Don't create scheduler if disabled
+    if is_scheduler_disabled():
+        return None
     
     if _scheduler is None:
         try:
@@ -36,20 +84,21 @@ def get_scheduler():
             }
             
             executors = {
-                'default': ThreadPoolExecutor(max_workers=3)
+                # Reduced workers for free tier
+                'default': ThreadPoolExecutor(max_workers=1)
             }
             
             job_defaults = {
                 'coalesce': True,
                 'max_instances': 1,
-                'misfire_grace_time': 60 * 5  # 5 minutes
+                'misfire_grace_time': 60 * 10  # 10 minutes (increased)
             }
             
             _scheduler = BackgroundScheduler(
                 jobstores=jobstores,
                 executors=executors,
                 job_defaults=job_defaults,
-                timezone=settings.TIME_ZONE
+                timezone=getattr(settings, 'TIME_ZONE', 'UTC')
             )
             
             logger.info("APScheduler instance created for appointments")
@@ -66,8 +115,8 @@ def start_scheduler():
     global _scheduler_initialized
     
     # Check if scheduler is disabled
-    if getattr(settings, 'DISABLE_APPOINTMENT_SCHEDULER', False):
-        logger.info("Appointment scheduler is disabled via settings")
+    if is_scheduler_disabled():
+        logger.info("[SCHEDULER] Appointment scheduler DISABLED via settings")
         return
     
     if _scheduler_initialized:
@@ -79,7 +128,7 @@ def start_scheduler():
         return
     
     try:
-        # Add jobs
+        # Add jobs with reduced frequency for free tier
         _add_reminder_job(scheduler)
         _add_auto_confirm_job(scheduler)
         _add_no_show_job(scheduler)
@@ -89,21 +138,27 @@ def start_scheduler():
         # Start scheduler if not running
         if not scheduler.running:
             scheduler.start()
-            logger.info("Appointment scheduler started successfully")
+            logger.info("[SCHEDULER] Appointment scheduler started successfully")
         
         _scheduler_initialized = True
         
     except Exception as e:
-        logger.error(f"Error starting appointment scheduler: {e}")
+        logger.error(f"[SCHEDULER] Error starting appointment scheduler: {e}")
 
 
 def stop_scheduler():
     """Stop the appointment scheduler."""
     global _scheduler_initialized, _scheduler
     
-    if _scheduler and _scheduler.running:
-        _scheduler.shutdown(wait=False)
-        logger.info("Appointment scheduler stopped")
+    if _scheduler:
+        try:
+            if _scheduler.running:
+                _scheduler.shutdown(wait=False)  # Don't wait to prevent hanging
+                logger.info("[SCHEDULER] Appointment scheduler stopped")
+        except Exception as e:
+            logger.warning(f"[SCHEDULER] Error stopping: {e}")
+        finally:
+            _scheduler = None
     
     _scheduler_initialized = False
 
@@ -113,12 +168,12 @@ def _add_reminder_job(scheduler):
     scheduler.add_job(
         send_pending_reminders,
         trigger='interval',
-        minutes=5,
+        minutes=10,  # Changed from 5 to 10
         id='appointments_send_reminders',
         name='Send Appointment Reminders',
         replace_existing=True
     )
-    logger.info("Added reminder job (every 5 minutes)")
+    logger.info("Added reminder job (every 10 minutes)")
 
 
 def _add_auto_confirm_job(scheduler):
@@ -126,12 +181,12 @@ def _add_auto_confirm_job(scheduler):
     scheduler.add_job(
         auto_confirm_appointments,
         trigger='interval',
-        minutes=30,
+        minutes=60,  # Changed from 30 to 60
         id='appointments_auto_confirm',
         name='Auto Confirm Appointments',
         replace_existing=True
     )
-    logger.info("Added auto-confirm job (every 30 minutes)")
+    logger.info("Added auto-confirm job (every 60 minutes)")
 
 
 def _add_no_show_job(scheduler):
@@ -139,12 +194,12 @@ def _add_no_show_job(scheduler):
     scheduler.add_job(
         mark_no_shows,
         trigger='interval',
-        minutes=15,
+        minutes=30,  # Changed from 15 to 30
         id='appointments_mark_no_shows',
         name='Mark No Shows',
         replace_existing=True
     )
-    logger.info("Added no-show job (every 15 minutes)")
+    logger.info("Added no-show job (every 30 minutes)")
 
 
 def _add_slot_generation_job(scheduler):
@@ -179,74 +234,90 @@ def _add_cleanup_job(scheduler):
 # JOB FUNCTIONS
 # =============================================================================
 
+@safe_db_operation
 def send_pending_reminders():
     """
     Send pending appointment reminders.
-    Runs every 5 minutes.
+    Runs every 10 minutes.
     """
+    if is_scheduler_disabled():
+        return None
+    
     try:
         from .services import ReminderService
         
-        stats = ReminderService.process_pending_reminders(batch_size=50)
+        stats = ReminderService.process_pending_reminders(batch_size=25)  # Reduced batch
         
         if stats['processed'] > 0:
             logger.info(
-                f"Processed {stats['processed']} reminders: "
+                f"[SCHEDULER] Processed {stats['processed']} reminders: "
                 f"{stats['sent']} sent, {stats['failed']} failed"
             )
         
         return stats
         
     except Exception as e:
-        logger.error(f"Error in send_pending_reminders: {e}")
+        logger.error(f"[SCHEDULER] Error in send_pending_reminders: {e}")
         return {'error': str(e)}
 
 
+@safe_db_operation
 def auto_confirm_appointments():
     """
     Auto-confirm pending appointments that are within 24 hours.
-    Runs every 30 minutes.
+    Runs every 60 minutes.
     """
+    if is_scheduler_disabled():
+        return None
+    
     try:
         from .services import AppointmentService
         
         count = AppointmentService.auto_confirm_pending(hours_before=24)
         
         if count > 0:
-            logger.info(f"Auto-confirmed {count} appointments")
+            logger.info(f"[SCHEDULER] Auto-confirmed {count} appointments")
         
         return {'confirmed': count}
         
     except Exception as e:
-        logger.error(f"Error in auto_confirm_appointments: {e}")
+        logger.error(f"[SCHEDULER] Error in auto_confirm_appointments: {e}")
         return {'error': str(e)}
 
 
+@safe_db_operation
 def mark_no_shows():
     """
     Mark past appointments as no-show.
-    Runs every 15 minutes.
+    Runs every 30 minutes.
     """
+    if is_scheduler_disabled():
+        return None
+    
     try:
         from .services import AppointmentService
         
         count = AppointmentService.mark_past_no_shows()
         
         if count > 0:
-            logger.info(f"Marked {count} appointments as no-show")
+            logger.info(f"[SCHEDULER] Marked {count} appointments as no-show")
         
         return {'no_shows': count}
         
     except Exception as e:
-        logger.error(f"Error in mark_no_shows: {e}")
+        logger.error(f"[SCHEDULER] Error in mark_no_shows: {e}")
         return {'error': str(e)}
 
 
+@safe_db_operation
 def generate_daily_slots():
     """
     Generate time slots for upcoming days.
     Runs daily at 00:15.
     """
+    if is_scheduler_disabled():
+        return None
+    
     try:
         from .services import SlotService
         from .models import DoctorSchedule
@@ -279,10 +350,10 @@ def generate_daily_slots():
                 doctors_processed += 1
                 
             except Exception as e:
-                logger.error(f"Error generating slots for doctor {doctor_id}: {e}")
+                logger.error(f"[SCHEDULER] Error generating slots for doctor {doctor_id}: {e}")
         
         logger.info(
-            f"Generated {total_slots} slots for {doctors_processed} doctors"
+            f"[SCHEDULER] Generated {total_slots} slots for {doctors_processed} doctors"
         )
         
         return {
@@ -291,18 +362,22 @@ def generate_daily_slots():
         }
         
     except Exception as e:
-        logger.error(f"Error in generate_daily_slots: {e}")
+        logger.error(f"[SCHEDULER] Error in generate_daily_slots: {e}")
         return {'error': str(e)}
 
 
+@safe_db_operation
 def cleanup_old_data():
     """
     Clean up old appointments, slots, and reminders.
     Runs daily at 02:00.
     """
+    if is_scheduler_disabled():
+        return None
+    
     try:
         from .services import SlotService, ReminderService
-        from .models import Appointment, AppointmentQueue
+        from .models import AppointmentQueue
         
         days_to_keep = 90  # Keep data for 90 days
         
@@ -319,7 +394,7 @@ def cleanup_old_data():
         ).delete()
         
         logger.info(
-            f"Cleanup completed: {slots_deleted} slots, "
+            f"[SCHEDULER] Cleanup completed: {slots_deleted} slots, "
             f"{reminders_deleted} reminders, {queue_deleted} queue entries deleted"
         )
         
@@ -330,7 +405,7 @@ def cleanup_old_data():
         }
         
     except Exception as e:
-        logger.error(f"Error in cleanup_old_data: {e}")
+        logger.error(f"[SCHEDULER] Error in cleanup_old_data: {e}")
         return {'error': str(e)}
 
 
@@ -348,6 +423,9 @@ def trigger_job(job_id: str):
     Returns:
         Result of job execution
     """
+    if is_scheduler_disabled():
+        return {'error': 'Scheduler is disabled in production'}
+    
     jobs = {
         'send_reminders': send_pending_reminders,
         'auto_confirm': auto_confirm_appointments,
@@ -377,6 +455,12 @@ def get_scheduler_status():
     Returns:
         Dict with scheduler status
     """
+    if is_scheduler_disabled():
+        return {
+            'status': 'disabled',
+            'message': 'Scheduler is disabled via settings'
+        }
+    
     scheduler = get_scheduler()
     
     if scheduler is None:
@@ -392,13 +476,16 @@ def get_scheduler_status():
         }
     
     jobs = []
-    for job in scheduler.get_jobs():
-        jobs.append({
-            'id': job.id,
-            'name': job.name,
-            'next_run': job.next_run_time.isoformat() if job.next_run_time else None,
-            'trigger': str(job.trigger)
-        })
+    try:
+        for job in scheduler.get_jobs():
+            jobs.append({
+                'id': job.id,
+                'name': job.name,
+                'next_run': job.next_run_time.isoformat() if job.next_run_time else None,
+                'trigger': str(job.trigger)
+            })
+    except Exception:
+        pass
     
     return {
         'status': 'running',
@@ -416,7 +503,10 @@ def initialize_scheduler():
     Initialize scheduler when app is ready.
     Called from apps.py.
     """
-    import sys
+    # Check if disabled first
+    if is_scheduler_disabled():
+        logger.info("[SCHEDULER] Appointment scheduler DISABLED via settings")
+        return
     
     # Don't start scheduler during migrations or other management commands
     if 'migrate' in sys.argv or 'makemigrations' in sys.argv:

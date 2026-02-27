@@ -58,6 +58,7 @@ LOCAL_APPS = [
     'apps.notifications',
     'apps.analytics',
     'apps.sync',
+    'apps.cron',  #Added as APScheduler is taking a lot of memory as render is creashing (free tier only 512 MB RAM)
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
