@@ -143,15 +143,30 @@ const Login = () => {
 
     const result = await verifyPhoneOTP(otpToVerify);
 
+    console.log('Login result:', result);
+
     if (result.success) {
       toast.success(t('auth.loginSuccess'));
 
-      // Get redirect path from location state or default to dashboard
       const from = location.state?.from?.pathname;
+      
       if (from) {
         navigate(from, { replace: true });
       } else {
-        redirectToDashboard();
+        // ✅ Use the user from result for immediate redirect
+        const userRole = result.user?.role;
+        console.log('User role:', userRole);
+        
+        if (userRole === 'doctor') {
+          navigate('/doctor/home', { replace: true });
+        } else if (userRole === 'patient') {
+          navigate('/patient/home', { replace: true });
+        } else {
+          // Fallback - wait a bit for state to update
+          setTimeout(() => {
+            redirectToDashboard();
+          }, 100);
+        }
       }
     } else {
       // Check if user needs to register

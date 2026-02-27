@@ -67,7 +67,7 @@ const useAuth = () => {
       return verifyResult;
     }
 
-    // Try to get FCM token (don't block login if it fails)
+    // Try to get FCM token
     let fcmToken = null;
     try {
       console.log('🔔 Getting FCM token for login...');
@@ -77,10 +77,13 @@ const useAuth = () => {
       console.warn('🔔 FCM token error (continuing without it):', fcmError.message);
     }
 
-    // Pass fcmToken only if available (login function handles null)
     const loginResult = await login(verifyResult.token, fcmToken);
     
-    return loginResult;
+    // ✅ Return the user object for immediate redirect
+    return {
+      ...loginResult,
+      user: loginResult.user  // Make sure user is in the result
+    };
   }, [clearError, setError, login]);
 
   // Register new patient
@@ -183,32 +186,37 @@ const useAuth = () => {
       return result;
     }, [clearError, setError, registerDoctor]);
 
-  // Handle logout
-  const handleLogout = useCallback(async () => {
-    // Delete FCM token before logout
-    try {
-      await deleteFCMToken();
-    } catch (fcmError) {
-      console.warn('🔔 Error deleting FCM token:', fcmError.message);
-    }
+    // Handle logout
+    const handleLogout = useCallback(async () => {
+      // Delete FCM token before logout
+      try {
+        await deleteFCMToken();
+      } catch (fcmError) {
+        console.warn(' Error deleting FCM token:', fcmError.message);
+      }
 
-    const result = await logout();
-    
-    if (result.success) {
-      navigate('/login', { replace: true });
-    }
-    
-    return result;
-  }, [logout, navigate]);
+      const result = await logout();
+      
+      if (result.success) {
+        navigate('/login', { replace: true });
+      }
+      
+      return result;
+    }, [logout, navigate]);
 
-  // Redirect based on role
-  const redirectToDashboard = useCallback(() => {
-    if (!isAuthenticated || !user) {
+    // Redirect based on role
+  const redirectToDashboard = useCallback((userOverride = null) => {
+    const currentUser = userOverride || user;
+    
+    // Use userOverride if provided (for immediate redirect after login)
+    if (!currentUser) {
+      console.log('redirectToDashboard: No user, going to login');
       navigate('/login', { replace: true });
       return;
     }
 
-    const role = user.role;
+    const role = currentUser.role;
+    console.log('redirectToDashboard: Navigating for role:', role);
     
     switch (role) {
       case 'doctor':
@@ -217,14 +225,11 @@ const useAuth = () => {
       case 'patient':
         navigate('/patient/home', { replace: true });
         break;
-      case 'admin':
-        navigate('/admin/dashboard', { replace: true });
-        break;
       default:
         console.warn('Unknown role:', role);
         navigate('/login', { replace: true });
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [user, navigate]);
 
   // Check if profile is complete
   const isProfileComplete = useCallback(() => {
