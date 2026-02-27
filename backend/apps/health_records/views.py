@@ -81,6 +81,7 @@ from .services import (
     SharingService,
     HealthAnalyticsService,
 )
+from utils.viewset_helpers import get_safe_queryset, is_safe_request
 
 logger = logging.getLogger(__name__)
 
@@ -286,11 +287,18 @@ class MedicalConditionViewSet(viewsets.ModelViewSet):
         return MedicalConditionSerializer
     
     def get_queryset(self):
+        # Handle swagger and unauthenticated users
+        if getattr(self, 'swagger_fake_view', False):
+            return MedicalCondition.objects.none()
+        
         user = self.request.user
+        
+        if not user.is_authenticated or not hasattr(user, 'role'):
+            return MedicalCondition.objects.none()
+        
         if user.role == 'patient':
             return MedicalCondition.objects.filter(user=user).order_by('-diagnosed_date')
         else:
-            # Doctors can only see via specific patient endpoints
             return MedicalCondition.objects.none()
     
     def perform_create(self, serializer):
@@ -398,7 +406,14 @@ class MedicalDocumentViewSet(viewsets.ModelViewSet):
         return MedicalDocumentSerializer
     
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return MedicalDocument.objects.none()
+        
         user = self.request.user
+        
+        if not user.is_authenticated or not hasattr(user, 'role'):
+            return MedicalDocument.objects.none()
+        
         if user.role == 'patient':
             return MedicalDocument.objects.filter(user=user).order_by('-document_date', '-created_at')
         return MedicalDocument.objects.none()
@@ -590,11 +605,17 @@ class LabReportViewSet(viewsets.ModelViewSet):
         return LabReportSerializer
     
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return LabReport.objects.none()
+        
         user = self.request.user
+        
+        if not user.is_authenticated or not hasattr(user, 'role'):
+            return LabReport.objects.none()
+        
         if user.role == 'patient':
             return LabReport.objects.filter(user=user).order_by('-test_date')
-        else:
-            return LabReport.objects.none()
+        return LabReport.objects.none()
     
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -709,11 +730,17 @@ class VaccinationRecordViewSet(viewsets.ModelViewSet):
         return VaccinationRecordSerializer
     
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return VaccinationRecord.objects.none()
+        
         user = self.request.user
+        
+        if not user.is_authenticated or not hasattr(user, 'role'):
+            return VaccinationRecord.objects.none()
+        
         if user.role == 'patient':
             return VaccinationRecord.objects.filter(user=user).order_by('-vaccination_date')
-        else:
-            return VaccinationRecord.objects.none()
+        return VaccinationRecord.objects.none()
     
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -833,11 +860,17 @@ class AllergyViewSet(viewsets.ModelViewSet):
         return AllergySerializer
     
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Allergy.objects.none()
+        
         user = self.request.user
+        
+        if not user.is_authenticated or not hasattr(user, 'role'):
+            return Allergy.objects.none()
+        
         if user.role == 'patient':
             return Allergy.objects.filter(user=user).order_by('-severity', 'allergen')
-        else:
-            return Allergy.objects.none()
+        return Allergy.objects.none()
     
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -940,11 +973,17 @@ class FamilyMedicalHistoryViewSet(viewsets.ModelViewSet):
         return FamilyMedicalHistorySerializer
     
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return FamilyMedicalHistory.objects.none()
+        
         user = self.request.user
+        
+        if not user.is_authenticated or not hasattr(user, 'role'):
+            return FamilyMedicalHistory.objects.none()
+        
         if user.role == 'patient':
             return FamilyMedicalHistory.objects.filter(user=user).order_by('relation', 'condition')
-        else:
-            return FamilyMedicalHistory.objects.none()
+        return FamilyMedicalHistory.objects.none()
     
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -1023,11 +1062,17 @@ class HospitalizationViewSet(viewsets.ModelViewSet):
         return HospitalizationSerializer
     
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Hospitalization.objects.none()
+        
         user = self.request.user
+        
+        if not user.is_authenticated or not hasattr(user, 'role'):
+            return Hospitalization.objects.none()
+        
         if user.role == 'patient':
             return Hospitalization.objects.filter(user=user).order_by('-admission_date')
-        else:
-            return Hospitalization.objects.none()
+        return Hospitalization.objects.none()
     
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -1098,11 +1143,17 @@ class VitalSignViewSet(viewsets.ModelViewSet):
         return VitalSignSerializer
     
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return VitalSign.objects.none()
+        
         user = self.request.user
+        
+        if not user.is_authenticated or not hasattr(user, 'role'):
+            return VitalSign.objects.none()
+        
         if user.role == 'patient':
             return VitalSign.objects.filter(user=user).order_by('-recorded_at')
-        else:
-            return VitalSign.objects.none()
+        return VitalSign.objects.none()
     
     def perform_create(self, serializer):
         vital = serializer.save(user=self.request.user)
@@ -1229,7 +1280,14 @@ class SharedRecordViewSet(viewsets.ModelViewSet):
         return SharedRecordSerializer
     
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return SharedRecord.objects.none()
+        
         user = self.request.user
+        
+        if not user.is_authenticated or not hasattr(user, 'role'):
+            return SharedRecord.objects.none()
+        
         if user.role == 'patient':
             return SharedRecord.objects.filter(patient=user).order_by('-created_at')
         else:
