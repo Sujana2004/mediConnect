@@ -107,7 +107,7 @@ class Command(BaseCommand):
             apt = reminder.appointment
             content = ReminderService.get_reminder_content(reminder, 'en')
             
-            self.stdout.write(f'  To: {apt.patient.phone_number}')
+            self.stdout.write(f'  To: {apt.patient.phone}')
             self.stdout.write(f'  Title: {content["title"]}')
             self.stdout.write(f'  Body: {content["body"]}')
             self.stdout.write('')

@@ -121,7 +121,7 @@ class EmergencyNotificationService:
             True if notification sent successfully
         """
         user = sos_alert.user
-        user_name = user.get_full_name() or user.phone_number
+        user_name = user.get_full_name() or user.phone
         
         # Get location text
         location = sos_alert.location_address
@@ -140,7 +140,7 @@ class EmergencyNotificationService:
         notification_data = {
             'type': 'sos_alert',
             'sos_id': str(sos_alert.id),
-            'user_phone': user.phone_number,
+            'user_phone': user.phone,
             'latitude': str(sos_alert.latitude) if sos_alert.latitude else '',
             'longitude': str(sos_alert.longitude) if sos_alert.longitude else '',
             'emergency_type': sos_alert.emergency_type,
@@ -191,9 +191,7 @@ class EmergencyNotificationService:
             from apps.notifications.models import DeviceToken
             
             # Check if contact phone belongs to a user
-            contact_user = User.objects.filter(
-                phone_number=contact.phone_number
-            ).first()
+            contact_user = User.objects.filter(phone=contact.phone_number).first()
             
             if not contact_user:
                 return False
@@ -216,7 +214,7 @@ class EmergencyNotificationService:
                 self.SOS_TEMPLATES['contact_alert']['en']
             )
             
-            user_name = sos_alert.user.get_full_name() or sos_alert.user.phone_number
+            user_name = sos_alert.user.get_full_name() or sos_alert.user.phone
             emergency_type_name = self._get_emergency_type_name(
                 sos_alert.emergency_type,
                 language
@@ -324,7 +322,7 @@ class EmergencyNotificationService:
             id__in=sos_alert.contacts_notified
         )
         
-        user_name = sos_alert.user.get_full_name() or sos_alert.user.phone_number
+        user_name = sos_alert.user.get_full_name() or sos_alert.user.phone
         
         # Extract reason from resolution notes
         reason = 'User cancelled'
@@ -360,9 +358,7 @@ class EmergencyNotificationService:
             from apps.users.models import User
             from apps.notifications.models import DeviceToken
             
-            contact_user = User.objects.filter(
-                phone_number=contact.phone_number
-            ).first()
+            contact_user = User.objects.filter(phone=contact.phone_number).first()
             
             if not contact_user:
                 return

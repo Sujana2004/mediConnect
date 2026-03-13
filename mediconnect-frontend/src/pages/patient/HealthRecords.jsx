@@ -69,7 +69,7 @@ import {
 import toast from 'react-hot-toast';
 
 import { useAuth } from '../../hooks/useAuth';
-import { healthRecordsService } from '../../services/api';
+import { healthRecordsService, authService } from '../../services/api';
 import {
   Card,
   Button,
@@ -87,6 +87,7 @@ import {
 import { formatDate } from '../../utils/helpers';
 
 const isDev = import.meta.env.DEV;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // ============================================================================
 // CONSTANTS
@@ -1190,8 +1191,25 @@ const UploadDocumentModal = ({ isOpen, onClose, onUpload, isLoading }) => {
   );
 };
 
-const ShareRecordsModal = ({ isOpen, onClose, sharedWith, onShare, onRevoke, isRevoking }) => {
+const ShareRecordsModal = ({
+  isOpen,
+  onClose,
+  sharedWith,
+  availableDoctors,
+  selectedDoctorId,
+  onSelectDoctor,
+  onShare,
+  onRevoke,
+  isRevoking,
+  isSharing,
+  isDoctorsLoading
+}) => {
   const { t } = useTranslation();
+
+  const doctorOptions = (availableDoctors || []).map((doctor) => ({
+    value: doctor.id,
+    label: doctor.full_name || doctor.name || 'Doctor'
+  }));
 
   return (
     <Modal
@@ -1210,30 +1228,32 @@ const ShareRecordsModal = ({ isOpen, onClose, sharedWith, onShare, onRevoke, isR
             <h4 className="font-semibold text-gray-900 text-sm">
               {t('healthRecords.currentlySharedWith', 'Currently shared with')}
             </h4>
-            {sharedWith.map((doctor) => (
+            {sharedWith.map((share) => {
+              const doctor = share?.doctor || share;
+              return (
               <div
-                key={doctor.id}
+                key={share?.id || doctor?.id}
                 className="flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl"
               >
                 <div className="flex items-center gap-3">
-                  <Avatar name={doctor.name} src={doctor.avatar} size="sm" />
+                  <Avatar name={doctor?.full_name || doctor?.name} src={doctor?.avatar || doctor?.profile_picture} size="sm" />
                   <div>
-                    <p className="font-semibold text-gray-900 text-sm">Dr. {doctor.name}</p>
-                    <p className="text-xs text-gray-400">{doctor.specialization}</p>
+                    <p className="font-semibold text-gray-900 text-sm">{doctor?.full_name || `Dr. ${doctor?.name || 'Doctor'}`}</p>
+                    <p className="text-xs text-gray-400">{doctor?.specialization || doctor?.specialization_display || '-'}</p>
                   </div>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => onRevoke(doctor.id)}
+                  onClick={() => onRevoke(share?.id)}
                   className="!text-red-600 !border-red-200 hover:!bg-red-50 !rounded-xl !text-xs"
-                  loading={isRevoking === doctor.id}
+                  loading={isRevoking === (share?.id || doctor?.id)}
                 >
                   <Lock className="w-3.5 h-3.5 mr-1" />
                   {t('healthRecords.revoke', 'Revoke')}
                 </Button>
               </div>
-            ))}
+            );})}
           </div>
         ) : (
           <div className="text-center py-8 bg-gray-50 rounded-2xl">
@@ -1244,11 +1264,23 @@ const ShareRecordsModal = ({ isOpen, onClose, sharedWith, onShare, onRevoke, isR
           </div>
         )}
 
+        <div className="space-y-3">
+          <Select
+            label={t('healthRecords.selectDoctor', 'Select Doctor')}
+            value={selectedDoctorId}
+            onChange={(e) => onSelectDoctor(e.target.value)}
+            options={doctorOptions}
+            placeholder={isDoctorsLoading ? t('common.loading', 'Loading...') : t('healthRecords.selectDoctorPlaceholder', 'Choose a doctor')}
+          />
+        </div>
+
         <Button
           variant="primary"
           fullWidth
           leftIcon={<Share2 className="w-4 h-4" />}
           onClick={onShare}
+          loading={isSharing}
+          disabled={!selectedDoctorId || isDoctorsLoading}
           className="!rounded-xl !bg-violet-600 hover:!bg-violet-700"
         >
           {t('healthRecords.shareWithDoctor', 'Share with a Doctor')}
@@ -1426,6 +1458,7 @@ const HealthRecords = () => {
   const [editCondition, setEditCondition] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [revokingDoctorId, setRevokingDoctorId] = useState(null);
+  const [selectedDoctorId, setSelectedDoctorId] = useState('');
 
   const { data: profileData, isLoading: profileLoading } = useQuery({
     queryKey: ['healthProfile'],
@@ -1490,30 +1523,88 @@ const HealthRecords = () => {
     enabled: isOnline
   });
 
+  const { data: doctorsResponse, isLoading: doctorsLoading } = useQuery({
+    queryKey: ['shareDoctors'],
+    queryFn: () => authService.getDoctors({ page_size: 100 }),
+    staleTime: 1000 * 60 * 5,
+    enabled: isOnline && showShareModal
+  });
+
   const profile = profileData?.data || profileData;
-  const vitalRecords = vitalsData?.results || [];
-  const latestVitals = vitalRecords.length > 0 ? {
-    blood_pressure: vitalRecords[0].bp_display || `${vitalRecords[0].systolic_bp}/${vitalRecords[0].diastolic_bp}`,
-    heart_rate: vitalRecords[0].heart_rate,
-    temperature: vitalRecords[0].temperature,
-    oxygen_saturation: vitalRecords[0].oxygen_saturation,
-    blood_sugar: vitalRecords[0].blood_sugar,
-    weight: vitalRecords[0].weight_kg,
+  const normalizeArrayData = (response) => {
+    const payload = response?.data ?? response;
+
+    if (Array.isArray(payload?.results)) return payload.results;
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+
+    return [];
+  };
+  const vitalsPayload = vitalsData?.data || vitalsData;
+  const vitalRecords = Array.isArray(vitalsPayload?.results)
+    ? vitalsPayload.results
+    : Array.isArray(vitalsPayload)
+      ? vitalsPayload
+      : vitalsPayload && typeof vitalsPayload === 'object'
+        ? [vitalsPayload]
+        : [];
+  const latestVitalRecord = vitalRecords.length > 0 ? vitalRecords[0] : null;
+  const latestVitals = latestVitalRecord ? {
+    blood_pressure: latestVitalRecord.bp_display || (latestVitalRecord.systolic_bp && latestVitalRecord.diastolic_bp
+      ? `${latestVitalRecord.systolic_bp}/${latestVitalRecord.diastolic_bp}`
+      : null),
+    heart_rate: latestVitalRecord.heart_rate,
+    temperature: latestVitalRecord.temperature,
+    oxygen_saturation: latestVitalRecord.oxygen_saturation,
+    blood_sugar: latestVitalRecord.blood_sugar,
+    weight: latestVitalRecord.weight_kg || profile?.weight_kg,
+    height: latestVitalRecord.height_cm || profile?.height_cm,
+    blood_pressure_date: latestVitalRecord.recorded_at,
+    heart_rate_date: latestVitalRecord.recorded_at,
+    temperature_date: latestVitalRecord.recorded_at,
+    oxygen_saturation_date: latestVitalRecord.recorded_at,
+    blood_sugar_date: latestVitalRecord.recorded_at,
+    weight_date: latestVitalRecord.recorded_at || profile?.updated_at,
+  } : {
     height: profile?.height_cm,
-    blood_pressure_date: vitalRecords[0].recorded_at,
-    heart_rate_date: vitalRecords[0].recorded_at,
-    temperature_date: vitalRecords[0].recorded_at,
-    oxygen_saturation_date: vitalRecords[0].recorded_at,
-    blood_sugar_date: vitalRecords[0].recorded_at,
-    weight_date: vitalRecords[0].recorded_at,
-  } : { height: profile?.height_cm };
-  const conditions = conditionsData?.data || conditionsData || [];
-  const allergies = allergiesData?.data || allergiesData || [];
-  const documents = documentsData?.results || documentsData?.data || documentsData || [];
-  const labReports = labReportsData?.data || labReportsData || [];
-  const vaccinations = vaccinationsData?.data || vaccinationsData || [];
-  const familyHistory = familyHistoryData?.data || familyHistoryData || [];
-  const sharedWith = sharingData?.data || sharingData || [];
+    weight: profile?.weight_kg,
+    weight_date: profile?.updated_at,
+  };
+  const conditions = normalizeArrayData(conditionsData);
+  const allergies = normalizeArrayData(allergiesData);
+  const documents = normalizeArrayData(documentsData);
+  const labReports = normalizeArrayData(labReportsData);
+  const vaccinations = normalizeArrayData(vaccinationsData);
+  const familyHistory = normalizeArrayData(familyHistoryData);
+  const sharedWith = normalizeArrayData(sharingData);
+  const availableDoctors = useMemo(() => {
+    let doctors = [];
+    if (Array.isArray(doctorsResponse)) {
+      doctors = doctorsResponse;
+    } else if (Array.isArray(doctorsResponse?.results)) {
+      doctors = doctorsResponse.results;
+    } else if (Array.isArray(doctorsResponse?.data)) {
+      doctors = doctorsResponse.data;
+    } else if (Array.isArray(doctorsResponse?.data?.results)) {
+      doctors = doctorsResponse.data.results;
+    }
+
+    const alreadySharedDoctorIds = new Set(
+      (sharedWith || []).map((item) => String(item?.doctor?.id || item?.doctor_id || item?.id))
+    );
+
+    return doctors
+      .map((doc) => {
+        const candidateId = doc.user_id || doc.user?.id || doc.doctor_id || doc.userId || doc.id;
+        const normalizedId = String(candidateId || '').trim();
+
+        return {
+          id: normalizedId,
+          full_name: doc.full_name || doc.name || `Dr. ${doc.first_name || ''} ${doc.last_name || ''}`.trim(),
+        };
+      })
+      .filter((doc) => doc.id && !alreadySharedDoctorIds.has(doc.id));
+  }, [doctorsResponse, sharedWith]);
 
   const isInitialLoading = profileLoading || vitalsLoading;
 
@@ -1603,9 +1694,7 @@ const HealthRecords = () => {
   });
 
   const revokeMutation = useMutation({
-    mutationFn: (doctorId) => healthRecordsService.revokeAccess?.(doctorId) ||
-      healthRecordsService.shareWithDoctor?.({ doctor_id: doctorId, revoke: true }) ||
-      Promise.reject(new Error('Revoke not available')),
+    mutationFn: (shareId) => healthRecordsService.revokeAccess(shareId),
     onSuccess: () => {
       toast.success(t('healthRecords.accessRevoked', 'Access revoked'));
       setRevokingDoctorId(null);
@@ -1615,6 +1704,24 @@ const HealthRecords = () => {
       if (isDev) console.error('Error revoking access:', err);
       toast.error(t('healthRecords.revokeError', 'Failed to revoke access'));
       setRevokingDoctorId(null);
+    }
+  });
+
+  const shareMutation = useMutation({
+    mutationFn: (doctorId) => healthRecordsService.shareWithDoctor({
+      doctor_id: doctorId,
+      share_type: 'all',
+      is_permanent: true
+    }),
+    onSuccess: () => {
+      toast.success(t('healthRecords.sharedSuccess', 'Records shared successfully'));
+      setSelectedDoctorId('');
+      queryClient.invalidateQueries({ queryKey: ['healthSharing'] });
+    },
+    onError: (err) => {
+      if (isDev) console.error('Error sharing records:', err);
+      const message = err?.response?.data?.message || t('healthRecords.shareError', 'Failed to share records');
+      toast.error(message);
     }
   });
 
@@ -1669,12 +1776,23 @@ const HealthRecords = () => {
   }, [addAllergyMutation]);
 
   const handleShareWithDoctor = useCallback(() => {
-    navigate('/patient/doctors', { state: { shareRecords: true } });
-  }, [navigate]);
+    if (!selectedDoctorId) {
+      toast.error(t('healthRecords.selectDoctorFirst', 'Please select a doctor'));
+      return;
+    }
 
-  const handleRevokeAccess = useCallback((doctorId) => {
-    setRevokingDoctorId(doctorId);
-    revokeMutation.mutate(doctorId);
+    if (!UUID_REGEX.test(String(selectedDoctorId))) {
+      toast.error(t('healthRecords.invalidDoctorSelection', 'Selected doctor is invalid. Please refresh and try again.'));
+      return;
+    }
+
+    shareMutation.mutate(selectedDoctorId);
+  }, [selectedDoctorId, shareMutation, t]);
+
+  const handleRevokeAccess = useCallback((shareId) => {
+    if (!shareId) return;
+    setRevokingDoctorId(shareId);
+    revokeMutation.mutate(shareId);
   }, [revokeMutation]);
 
   const handleViewLabReport = useCallback((report) => {
@@ -1764,19 +1882,11 @@ const HealthRecords = () => {
                 {t('healthRecords.share', 'Share')}
               </Button>
               <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<Download className="w-4 h-4" />}
-                className="!rounded-xl !border-white/30 !text-white hover:!bg-white/15 !text-xs !font-semibold"
-              >
-                {t('healthRecords.export', 'Export')}
-              </Button>
-              <button
                 onClick={handleRefresh}
                 className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1902,9 +2012,14 @@ const HealthRecords = () => {
         isOpen={showShareModal}
         onClose={() => setShowShareModal(false)}
         sharedWith={sharedWith}
+        availableDoctors={availableDoctors}
+        selectedDoctorId={selectedDoctorId}
+        onSelectDoctor={setSelectedDoctorId}
         onShare={handleShareWithDoctor}
         onRevoke={handleRevokeAccess}
         isRevoking={revokingDoctorId}
+        isSharing={shareMutation.isPending}
+        isDoctorsLoading={doctorsLoading}
       />
 
       <AddConditionModal

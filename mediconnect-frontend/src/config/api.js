@@ -12,6 +12,33 @@ const api = axios.create({
   },
 });
 
+const resolveRequestLanguage = () => {
+  try {
+    const persistedLanguage = localStorage.getItem('language-storage');
+    if (persistedLanguage) {
+      const parsed = JSON.parse(persistedLanguage);
+      const storeLanguage = parsed?.state?.currentLanguage;
+      if (storeLanguage) {
+        return storeLanguage;
+      }
+    }
+  } catch {
+    // ignore malformed persisted language data
+  }
+
+  const i18nextLanguage = localStorage.getItem('i18nextLng');
+  if (i18nextLanguage) {
+    return i18nextLanguage;
+  }
+
+  const legacyLanguage = localStorage.getItem('language');
+  if (legacyLanguage) {
+    return legacyLanguage;
+  }
+
+  return 'en';
+};
+
 // Request interceptor - Add auth token
 api.interceptors.request.use(
   (config) => {
@@ -22,7 +49,7 @@ api.interceptors.request.use(
     }
 
     // Add language header
-    const language = localStorage.getItem('language') || 'en';
+    const language = resolveRequestLanguage();
     config.headers['Accept-Language'] = language;
 
     return config;

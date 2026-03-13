@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import toast from 'react-hot-toast';
 
 import {
@@ -46,6 +46,8 @@ const normalizeDoctorData = (doc) => {
   if (!doc) return null;
   return {
     ...doc,
+    id: doc.id,
+    user_id: doc.user_id || doc.user?.id || doc.id,
     full_name: doc.full_name || doc.name || `Dr. ${doc.user?.first_name || ''} ${doc.user?.last_name || ''}`.trim() || 'Doctor',
     profile_picture: doc.profile_picture || doc.profile_photo || doc.user?.profile_photo || null,
     rating: parseFloat(doc.rating || doc.average_rating || 0),
@@ -68,8 +70,32 @@ const normalizeDoctorData = (doc) => {
   };
 };
 
-const buildDateOption = (dateString, index) => {
-  const parsedDate = parseISO(dateString);
+const buildDateOption = (dateValue, index) => {
+  if (!dateValue) return null;
+  
+  let parsedDate;
+  let dateString;
+  
+  if (dateValue instanceof Date) {
+    parsedDate = dateValue;
+    dateString = format(dateValue, 'yyyy-MM-dd');
+  } else if (typeof dateValue === 'string') {
+    parsedDate = parseISO(dateValue);
+    dateString = dateValue;
+  } else {
+    const strValue = String(dateValue);
+    if (strValue && strValue !== 'undefined' && strValue !== 'null') {
+      parsedDate = parseISO(strValue);
+      dateString = strValue;
+    } else {
+      return null;
+    }
+  }
+  
+  if (!parsedDate || !isValid(parsedDate)) {
+    return null;
+  }
+  
   return {
     date: parsedDate,
     dateString,
@@ -303,7 +329,12 @@ const DoctorProfile = () => {
   }, [availabilityRaw]);
 
   const dateOptions = useMemo(() => {
-    return availableDates.slice(0, 14).map((dateString, index) => buildDateOption(dateString, index));
+    if (!availableDates || !Array.isArray(availableDates)) return [];
+    
+    return availableDates
+      .slice(0, 14)
+      .map((dateValue, index) => buildDateOption(dateValue, index))
+      .filter(Boolean);
   }, [availableDates]);
 
   useEffect(() => {
@@ -453,7 +484,10 @@ const DoctorProfile = () => {
   const handleBookAppointment = useCallback(() => {
     if (!selectedSlot || !selectedType) return;
 
-    navigate(`/patient/appointments/book/${docId}`, {
+    // Use user_id (UUID) for booking
+    const doctorUserId = doctor?.user_id || doctor?.user?.id || docId;
+
+    navigate(`/patient/appointments/book/${doctorUserId}`, {
       state: {
         doctor,
         date: selectedDate,

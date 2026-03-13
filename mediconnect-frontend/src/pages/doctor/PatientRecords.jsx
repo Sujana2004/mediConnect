@@ -17,7 +17,6 @@ import {
   AlertCircle,
   Star,
   MoreVertical,
-  Download,
   MessageSquare,
   User,
   MapPin,
@@ -1057,13 +1056,6 @@ const PatientRecords = () => {
             disabled={isRefreshing}
           >
             {t('common.refresh')}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<Download className="w-4 h-4" />}
-          >
-            {t('common.export')}
           </Button>
         </div>
       </div>

@@ -51,7 +51,7 @@ class Command(BaseCommand):
         
         if options['phone']:
             try:
-                user = User.objects.get(phone_number=options['phone'])
+                user = User.objects.get(phone=options['phone'])
             except User.DoesNotExist:
                 raise CommandError(f"User with phone {options['phone']} not found")
         
@@ -67,7 +67,7 @@ class Command(BaseCommand):
             if not user:
                 raise CommandError("No users found in database")
         
-        self.stdout.write(f'\nSending test notification to: {user.phone_number}')
+        self.stdout.write(f'\nSending test notification to: {user.phone}')
         
         # Check for device tokens
         from apps.notifications.models import DeviceToken

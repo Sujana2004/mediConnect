@@ -22,7 +22,6 @@ import {
   Type,
   Mic,
   MicOff,
-  Download,
   Trash2,
   HelpCircle,
   FileText,
@@ -84,7 +83,7 @@ const SETTING_SECTIONS = [
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'privacy', label: 'Privacy & Security', icon: Shield },
   { id: 'appearance', label: 'Appearance', icon: Sun },
-  { id: 'data', label: 'Data & Storage', icon: Download },
+  { id: 'data', label: 'Data & Storage', icon: Trash2 },
   { id: 'help', label: 'Help & Support', icon: HelpCircle }
 ];
 
@@ -529,99 +528,6 @@ const DeleteAccountModal = ({ isOpen, onClose, onConfirm, isDeleting }) => {
 };
 
 // ============================================================================
-// EXPORT DATA MODAL
-// ============================================================================
-
-const ExportDataModal = ({ isOpen, onClose, onExport, isExporting }) => {
-  const { t } = useTranslation();
-  const [selectedData, setSelectedData] = useState({
-    profile: true,
-    health_records: true,
-    appointments: true,
-    prescriptions: true,
-    consultations: true
-  });
-
-  const dataTypes = [
-    { key: 'profile', label: t('settings.profileData', 'Profile Information'), icon: User },
-    { key: 'health_records', label: t('settings.healthRecords', 'Health Records'), icon: Heart },
-    { key: 'appointments', label: t('settings.appointments', 'Appointments'), icon: Clock },
-    { key: 'prescriptions', label: t('settings.prescriptions', 'Prescriptions'), icon: FileText },
-    { key: 'consultations', label: t('settings.consultations', 'Consultations'), icon: MessageSquare }
-  ];
-
-  const handleToggle = (key) => {
-    setSelectedData(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const handleExport = () => {
-    const selected = Object.entries(selectedData)
-      .filter(([_, value]) => value)
-      .map(([key]) => key);
-    onExport(selected);
-  };
-
-  const hasSelection = Object.values(selectedData).some(Boolean);
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={t('settings.exportData', 'Export Your Data')}
-      size="md"
-    >
-      <div className="space-y-4">
-        <p className="text-sm text-gray-600">
-          {t('settings.exportDesc', 'Select the data you want to export. The data will be downloaded as a JSON file.')}
-        </p>
-
-        <div className="space-y-2">
-          {dataTypes.map(({ key, label, icon: Icon }) => (
-            <label
-              key={key}
-              className={`
-                flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors
-                ${selectedData[key] ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'}
-              `}
-            >
-              <input
-                type="checkbox"
-                checked={selectedData[key]}
-                onChange={() => handleToggle(key)}
-                className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
-              />
-              <Icon className="w-5 h-5 text-gray-500" />
-              <span className="font-medium text-gray-900">{label}</span>
-            </label>
-          ))}
-        </div>
-
-        <div className="flex gap-3 pt-4">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={onClose}
-            disabled={isExporting}
-          >
-            {t('common.cancel', 'Cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            className="flex-1"
-            onClick={handleExport}
-            loading={isExporting}
-            disabled={!hasSelection}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            {t('settings.export', 'Export')}
-          </Button>
-        </div>
-      </div>
-    </Modal>
-  );
-};
-
-// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -662,7 +568,6 @@ const Settings = () => {
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
 
   // Active section from URL
   const activeSection = searchParams.get('section');
@@ -795,32 +700,6 @@ const Settings = () => {
   //     setIsSaving(false);
   //   }
   // };
-
-  // API: Export data
-  const handleExportData = async (dataTypes) => {
-    setIsSaving(true);
-    try {
-      const response = await authService.exportData(dataTypes);
-      
-      // Create download
-      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `mediconnect-data-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      toast.success(t('settings.dataExported', 'Data exported successfully'));
-      setShowExportModal(false);
-    } catch (err) {
-      toast.error(err.response?.data?.message || t('settings.exportError', 'Failed to export data'));
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   // API: Delete account
   const handleDeleteAccount = async () => {
@@ -1111,14 +990,7 @@ const Settings = () => {
         {/* Data & Storage Section */}
         <div id="section-data">
           <Card className="overflow-hidden">
-            <SectionHeader icon={Download} title={t('settings.dataStorage', 'Data & Storage')} />
-            
-            <SettingItem
-              icon={Download}
-              label={t('settings.exportData', 'Export Your Data')}
-              description={t('settings.exportDataDesc', 'Download a copy of your data')}
-              onClick={() => setShowExportModal(true)}
-            />
+            <SectionHeader icon={Trash2} title={t('settings.dataStorage', 'Data & Storage')} />
 
             <SettingItem
               icon={Trash2}
@@ -1229,13 +1101,6 @@ const Settings = () => {
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleDeleteAccount}
         isDeleting={isSaving}
-      />
-
-      <ExportDataModal
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        onExport={handleExportData}
-        isExporting={isSaving}
       />
     </div>
   );

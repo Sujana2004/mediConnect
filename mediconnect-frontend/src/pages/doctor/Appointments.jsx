@@ -25,7 +25,6 @@ import {
   UserX,
   Timer,
   MapPin,
-  Download,
   Building,
   Loader2
 } from 'lucide-react';
@@ -143,7 +142,7 @@ const BOOKING_TYPE_CONFIG = {
 };
 
 // ============================================================================
-// HELPER FUNCTIONS
+// HELPER FUNCTIONS (✅ FIXED)
 // ============================================================================
 
 const formatTime = (timeString) => {
@@ -180,23 +179,64 @@ const calculateDuration = (startTimeStr, endTimeStr) => {
   }
 };
 
+// ✅ FIXED: Comprehensive error message handler
 const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
-  if (error?.response?.data?.message) return error.response.data.message;
-  if (error?.response?.data && typeof error.response.data === 'object') {
-    const fieldErrors = Object.values(error.response.data).flat();
+  // Handle network errors
+  if (!error.response) {
+    return error.message || fallbackMessage;
+  }
+
+  const { data } = error.response;
+
+  // Handle string error
+  if (typeof data === 'string') return data;
+
+  // Handle {detail: "message"}
+  if (data?.detail) return data.detail;
+
+  // Handle {message: "message"}
+  if (data?.message) return data.message;
+
+  // Handle {error: "message"}
+  if (data?.error) return data.error;
+
+  // Handle field errors {field: ["error1", "error2"]}
+  if (typeof data === 'object' && data !== null) {
+    const fieldErrors = [];
+    Object.entries(data).forEach(([field, errors]) => {
+      if (Array.isArray(errors)) {
+        errors.forEach(err => fieldErrors.push(`${field}: ${err}`));
+      } else if (typeof errors === 'string') {
+        fieldErrors.push(`${field}: ${errors}`);
+      }
+    });
     if (fieldErrors.length > 0) return fieldErrors.join(', ');
   }
-  if (error?.message) return error.message;
+
   return fallbackMessage;
 };
 
+// ✅ FIXED: Safe symptoms parser
 const parseSymptoms = (symptoms) => {
   if (!symptoms) return [];
-  if (Array.isArray(symptoms)) return symptoms;
-  if (typeof symptoms === 'string') {
-    return symptoms.split(',').map(s => s.trim()).filter(Boolean);
+  try {
+    if (Array.isArray(symptoms)) return symptoms;
+    if (typeof symptoms === 'string') {
+      // Handle JSON string
+      if (symptoms.startsWith('[')) {
+        try {
+          return JSON.parse(symptoms);
+        } catch {
+          // Fall through to comma split
+        }
+      }
+      return symptoms.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+  } catch (err) {
+    console.error('Error parsing symptoms:', err);
+    return [];
   }
-  return [];
 };
 
 // ============================================================================
@@ -408,6 +448,7 @@ const FiltersBar = ({
   );
 };
 
+// ✅ FIXED: AppointmentCard with null safety
 const AppointmentCard = ({
   appointment,
   onStart,
@@ -423,6 +464,11 @@ const AppointmentCard = ({
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
 
+  // ✅ Early return for invalid appointment
+  if (!appointment || !appointment.id) {
+    return null;
+  }
+
   const statusConfig = STATUS_CONFIG[appointment.status] || STATUS_CONFIG.pending;
   const bookingTypeConfig = BOOKING_TYPE_CONFIG[appointment.booking_type] || BOOKING_TYPE_CONFIG.online;
   const StatusIcon = statusConfig.icon;
@@ -433,7 +479,9 @@ const AppointmentCard = ({
   const canConfirm = appointment.status === 'pending';
   const canMarkNoShow = ['confirmed', 'checked_in', 'pending'].includes(appointment.status);
   const isProcessing = processingId === appointment.id;
-  const duration = calculateDuration(appointment.start_time, appointment.end_time);
+  const duration = appointment.start_time && appointment.end_time 
+    ? calculateDuration(appointment.start_time, appointment.end_time)
+    : null;
   const symptoms = parseSymptoms(appointment.symptoms);
 
   return (
@@ -442,7 +490,7 @@ const AppointmentCard = ({
         {/* Time Column */}
         <div className="flex-shrink-0 text-center min-w-[80px]">
           <p className="text-xl font-bold text-gray-900">
-            {formatTime(appointment.start_time)}
+            {formatTime(appointment.start_time) || '--:--'}
           </p>
           {appointment.end_time && (
             <p className="text-sm text-gray-500">
@@ -462,14 +510,14 @@ const AppointmentCard = ({
 
         <div className="w-px h-24 bg-gray-200 flex-shrink-0" />
 
-        {/* Patient Info - using backend serializer fields */}
+        {/* Patient Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <Avatar name={appointment.patient_name} size="md" />
+              <Avatar name={appointment.patient_name || 'Unknown'} size="md" />
               <div>
                 <h4 className="font-semibold text-gray-900 truncate">
-                  {appointment.patient_name}
+                  {appointment.patient_name || 'Unknown Patient'}
                 </h4>
                 {appointment.patient_phone && (
                   <p className="text-sm text-gray-500">{appointment.patient_phone}</p>
@@ -891,7 +939,6 @@ const CancelAppointmentModal = ({ isOpen, onClose, appointment, onConfirm, isLoa
       toast.error('Please enter a reason');
       return;
     }
-    // ✅ Pass reason as string, not object
     onConfirm(appointment.id, reason.trim());
   };
 
@@ -1002,7 +1049,7 @@ const CalendarModal = ({ isOpen, onClose, selectedDate, onDateSelect }) => {
 };
 
 // ============================================================================
-// MAIN COMPONENT
+// MAIN COMPONENT (✅ ALL API CALLS FIXED)
 // ============================================================================
 
 const DoctorAppointments = () => {
@@ -1034,7 +1081,7 @@ const DoctorAppointments = () => {
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [appointmentToCancel, setAppointmentToCancel] = useState(null);
 
-  // ✅ FIXED: Fetch using correct API function
+  // ✅ FIXED: Fetch with proper response handling
   const fetchAppointments = useCallback(async (showRefresh = false) => {
     try {
       if (showRefresh) setIsRefreshing(true);
@@ -1050,40 +1097,44 @@ const DoctorAppointments = () => {
 
         const promises = days.map(day =>
           getAppointments({ date: format(day, 'yyyy-MM-dd') })
-            .then(response => response.data || [])
-            .catch(() => [])
+            .then(response => {
+              if (Array.isArray(response)) return response;
+              if (response?.data && Array.isArray(response.data)) return response.data;
+              if (response?.results && Array.isArray(response.results)) return response.results;
+              return [];
+            })
+            .catch(err => {
+              console.error('Error fetching day appointments:', err);
+              return [];
+            })
         );
 
         const results = await Promise.all(promises);
         allAppointments = results.flat();
       } else {
-        const [selectedDateResponse, pendingResponse] = await Promise.all([
-          getAppointments({
-            date: format(selectedDate, 'yyyy-MM-dd')
-          }),
-          getAppointments({
-            status: 'pending',
-            upcoming: true
-          })
-        ]);
-
-        const selectedDateAppointments = selectedDateResponse?.data || [];
-        const pendingAppointments = pendingResponse?.data || [];
-
-        const uniqueById = new Map();
-        [...selectedDateAppointments, ...pendingAppointments].forEach((appointment) => {
-          if (appointment?.id) {
-            uniqueById.set(appointment.id, appointment);
-          }
+        const response = await getAppointments({
+          date: format(selectedDate, 'yyyy-MM-dd')
         });
 
-        allAppointments = Array.from(uniqueById.values());
+        if (Array.isArray(response)) {
+          allAppointments = response;
+        } else if (response?.data && Array.isArray(response.data)) {
+          allAppointments = response.data;
+        } else if (response?.results && Array.isArray(response.results)) {
+          allAppointments = response.results;
+        }
       }
+
+      allAppointments = allAppointments.filter(apt => 
+        apt && apt.id && apt.patient_name && apt.doctor_name
+      );
 
       setAppointments(allAppointments);
     } catch (err) {
       console.error('Error fetching appointments:', err);
-      setError(getErrorMessage(err, 'Failed to load appointments'));
+      const errorMsg = getErrorMessage(err, 'Failed to load appointments');
+      setError(errorMsg);
+      toast.error(errorMsg);
       setAppointments([]);
     } finally {
       setIsLoading(false);
@@ -1130,22 +1181,20 @@ const DoctorAppointments = () => {
   const handleDateChange = useCallback((date) => setSelectedDate(date), []);
   const handleViewModeChange = useCallback((mode) => setViewMode(mode), []);
 
-  // ✅ FIXED: Start consultation uses correct API
   const handleStartConsultation = useCallback(async (appointment) => {
     try {
       setProcessingId(appointment.id);
       await startAppointment(appointment.id);
       toast.success('Consultation started');
-      // Navigate to consultation room or refresh
       navigate(`/doctor/consultation/${appointment.id}`);
     } catch (err) {
+      console.error('Start consultation error:', err);
       toast.error(getErrorMessage(err, 'Failed to start consultation'));
     } finally {
       setProcessingId(null);
     }
   }, [navigate]);
 
-  // ✅ FIXED: Confirm uses correct API
   const handleConfirmAppointment = useCallback(async (appointmentId) => {
     try {
       setProcessingId(appointmentId);
@@ -1153,6 +1202,7 @@ const DoctorAppointments = () => {
       toast.success('Appointment confirmed');
       await fetchAppointments(true);
     } catch (err) {
+      console.error('Confirm appointment error:', err);
       toast.error(getErrorMessage(err, 'Failed to confirm appointment'));
     } finally {
       setProcessingId(null);
@@ -1166,29 +1216,30 @@ const DoctorAppointments = () => {
       toast.success('Patient checked in');
       await fetchAppointments(true);
     } catch (err) {
+      console.error('Check-in error:', err);
       toast.error(getErrorMessage(err, 'Failed to check in patient'));
     } finally {
       setProcessingId(null);
     }
   }, [fetchAppointments]);
 
-  // ✅ FIXED: Cancel uses correct API - reason is string
+  // ✅ FIXED: Cancel with object
   const handleCancelAppointment = useCallback(async (appointmentId, reason) => {
     try {
       setProcessingId(appointmentId);
-      await cancelAppointment(appointmentId, reason);
+      await cancelAppointment(appointmentId, { reason });
       toast.success('Appointment cancelled');
       setShowCancelModal(false);
       setAppointmentToCancel(null);
       await fetchAppointments(true);
     } catch (err) {
+      console.error('Cancel appointment error:', err);
       toast.error(getErrorMessage(err, 'Failed to cancel appointment'));
     } finally {
       setProcessingId(null);
     }
   }, [fetchAppointments]);
 
-  // ✅ FIXED: No-show uses correct API
   const handleMarkNoShow = useCallback(async (appointmentId) => {
     try {
       setProcessingId(appointmentId);
@@ -1196,6 +1247,7 @@ const DoctorAppointments = () => {
       toast.success('Marked as no show');
       await fetchAppointments(true);
     } catch (err) {
+      console.error('Mark no-show error:', err);
       toast.error(getErrorMessage(err, 'Failed to mark as no show'));
     } finally {
       setProcessingId(null);
@@ -1261,13 +1313,6 @@ const DoctorAppointments = () => {
             onClick={handleRefresh} disabled={isRefreshing}
           >
             Refresh
-          </Button>
-          <Button
-            variant="outline" size="sm"
-            leftIcon={<Download className="w-4 h-4" />}
-            onClick={() => toast('Coming soon')}
-          >
-            Export
           </Button>
         </div>
       </div>

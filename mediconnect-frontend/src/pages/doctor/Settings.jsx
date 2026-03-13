@@ -535,7 +535,7 @@ const PrivacySettingsSection = ({ settings, onChange }) => {
 };
 
 // Data & Storage Section
-const DataStorageSection = ({ onExportData, onDeleteAccount }) => {
+const DataStorageSection = ({ onDeleteAccount }) => {
   const { t } = useTranslation();
 
   return (
@@ -547,13 +547,6 @@ const DataStorageSection = ({ onExportData, onDeleteAccount }) => {
       />
 
       <div className="space-y-3">
-        <SettingLink
-          icon={Download}
-          label={t('settings.exportData')}
-          description={t('settings.exportDataDesc')}
-          onClick={onExportData}
-        />
-
         <SettingLink
           icon={Cloud}
           label={t('settings.cloudSync')}
@@ -1025,20 +1018,6 @@ const DoctorSettings = () => {
     }
   }, [logout, navigate, t]);
 
-  const handleExportData = useCallback(async () => {
-    try {
-      setIsActionLoading(true);
-      console.log('Export data');
-      
-      setSuccessMessage(t('settings.dataExportStarted'));
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err) {
-      setError(t('errors.failedToExportData'));
-    } finally {
-      setIsActionLoading(false);
-    }
-  }, [t]);
-
   const handleLogoutSession = useCallback(async (sessionId) => {
     try {
       console.log('Logout session:', sessionId);
@@ -1137,7 +1116,6 @@ const DoctorSettings = () => {
           />
 
           <DataStorageSection
-            onExportData={handleExportData}
             onDeleteAccount={() => setShowDeleteModal(true)}
           />
 

@@ -10,7 +10,6 @@ import {
   Clock,
   User,
   FileText,
-  Download,
   Printer,
   RefreshCw,
   Plus,
@@ -430,13 +429,6 @@ const PrescriptionCard = ({
                     <Share2 className="w-4 h-4" />
                     {t('common.share')}
                   </button>
-                  <button
-                    onClick={handleCloseActions}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    {t('common.download')}
-                  </button>
                 </div>
               </>
             )}
@@ -712,12 +704,6 @@ const PrescriptionDetailsModal = ({
           onClick={() => onShare(prescription)}
         >
           {t('common.share')}
-        </Button>
-        <Button
-          variant="outline"
-          leftIcon={<Download className="w-4 h-4" />}
-        >
-          {t('common.downloadPDF')}
         </Button>
       </div>
     </Modal>
@@ -1371,13 +1357,6 @@ const Prescriptions = () => {
             disabled={isRefreshing}
           >
             {t('common.refresh')}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<Download className="w-4 h-4" />}
-          >
-            {t('common.export', 'Export')}
           </Button>
           <Button
             variant="primary"

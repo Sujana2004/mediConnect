@@ -406,7 +406,7 @@ class SOSAlertSerializer(serializers.ModelSerializer):
         read_only=True
     )
     user_phone = serializers.CharField(
-        source='user.phone_number',
+        source='user.phone',
         read_only=True
     )
     time_elapsed = serializers.SerializerMethodField()

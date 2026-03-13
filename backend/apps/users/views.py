@@ -1,5 +1,3 @@
-from django.shortcuts import render
-
 """
 Views for users app.
 Handles all authentication and user management endpoints.
@@ -19,7 +17,7 @@ from drf_yasg import openapi
 
 from .models import (
     PatientProfile, DoctorProfile, AdminProfile,
-    FamilyHelper, DoctorAvailability,DoctorLeave, UserActivity  # Added DoctorLeave
+    FamilyHelper, DoctorAvailability, DoctorLeave, UserActivity
 )
 from .serializers import (
     # Token
@@ -32,7 +30,7 @@ from .serializers import (
     DoctorProfileSerializer, DoctorPublicSerializer,
     DoctorRegistrationSerializer, DoctorUpdateSerializer,
     DoctorAvailabilitySerializer, DoctorVerificationSerializer,
-    DoctorLeaveSerializer,  # Added DoctorLeaveSerializer
+    DoctorLeaveSerializer,
     # Helper
     FamilyHelperSerializer, AddFamilyHelperSerializer,
     # Admin
@@ -232,7 +230,7 @@ class LoginView(APIView):
             log_user_activity(
                 user=user,
                 activity_type=UserActivity.ActivityType.LOGIN,
-                description=f"User logged in",
+                description="User logged in",
                 request=request
             )
             
@@ -425,7 +423,7 @@ class DoctorListView(generics.ListAPIView):
             verification_status='verified',
             is_available_online=True,
             user__is_active=True
-        ).select_related('user').prefetch_related('availabilities')
+        ).select_related('user').prefetch_related('user__availabilities')
         
         # Filter by specialization
         specialization = self.request.query_params.get('specialization')
@@ -483,18 +481,21 @@ class DoctorListView(generics.ListAPIView):
 class DoctorDetailView(generics.RetrieveAPIView):
     """
     Get details of a specific doctor.
+    Lookup by User ID (not DoctorProfile ID).
     """
     permission_classes = [permissions.AllowAny]
     serializer_class = DoctorPublicSerializer
+    lookup_field = 'user_id'      # ✅ Lookup by user_id
+    lookup_url_kwarg = 'pk'       # ✅ URL parameter is 'pk'
     
     def get_queryset(self):
         return DoctorProfile.objects.filter(
             verification_status='verified',
             user__is_active=True
-        ).select_related('user').prefetch_related('availabilities')
+        ).select_related('user').prefetch_related('user__availabilities')
     
     @swagger_auto_schema(
-        operation_description="Get doctor details",
+        operation_description="Get doctor details by User ID",
         tags=['Doctors']
     )
     def get(self, request, *args, **kwargs):
@@ -512,8 +513,7 @@ class DoctorAvailabilityView(APIView):
         tags=['Doctors']
     )
     def get(self, request):
-        doctor_profile = request.user.doctor_profile
-        availabilities = doctor_profile.availabilities.all()
+        availabilities = request.user.availabilities.all()
         
         return Response({
             'success': True,
@@ -526,13 +526,12 @@ class DoctorAvailabilityView(APIView):
         tags=['Doctors']
     )
     def post(self, request):
-        doctor_profile = request.user.doctor_profile
         serializer = DoctorAvailabilitySerializer(data=request.data)
         
         if serializer.is_valid():
             # Check if slot already exists
             existing = DoctorAvailability.objects.filter(
-                doctor=doctor_profile,
+                doctor=request.user,
                 day_of_week=serializer.validated_data['day_of_week'],
                 start_time=serializer.validated_data['start_time']
             ).first()
@@ -545,7 +544,7 @@ class DoctorAvailabilityView(APIView):
                 availability = existing
             else:
                 # Create new
-                availability = serializer.save(doctor=doctor_profile)
+                availability = serializer.save(doctor=request.user)
             
             return Response({
                 'success': True,
@@ -569,12 +568,10 @@ class DoctorAvailabilityView(APIView):
                 'message': 'Availability ID required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        doctor_profile = request.user.doctor_profile
-        
         try:
             availability = DoctorAvailability.objects.get(
                 pk=pk,
-                doctor=doctor_profile
+                doctor=request.user
             )
             availability.delete()
             
@@ -587,7 +584,7 @@ class DoctorAvailabilityView(APIView):
                 'success': False,
                 'message': 'Availability not found'
             }, status=status.HTTP_404_NOT_FOUND)
-        
+
 
 # ============================================
 # DOCTOR LEAVE VIEWS
@@ -604,8 +601,7 @@ class DoctorLeaveListCreateView(APIView):
         tags=['Doctors']
     )
     def get(self, request):
-        doctor_profile = request.user.doctor_profile
-        leaves = DoctorLeave.objects.filter(doctor=doctor_profile).order_by('date')
+        leaves = DoctorLeave.objects.filter(doctor=request.user).order_by('date')
         
         return Response({
             'success': True,
@@ -618,13 +614,12 @@ class DoctorLeaveListCreateView(APIView):
         tags=['Doctors']
     )
     def post(self, request):
-        doctor_profile = request.user.doctor_profile
         serializer = DoctorLeaveSerializer(data=request.data)
         
         if serializer.is_valid():
             # Check if leave already exists for this date
             existing = DoctorLeave.objects.filter(
-                doctor=doctor_profile,
+                doctor=request.user,
                 date=serializer.validated_data['date']
             ).first()
             
@@ -634,7 +629,7 @@ class DoctorLeaveListCreateView(APIView):
                     'message': 'Leave already exists for this date'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            leave = serializer.save(doctor=doctor_profile)
+            leave = serializer.save(doctor=request.user)
             
             return Response({
                 'success': True,
@@ -659,10 +654,8 @@ class DoctorLeaveDetailView(APIView):
         tags=['Doctors']
     )
     def delete(self, request, pk):
-        doctor_profile = request.user.doctor_profile
-        
         try:
-            leave = DoctorLeave.objects.get(pk=pk, doctor=doctor_profile)
+            leave = DoctorLeave.objects.get(pk=pk, doctor=request.user)
             leave.delete()
             
             return Response({
@@ -835,6 +828,7 @@ class AdminDoctorListView(generics.ListAPIView):
 class AdminDoctorVerifyView(APIView):
     """
     Verify or reject a doctor registration.
+    Uses User ID for lookup.
     """
     permission_classes = [IsAdmin]
     
@@ -845,7 +839,8 @@ class AdminDoctorVerifyView(APIView):
     )
     def post(self, request, pk):
         try:
-            doctor = DoctorProfile.objects.get(pk=pk)
+            # ✅ Lookup by user_id instead of DoctorProfile.pk
+            doctor = DoctorProfile.objects.get(user_id=pk)
         except DoctorProfile.DoesNotExist:
             return Response({
                 'success': False,
@@ -931,6 +926,7 @@ class AdminUserStatsView(APIView):
     )
     def get(self, request):
         from django.db.models import Count
+        from datetime import timedelta
         
         total_users = User.objects.count()
         total_patients = User.objects.filter(role=User.Role.PATIENT).count()
@@ -944,7 +940,6 @@ class AdminUserStatsView(APIView):
         ).count()
         
         # Recent registrations (last 30 days)
-        from datetime import timedelta
         thirty_days_ago = timezone.now() - timedelta(days=30)
         
         recent_patients = User.objects.filter(
@@ -1059,7 +1054,8 @@ class SpecializationListView(APIView):
             'success': True,
             'data': specializations
         })
-    
+
+
 # ============================================
 # FIREBASE TEST VIEW (Development Only)
 # ============================================

@@ -126,7 +126,7 @@ const QueueStatsHeader = ({ stats, isRefreshing, onRefresh }) => {
         <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-2 text-gray-600">
             <Timer className="w-4 h-4" />
-            <span className="text-sm">Avg. Wait Time</span>
+            <span className="text-sm">Avg Wait Time</span>
           </div>
           <span className="font-semibold text-gray-900">
             {formatDurationMinutes(stats.avg_wait_minutes)}
@@ -219,7 +219,7 @@ const QueueItem = ({
             {/* estimated_wait_minutes from backend */}
             {item.estimated_wait_minutes && item.status === 'waiting' && (
               <span className="text-xs text-gray-400">
-                Est. {item.estimated_wait_minutes} min
+                Est {item.estimated_wait_minutes} min
               </span>
             )}
           </div>

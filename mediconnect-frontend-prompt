@@ -1,0 +1,297 @@
+Project Overview
+You are building the frontend for MediConnect, a comprehensive rural healthcare platform designed for rural India. The application serves two user roles: Patients and Doctors, with a focus on accessibility features like multi-language support (English, Hindi, Telugu), voice commands, and text-to-speech for users with limited literacy.
+
+Technology Stack
+Framework: React 19 with Vite
+Styling: Tailwind CSS v3 with custom design system
+State Management: Zustand
+Data Fetching: TanStack Query (React Query v5)
+Routing: React Router DOM v6
+Authentication: Firebase Phone Auth (OTP-based)
+Internationalization: i18next with react-i18next
+Forms: React Hook Form with Zod validation
+Icons: Lucide React
+Notifications: React Hot Toast
+Date Handling: date-fns
+Voice Features: Web Speech API (SpeechRecognition & SpeechSynthesis)
+Video Consultation: Jitsi Meet (free, no API key required)
+Backend API
+The backend is built with Django REST Framework. Base URL: http://localhost:8000/api/v1
+
+API Modules & Endpoints:
+1. Authentication (/auth/)
+POST /auth/login/ - Firebase token login, returns JWT tokens
+POST /auth/logout/ - Blacklist refresh token
+POST /auth/register/patient/ - Patient registration with Firebase token
+POST /auth/register/doctor/ - Doctor registration with Firebase token
+POST /auth/token/refresh/ - Refresh access token
+GET /auth/profile/ - Get user profile
+PUT /auth/profile/ - Update profile
+GET /auth/doctors/ - List verified doctors (filterable by specialization, language)
+GET /auth/doctors/{id}/ - Doctor details
+GET /auth/helpers/ - List family helpers
+POST /auth/helpers/ - Add family helper
+POST /auth/settings/language/ - Change language preference
+POST /auth/settings/fcm-token/ - Update FCM token
+2. Appointments (/appointments/)
+GET /appointments/appointments/ - List appointments (filterable by status, date)
+POST /appointments/appointments/ - Create appointment
+GET /appointments/appointments/{id}/ - Appointment details
+POST /appointments/appointments/{id}/cancel/ - Cancel appointment
+POST /appointments/appointments/{id}/reschedule/ - Reschedule
+POST /appointments/appointments/{id}/check_in/ - Patient check-in
+POST /appointments/appointments/{id}/confirm/ - Doctor confirms
+POST /appointments/appointments/{id}/start/ - Start consultation
+POST /appointments/appointments/{id}/complete/ - Complete consultation
+GET /appointments/appointments/today/ - Today's appointments (doctor)
+GET /appointments/appointments/today_summary/ - Today's summary stats
+GET /appointments/appointments/upcoming/ - Upcoming appointments
+GET /appointments/available-slots/{doctor_id}/ - Available slots for date
+GET /appointments/schedules/ - Doctor's schedules
+POST /appointments/schedules/ - Create schedule
+POST /appointments/schedules/bulk_update/ - Bulk update weekly schedule
+GET /appointments/queue/ - Queue list
+GET /appointments/queue/waiting/ - Waiting queue
+POST /appointments/queue/call_next/ - Call next patient
+POST /appointments/queue/{id}/perform-action/ - Queue actions (call, start, complete, skip)
+GET /appointments/exceptions/ - Schedule exceptions (leaves)
+POST /appointments/exceptions/add_leave/ - Add leave
+3. Consultations (/consultation/)
+GET /consultation/consultations/ - List consultations
+POST /consultation/consultations/ - Create consultation
+POST /consultation/consultations/from-appointment/ - Create from appointment
+GET /consultation/consultations/{id}/ - Consultation details
+POST /consultation/consultations/{id}/start/ - Doctor starts
+POST /consultation/consultations/{id}/end/ - End consultation
+POST /consultation/consultations/{id}/join/ - Get join info (Jitsi room)
+POST /consultation/consultations/{id}/join-waiting-room/ - Patient joins waiting room
+GET /consultation/consultations/{id}/notes/ - Consultation notes
+POST /consultation/consultations/{id}/notes/ - Add note
+GET /consultation/consultations/{id}/prescriptions/ - Prescriptions
+POST /consultation/consultations/{id}/prescriptions/ - Add prescription
+POST /consultation/consultations/{id}/feedback/ - Submit feedback
+GET /consultation/jitsi/config/ - Jitsi configuration
+4. Diagnosis/Symptom Checker (/diagnosis/)
+POST /diagnosis/diagnose/ - Diagnose from text description
+POST /diagnosis/diagnose-symptoms/ - Diagnose from symptom list
+GET /diagnosis/symptoms/ - List all symptoms
+GET /diagnosis/symptoms/by-category/ - Symptoms grouped by category
+GET /diagnosis/symptoms/search/ - Search symptoms
+GET /diagnosis/diseases/ - List diseases
+GET /diagnosis/history/ - User's diagnosis history
+GET /diagnosis/session/{session_id}/ - Session details
+POST /diagnosis/feedback/ - Submit feedback on diagnosis
+5. Health Records (/health-records/)
+GET /health-records/profile/ - Health profile
+POST /health-records/profile/ - Create/update profile
+GET /health-records/vitals/ - Vital signs list
+POST /health-records/vitals/ - Add vitals
+GET /health-records/vitals/latest/ - Latest vitals
+GET /health-records/conditions/ - Medical conditions
+POST /health-records/conditions/ - Add condition
+GET /health-records/allergies/ - Allergies
+POST /health-records/allergies/ - Add allergy
+GET /health-records/documents/ - Medical documents
+POST /health-records/documents/ - Upload document
+GET /health-records/lab-reports/ - Lab reports
+GET /health-records/vaccinations/ - Vaccination records
+GET /health-records/family-history/ - Family medical history
+GET /health-records/hospitalizations/ - Hospitalization records
+GET /health-records/sharing/ - Shared records
+POST /health-records/sharing/ - Share with doctor
+GET /health-records/sharing/accessible-patients/ - Patients who shared (doctor)
+GET /health-records/analytics/summary/ - Health analytics
+6. Medicine (/medicine/)
+GET /medicine/medicines/ - List medicines
+GET /medicine/medicines/{id}/ - Medicine details
+POST /medicine/medicines/search/ - Search medicines
+GET /medicine/medicines/{id}/alternatives/ - Generic alternatives
+GET /medicine/medicines/{id}/interactions/ - Drug interactions
+POST /medicine/medicines/check-interactions/ - Check multiple interactions
+GET /medicine/prescriptions/ - User prescriptions
+POST /medicine/prescriptions/ - Create prescription
+GET /medicine/prescriptions/active/ - Active prescriptions
+GET /medicine/reminders/ - Medicine reminders
+POST /medicine/reminders/ - Create reminder
+GET /medicine/reminders/today/ - Today's reminders
+GET /medicine/reminder-logs/ - Reminder logs
+POST /medicine/reminder-logs/{id}/respond/ - Respond (taken/skipped/snoozed)
+7. Chatbot (/chatbot/)
+POST /chatbot/session/start/ - Start chat session
+POST /chatbot/message/ - Send text message
+POST /chatbot/message/voice/ - Send voice message
+GET /chatbot/session/{session_id}/messages/ - Session messages
+POST /chatbot/session/{session_id}/end/ - End session
+GET /chatbot/sessions/ - User's sessions
+GET /chatbot/faq/ - FAQs
+GET /chatbot/health-tips/ - Health tips
+GET /chatbot/health-tips/daily/ - Daily tip
+POST /chatbot/translate/ - Translate text
+POST /chatbot/text-to-speech/ - Convert text to speech
+POST /chatbot/detect-language/ - Detect language
+8. Emergency (/emergency/)
+POST /emergency/sos/trigger/ - Trigger SOS
+POST /emergency/sos/quick-trigger/ - Quick SOS (minimal data)
+GET /emergency/sos/active/ - Active SOS alert
+POST /emergency/sos/{id}/cancel/ - Cancel SOS
+GET /emergency/contacts/ - Emergency contacts
+POST /emergency/contacts/ - Add contact
+GET /emergency/services/nearby/ - Nearby services (hospitals, ambulance)
+GET /emergency/helplines/ - Emergency helplines
+GET /emergency/first-aid/ - First aid guides
+9. Notifications (/notifications/)
+GET /notifications/ - List notifications
+POST /notifications/mark-read/ - Mark as read
+GET /notifications/unread-count/ - Unread count
+GET /notifications/preferences/ - Notification preferences
+PUT /notifications/preferences/update/ - Update preferences
+POST /notifications/device/register/ - Register FCM device
+Application Structure
+Patient Features:
+Home - Greeting, quick actions, upcoming appointments, medicine reminders, health tips
+Symptom Checker - Voice/text input, symptom selection, AI analysis with disclaimer
+Health Records - Profile, vitals, conditions, allergies, documents, sharing with doctors
+Doctors - Search, filter by specialization, view profiles, book appointments
+Chatbot - AI health assistant with disclaimer, voice input, multi-language
+Medicines - Search, view details, alternatives, reminders
+Appointments - View, book, cancel, reschedule, check-in, join consultation
+Notifications - All notifications with preferences
+Settings - Profile, family helpers, language, voice settings, accessibility
+Doctor Features:
+Home - Today's summary, stats, current queue, next patient
+Queue Management - Waiting list, call patient, start/complete consultation
+Patient Records - Shared records from patients
+Consultations - Video/audio via Jitsi, notes, prescriptions
+Prescriptions - Create, view history
+Schedule - Weekly schedule, slot management, leaves
+Appointments - Today's appointments, history
+Notifications - Same as patient
+Settings - Profile, schedule settings, consultation settings
+Key Implementation Details
+Authentication Flow:
+User enters phone number (10-digit Indian)
+Firebase sends OTP
+User verifies OTP
+Firebase returns ID token
+Send token to /auth/login/ or /auth/register/*
+Backend returns JWT access + refresh tokens
+Store tokens in localStorage
+Attach Bearer token to all API requests
+Auto-refresh on 401 using refresh token
+Multi-Language Implementation:
+Three languages: English (en), Hindi (hi), Telugu (te)
+Use i18next with complete translations
+### Multi-Language Implementation:
+
+**Static Translations (i18n):**
+- For all UI elements: labels, buttons, messages, menu items
+- Pre-defined in JSON files: `en.json`, `hi.json`, `te.json`
+- Use `t('key')` function from `useTranslation` hook
+- Complete translations for all three languages
+
+**Dynamic Translations (Free API):**
+- For chatbot responses, user-generated content, API responses
+- Uses MyMemory API (primary) - 5000 words/day free, no key needed
+- Uses Lingva API (fallback) - Google Translate proxy, no key needed
+- Translation caching to reduce API calls
+- Use `<TranslatedText>` component or `translateDynamic()` function
+
+**Language Switching:**
+- User changes language in settings
+- Instantly updates all UI (static translations)
+- Dynamically translates cached content
+- Persists to localStorage and backend
+- Updates document font family based on language
+
+Update document.body.setAttribute('data-lang', lng) for font switching
+All text must come from translation files, no hardcoded strings
+Voice Features:
+Voice Commands - Navigate app using voice (e.g., "Go to doctors", "Book appointment")
+Voice Input - Speak symptoms, chat messages
+Text-to-Speech - Read screen content aloud
+Use Web Speech API (SpeechRecognition, SpeechSynthesis)
+Support all three languages for TTS
+Accessibility:
+Large touch targets (min 44x44px)
+Large text option
+High contrast mode
+Voice assistance toggle
+Simple navigation for low-literacy users
+State Management (Zustand):
+JavaScript
+
+// authStore - user, tokens, login/logout actions
+// languageStore - current language, change language
+// voiceStore - voice settings, speaking state, listening state
+API Integration (TanStack Query):
+Use query hooks for GET requests with caching
+Use mutation hooks for POST/PUT/DELETE
+Implement optimistic updates where appropriate
+Handle loading and error states consistently
+Component Structure:
+Reusable common components (Button, Input, Card, Modal, Loader, etc.)
+Feature-specific components organized by module
+Layout components for Patient and Doctor dashboards
+Bottom navigation for mobile-first design
+Error Handling:
+Global error boundary
+API error interceptor with toast notifications
+Form validation errors displayed inline
+Network error handling with retry option
+File Naming Conventions:
+Components: PascalCase (e.g., DoctorCard.jsx)
+Hooks: camelCase with 'use' prefix (e.g., useAuth.js)
+Services: camelCase (e.g., appointmentService.js)
+Stores: camelCase with 'Store' suffix (e.g., authStore.js)
+Utils: camelCase (e.g., helpers.js)
+What Has Been Completed
+✅ Project setup with Vite + React 19
+✅ Dependencies installed (react-router-dom, axios, zustand, @tanstack/react-query, tailwindcss@3, firebase, i18next, lucide-react, react-hot-toast, date-fns, react-hook-form, zod)
+✅ Folder structure created
+✅ Tailwind CSS v3 configured with custom theme (colors, fonts)
+✅ Global CSS with component classes (btn-primary, card, input-field, badges, etc.)
+✅ Firebase configuration (src/config/firebase.js) - OTP send/verify functions
+✅ API configuration (src/config/api.js) - Axios instance with interceptors
+✅ i18n setup (src/i18n/index.js)
+✅ English translations (src/i18n/locales/en.json) - Complete
+✅ Hindi translations (src/i18n/locales/hi.json) - Partial (needs completion)
+What Needs To Be Built Next
+Continue in this order:
+
+Complete Hindi translations (hi.json)
+Telugu translations (te.json)
+Zustand stores (authStore, languageStore, voiceStore)
+Custom hooks (useAuth, useLanguage, useVoice, useApi)
+Common components (Button, Input, Card, Modal, Loader, Avatar, Badge, etc.)
+Voice services (speech recognition, text-to-speech)
+Layout components (PatientLayout, DoctorLayout, BottomNavigation, Header)
+API service files (auth, appointments, consultations, etc.)
+Auth pages (Login, PatientRegister, DoctorRegister)
+Patient pages (Home, SymptomChecker, HealthRecords, Doctors, etc.)
+Doctor pages (Home, QueueManagement, PatientRecords, etc.)
+App.jsx with routing
+main.jsx with providers
+Code Quality Requirements
+Production-Ready: No console.logs (except errors), proper error handling
+Type Safety: Use PropTypes or JSDoc comments for component props
+Performance: Memoize expensive computations, lazy load routes
+Accessibility: ARIA labels, keyboard navigation, focus management
+Responsive: Mobile-first, works on all screen sizes
+Clean Code: Consistent formatting, meaningful variable names
+No Hardcoded Strings: All text from i18n translation files
+Consistent API Calls: Use TanStack Query hooks, proper error handling
+Form Handling: React Hook Form with Zod schemas
+Loading States: Skeleton loaders, spinner indicators
+Instructions for AI
+When generating code:
+
+Generate complete, working code - no placeholders or TODOs
+Include all imports at the top
+Export components properly (default or named as appropriate)
+Use the established patterns from completed files
+Follow the exact folder structure defined
+Ensure all translations are used via useTranslation hook
+Handle loading and error states for all async operations
+Make components responsive with Tailwind classes
+Include proper PropTypes or JSDoc for all components
+Generate one complete file at a time

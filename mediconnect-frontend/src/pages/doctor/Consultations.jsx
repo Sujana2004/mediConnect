@@ -1,7 +1,8 @@
 // src/pages/doctor/Consultations.jsx
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import {
   Video,
   Phone,
@@ -12,7 +13,6 @@ import {
   ChevronRight,
   ChevronLeft,
   FileText,
-  Download,
   RefreshCw,
   User,
   Star,
@@ -28,14 +28,7 @@ import {
   Activity,
   Timer,
   TrendingUp,
-  BarChart3,
-  CalendarDays,
   X,
-  ExternalLink,
-  Printer,
-  Share2,
-  History,
-  ClipboardList,
   Loader2
 } from 'lucide-react';
 import { 
@@ -45,9 +38,9 @@ import {
   endOfMonth, 
   startOfWeek, 
   endOfWeek,
-  isToday,
   parseISO,
   differenceInMinutes,
+  isToday,
   eachDayOfInterval
 } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -69,6 +62,8 @@ import {
 // CONSTANTS
 // ============================================================================
 
+const isDev = import.meta.env.DEV;
+
 const STATUS_CONFIG = {
   scheduled: {
     color: 'primary',
@@ -80,7 +75,7 @@ const STATUS_CONFIG = {
   waiting_room: {
     color: 'warning',
     icon: Clock,
-    label: 'Waiting Room',
+    label: 'Waiting',
     bgColor: 'bg-amber-50',
     textColor: 'text-amber-700'
   },
@@ -128,18 +123,17 @@ const DATE_RANGE_OPTIONS = [
   { value: 'last_week', label: 'Last Week' },
   { value: 'this_month', label: 'This Month' },
   { value: 'last_month', label: 'Last Month' },
-  { value: 'custom', label: 'Custom Range' }
+  { value: 'all', label: 'All Time' }
 ];
 
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'All Status' },
   { value: 'scheduled', label: 'Scheduled' },
-  { value: 'waiting_room', label: 'Waiting Room' },
+  { value: 'waiting_room', label: 'Waiting' },
   { value: 'in_progress', label: 'In Progress' },
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
-  { value: 'no_show', label: 'No Show' },
-  { value: 'technical_issue', label: 'Technical Issue' }
+  { value: 'no_show', label: 'No Show' }
 ];
 
 const TYPE_FILTER_OPTIONS = [
@@ -153,12 +147,26 @@ const TYPE_FILTER_OPTIONS = [
 // HELPER FUNCTIONS
 // ============================================================================
 
+const logger = {
+  log: (...args) => isDev && console.log('[Consultations]', ...args),
+  error: (...args) => isDev && console.error('[Consultations]', ...args),
+};
+
+const getErrorMessage = (error, fallback = 'An error occurred') => {
+  return (
+    error?.response?.data?.message ||
+    error?.response?.data?.detail ||
+    error?.message ||
+    fallback
+  );
+};
+
 const formatTime = (dateString) => {
   if (!dateString) return '';
   try {
     return format(new Date(dateString), 'h:mm a');
   } catch {
-    return dateString;
+    return '';
   }
 };
 
@@ -167,18 +175,15 @@ const formatDate = (dateString, formatStr = 'MMM d, yyyy') => {
   try {
     return format(parseISO(dateString), formatStr);
   } catch {
-    return dateString;
+    return '';
   }
 };
 
 const formatDuration = (minutes) => {
-  if (!minutes) return '0m';
+  if (!minutes) return '-';
   const hrs = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  if (hrs > 0) {
-    return `${hrs}h ${mins}m`;
-  }
-  return `${mins}m`;
+  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
 };
 
 const calculateDuration = (start, end) => {
@@ -190,19 +195,6 @@ const calculateDuration = (start, end) => {
   }
 };
 
-const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
-  if (error?.response?.data?.error?.message) {
-    return error.response.data.error.message;
-  }
-  if (error?.response?.data?.message) {
-    return error.response.data.message;
-  }
-  if (error?.message) {
-    return error.message;
-  }
-  return fallbackMessage;
-};
-
 // ============================================================================
 // SUB-COMPONENTS
 // ============================================================================
@@ -210,36 +202,48 @@ const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
 /**
  * Stats Cards Component
  */
-const StatsCards = ({ stats }) => {
-  const { t } = useTranslation();
+const StatsCards = ({ stats, isLoading }) => {
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map(i => (
+          <Card key={i} padding="sm">
+            <div className="animate-pulse">
+              <div className="h-8 w-8 bg-gray-200 rounded-lg mb-3" />
+              <div className="h-6 w-16 bg-gray-200 rounded mb-1" />
+              <div className="h-4 w-24 bg-gray-200 rounded" />
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   const statItems = [
     {
-      label: 'Total Consultations',
+      label: 'Total',
       value: stats?.total || 0,
       icon: Video,
-      color: 'bg-primary-50 text-primary-600',
-      trend: stats?.totalTrend
+      color: 'bg-primary-50 text-primary-600'
     },
     {
       label: 'Completed',
       value: stats?.completed || 0,
       icon: CheckCircle,
-      color: 'bg-green-50 text-green-600',
-      trend: stats?.completedTrend
+      color: 'bg-green-50 text-green-600'
     },
     {
       label: 'Avg Duration',
-      value: stats?.avgDuration ? `${stats.avgDuration}m` : 'N/A',
+      value: stats?.avg_duration ? `${Math.round(stats.avg_duration)}m` : '-',
       icon: Timer,
       color: 'bg-blue-50 text-blue-600'
     },
     {
       label: 'Avg Rating',
-      value: stats?.avgRating ? stats.avgRating.toFixed(1) : 'N/A',
+      value: stats?.avg_rating ? stats.avg_rating.toFixed(1) : '-',
       icon: Star,
       color: 'bg-amber-50 text-amber-600',
-      suffix: stats?.avgRating ? '⭐' : ''
+      suffix: stats?.avg_rating ? '⭐' : ''
     }
   ];
 
@@ -251,14 +255,6 @@ const StatsCards = ({ stats }) => {
             <div className={`p-2 rounded-lg ${item.color}`}>
               <item.icon className="w-5 h-5" />
             </div>
-            {item.trend !== undefined && (
-              <div className={`flex items-center gap-1 text-xs ${
-                item.trend >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}>
-                <TrendingUp className={`w-3 h-3 ${item.trend < 0 ? 'rotate-180' : ''}`} />
-                {Math.abs(item.trend)}%
-              </div>
-            )}
           </div>
           <div className="mt-3">
             <p className="text-2xl font-bold text-gray-900">
@@ -273,54 +269,7 @@ const StatsCards = ({ stats }) => {
 };
 
 /**
- * Date Range Selector Component
- */
-const DateRangeSelector = ({ 
-  dateRange, 
-  onDateRangeChange, 
-  customStartDate,
-  customEndDate,
-  onOpenCalendar
-}) => {
-  const { t } = useTranslation();
-
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      <select
-        value={dateRange}
-        onChange={(e) => onDateRangeChange(e.target.value)}
-        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
-      >
-        {DATE_RANGE_OPTIONS.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-
-      {dateRange === 'custom' && (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onOpenCalendar('start')}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2"
-          >
-            <CalendarDays className="w-4 h-4" />
-            {customStartDate ? format(customStartDate, 'MMM d, yyyy') : 'Start Date'}
-          </button>
-          <span className="text-gray-400">—</span>
-          <button
-            onClick={() => onOpenCalendar('end')}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2"
-          >
-            <CalendarDays className="w-4 h-4" />
-            {customEndDate ? format(customEndDate, 'MMM d, yyyy') : 'End Date'}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
-/**
- * Filters Bar Component
+ * Filters Component
  */
 const FiltersBar = ({
   searchQuery,
@@ -329,55 +278,73 @@ const FiltersBar = ({
   onStatusChange,
   typeFilter,
   onTypeChange,
+  dateRange,
+  onDateRangeChange,
   onClearFilters
 }) => {
-  const { t } = useTranslation();
-  const hasFilters = searchQuery || statusFilter || typeFilter;
+  const hasFilters = searchQuery || statusFilter || typeFilter || dateRange !== 'this_month';
 
   return (
-    <div className="flex flex-col sm:flex-row gap-3">
-      <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search consultations..."
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-        />
-      </div>
-      
-      <select
-        value={statusFilter}
-        onChange={(e) => onStatusChange(e.target.value)}
-        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
-      >
-        {STATUS_FILTER_OPTIONS.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-      
-      <select
-        value={typeFilter}
-        onChange={(e) => onTypeChange(e.target.value)}
-        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
-      >
-        {TYPE_FILTER_OPTIONS.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-
-      {hasFilters && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClearFilters}
-          leftIcon={<X className="w-4 h-4" />}
+    <Card padding="md">
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* Date Range */}
+        <select
+          value={dateRange}
+          onChange={(e) => onDateRangeChange(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
         >
-          Clear
-        </Button>
-      )}
-    </div>
+          {DATE_RANGE_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+
+        {/* Search */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search by patient name..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+
+        {/* Status Filter */}
+        <select
+          value={statusFilter}
+          onChange={(e) => onStatusChange(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+        >
+          {STATUS_FILTER_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+
+        {/* Type Filter */}
+        <select
+          value={typeFilter}
+          onChange={(e) => onTypeChange(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+        >
+          {TYPE_FILTER_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+
+        {/* Clear Filters */}
+        {hasFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClearFilters}
+            leftIcon={<X className="w-4 h-4" />}
+          >
+            Clear
+          </Button>
+        )}
+      </div>
+    </Card>
   );
 };
 
@@ -388,24 +355,23 @@ const ConsultationCard = ({
   consultation, 
   onView, 
   onViewPatient,
-  onViewPrescription,
-  onDownloadSummary,
   onRejoin
 }) => {
-  const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
-
+  
   const statusConfig = STATUS_CONFIG[consultation.status] || STATUS_CONFIG.completed;
   const StatusIcon = statusConfig.icon;
-
   const canRejoin = consultation.status === 'in_progress';
   
-  // Calculate duration
   const duration = consultation.actual_duration || 
     calculateDuration(consultation.actual_start, consultation.actual_end);
 
+  const patientName = consultation.patient_info?.full_name || 
+                      consultation.patient_name ||
+                      'Unknown Patient';
+
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow`}>
+    <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start gap-4">
         {/* Time & Type */}
         <div className="flex-shrink-0 text-center min-w-[80px]">
@@ -443,16 +409,16 @@ const ConsultationCard = ({
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <Avatar
-                name={consultation.patient_info?.full_name}
+                name={patientName}
                 size="md"
               />
               <div>
                 <h4 className="font-semibold text-gray-900 truncate">
-                  {consultation.patient_info?.full_name}
+                  {patientName}
                 </h4>
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   {consultation.patient_info?.age && (
-                    <span>{consultation.patient_info.age}</span>
+                    <span>{consultation.patient_info.age} yrs</span>
                   )}
                   {consultation.patient_info?.gender && (
                     <>
@@ -481,7 +447,7 @@ const ConsultationCard = ({
           {/* Diagnosis */}
           {consultation.diagnosis && (
             <div className="mt-2 flex items-center gap-2">
-              <Stethoscope className="w-4 h-4 text-primary-600" />
+              <Stethoscope className="w-4 h-4 text-primary-600 flex-shrink-0" />
               <span className="text-sm text-gray-700 line-clamp-1">
                 {consultation.diagnosis}
               </span>
@@ -490,7 +456,6 @@ const ConsultationCard = ({
 
           {/* Stats Row */}
           <div className="flex items-center gap-4 mt-3 text-sm">
-            {/* Duration */}
             {duration && (
               <div className="flex items-center gap-1 text-gray-500">
                 <Timer className="w-4 h-4" />
@@ -498,23 +463,20 @@ const ConsultationCard = ({
               </div>
             )}
 
-            {/* Prescriptions */}
-            {consultation.prescriptions?.length > 0 && (
+            {consultation.prescriptions_count > 0 && (
               <div className="flex items-center gap-1 text-gray-500">
                 <Pill className="w-4 h-4" />
-                <span>{consultation.prescriptions.length} medicines</span>
+                <span>{consultation.prescriptions_count} medicines</span>
               </div>
             )}
 
-            {/* Notes */}
-            {consultation.notes?.length > 0 && (
+            {consultation.notes_count > 0 && (
               <div className="flex items-center gap-1 text-gray-500">
-                <ClipboardList className="w-4 h-4" />
-                <span>{consultation.notes.length} notes</span>
+                <FileText className="w-4 h-4" />
+                <span>{consultation.notes_count} notes</span>
               </div>
             )}
 
-            {/* Rating */}
             {consultation.feedback?.overall_rating && (
               <div className="flex items-center gap-1 text-amber-500">
                 <Star className="w-4 h-4 fill-current" />
@@ -565,35 +527,13 @@ const ConsultationCard = ({
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
                   <button
                     onClick={() => {
-                      onViewPatient(consultation.patient);
+                      onViewPatient(consultation.patient_info?.id || consultation.patient);
                       setShowActions(false);
                     }}
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
                     <User className="w-4 h-4" />
                     View Patient
-                  </button>
-                  {consultation.prescriptions?.length > 0 && (
-                    <button
-                      onClick={() => {
-                        onViewPrescription(consultation);
-                        setShowActions(false);
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                    >
-                      <Pill className="w-4 h-4" />
-                      View Prescription
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      onDownloadSummary(consultation);
-                      setShowActions(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download Summary
                   </button>
                 </div>
               </>
@@ -612,9 +552,7 @@ const ConsultationDetailsModal = ({
   isOpen, 
   onClose, 
   consultation,
-  onViewPatient,
-  onViewPrescription,
-  onDownloadSummary
+  onViewPatient
 }) => {
   const { t } = useTranslation();
 
@@ -624,6 +562,10 @@ const ConsultationDetailsModal = ({
   const StatusIcon = statusConfig.icon;
   const duration = consultation.actual_duration || 
     calculateDuration(consultation.actual_start, consultation.actual_end);
+
+  const patientName = consultation.patient_info?.full_name || 
+                      consultation.patient_name ||
+                      'Unknown Patient';
 
   return (
     <Modal
@@ -637,16 +579,16 @@ const ConsultationDetailsModal = ({
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
             <Avatar
-              name={consultation.patient_info?.full_name}
+              name={patientName}
               size="xl"
             />
             <div>
               <h3 className="text-xl font-semibold text-gray-900">
-                {consultation.patient_info?.full_name}
+                {patientName}
               </h3>
               <div className="flex items-center gap-2 mt-1 text-gray-600">
                 {consultation.patient_info?.age && (
-                  <span>{consultation.patient_info.age}</span>
+                  <span>{consultation.patient_info.age} yrs</span>
                 )}
                 {consultation.patient_info?.gender && (
                   <>
@@ -655,15 +597,6 @@ const ConsultationDetailsModal = ({
                   </>
                 )}
               </div>
-              <Button
-                variant="link"
-                size="sm"
-                leftIcon={<ExternalLink className="w-3 h-3" />}
-                onClick={() => onViewPatient(consultation.patient)}
-                className="mt-1 p-0"
-              >
-                View Patient Profile
-              </Button>
             </div>
           </div>
           <Badge variant={statusConfig.color} size="lg">
@@ -672,7 +605,7 @@ const ConsultationDetailsModal = ({
           </Badge>
         </div>
 
-        {/* Consultation Info */}
+        {/* Info Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="bg-gray-50 rounded-xl p-4">
             <p className="text-sm text-gray-500 mb-1">Date</p>
@@ -705,12 +638,6 @@ const ConsultationDetailsModal = ({
               ) : (
                 <><MessageSquare className="w-4 h-4 text-primary-600" /> Chat</>
               )}
-            </p>
-          </div>
-          <div className="bg-gray-50 rounded-xl p-4">
-            <p className="text-sm text-gray-500 mb-1">Language</p>
-            <p className="font-semibold text-gray-900 uppercase">
-              {consultation.language}
             </p>
           </div>
         </div>
@@ -748,67 +675,8 @@ const ConsultationDetailsModal = ({
           </div>
         )}
 
-        {/* Prescriptions Preview */}
-        {consultation.prescriptions?.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-gray-900 flex items-center gap-2">
-                <Pill className="w-4 h-4 text-green-600" />
-                Prescribed Medicines
-              </h4>
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => onViewPrescription(consultation)}
-              >
-                View All
-              </Button>
-            </div>
-            <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-              <div className="space-y-2">
-                {consultation.prescriptions.slice(0, 3).map((med, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <span className="font-medium text-gray-900">{med.medicine_name}</span>
-                    <span className="text-sm text-gray-600">
-                      {med.dosage} • {med.frequency}
-                    </span>
-                  </div>
-                ))}
-                {consultation.prescriptions.length > 3 && (
-                  <p className="text-sm text-gray-500 text-center pt-2">
-                    +{consultation.prescriptions.length - 3} more
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Notes */}
-        {consultation.notes?.length > 0 && (
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
-              <ClipboardList className="w-4 h-4 text-amber-600" />
-              Consultation Notes
-            </h4>
-            <div className="bg-amber-50 rounded-xl p-4 border border-amber-100 space-y-3">
-              {consultation.notes.map((note, index) => (
-                <div key={index}>
-                  {note.title && (
-                    <p className="font-medium text-gray-900">{note.title}</p>
-                  )}
-                  <p className="text-gray-700">{note.content}</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {formatTime(note.created_at)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Follow-up */}
-        {consultation.follow_up_date && (
+        {consultation.follow_up_required && consultation.follow_up_date && (
           <div className="bg-primary-50 border border-primary-100 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -866,212 +734,9 @@ const ConsultationDetailsModal = ({
         <Button
           variant="outline"
           leftIcon={<User className="w-4 h-4" />}
-          onClick={() => onViewPatient(consultation.patient)}
+          onClick={() => onViewPatient(consultation.patient_info?.id || consultation.patient)}
         >
           View Patient
-        </Button>
-        {consultation.prescriptions?.length > 0 && (
-          <Button
-            variant="outline"
-            leftIcon={<Pill className="w-4 h-4" />}
-            onClick={() => onViewPrescription(consultation)}
-          >
-            View Prescription
-          </Button>
-        )}
-        <Button
-          variant="outline"
-          leftIcon={<Download className="w-4 h-4" />}
-          onClick={() => onDownloadSummary(consultation)}
-        >
-          Download Summary
-        </Button>
-      </div>
-    </Modal>
-  );
-};
-
-/**
- * Calendar Modal
- */
-const CalendarModal = ({ isOpen, onClose, selectedDate, onDateSelect, title }) => {
-  const [viewDate, setViewDate] = useState(selectedDate || new Date());
-
-  useEffect(() => {
-    if (isOpen) {
-      setViewDate(selectedDate || new Date());
-    }
-  }, [isOpen, selectedDate]);
-
-  const monthStart = startOfWeek(new Date(viewDate.getFullYear(), viewDate.getMonth(), 1), { weekStartsOn: 0 });
-  const monthEnd = endOfWeek(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0), { weekStartsOn: 0 });
-  const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
-
-  const handlePrevMonth = () => {
-    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
-  };
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={title || 'Select Date'}
-      size="sm"
-    >
-      <div className="space-y-4">
-        {/* Month Navigation */}
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={handlePrevMonth}>
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
-          <span className="font-semibold text-gray-900">
-            {format(viewDate, 'MMMM yyyy')}
-          </span>
-          <Button variant="ghost" size="sm" onClick={handleNextMonth}>
-            <ChevronRight className="w-5 h-5" />
-          </Button>
-        </div>
-
-        {/* Calendar Grid */}
-        <div className="grid grid-cols-7 gap-1">
-          {/* Day Headers */}
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
-              {day}
-            </div>
-          ))}
-
-          {/* Days */}
-          {calendarDays.map(day => {
-            const isCurrentMonth = day.getMonth() === viewDate.getMonth();
-            const isSelected = selectedDate && format(day, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
-            const isTodayDate = isToday(day);
-
-            return (
-              <button
-                key={day.toISOString()}
-                onClick={() => {
-                  onDateSelect(day);
-                  onClose();
-                }}
-                disabled={day > new Date()} // Can't select future dates
-                className={`
-                  p-2 text-sm rounded-lg transition-colors
-                  ${!isCurrentMonth && 'text-gray-400'}
-                  ${isSelected && 'bg-primary-600 text-white'}
-                  ${!isSelected && isTodayDate && 'bg-primary-100 text-primary-700'}
-                  ${!isSelected && !isTodayDate && isCurrentMonth && 'hover:bg-gray-100 text-gray-900'}
-                  ${day > new Date() && 'opacity-50 cursor-not-allowed'}
-                `}
-              >
-                {format(day, 'd')}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </Modal>
-  );
-};
-
-/**
- * Prescription Modal
- */
-const PrescriptionModal = ({ isOpen, onClose, consultation }) => {
-  const { t } = useTranslation();
-
-  if (!consultation) return null;
-
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Prescription"
-      size="md"
-    >
-      <div className="space-y-4">
-        {/* Patient Info */}
-        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-          <Avatar
-            name={consultation.patient_info?.full_name}
-            size="md"
-          />
-          <div>
-            <p className="font-medium text-gray-900">{consultation.patient_info?.full_name}</p>
-            <p className="text-sm text-gray-500">
-              {formatDate(consultation.scheduled_start, 'MMM d, yyyy')}
-            </p>
-          </div>
-        </div>
-
-        {/* Diagnosis */}
-        {consultation.diagnosis && (
-          <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
-            <p className="text-sm text-blue-700 font-medium">Diagnosis</p>
-            <p className="text-blue-900 mt-1">{consultation.diagnosis}</p>
-          </div>
-        )}
-
-        {/* Medicines */}
-        <div className="space-y-3">
-          <h4 className="font-medium text-gray-900">Medicines</h4>
-          {consultation.prescriptions?.map((med, index) => (
-            <div 
-              key={index}
-              className="bg-gray-50 rounded-lg p-4 border border-gray-200"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h5 className="font-semibold text-gray-900">{med.medicine_name}</h5>
-                </div>
-                <Badge variant="primary">{med.dosage}</Badge>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <span className="text-gray-500">Frequency:</span>
-                  <span className="ml-1 font-medium">{med.frequency}</span>
-                </div>
-                {med.duration && (
-                  <div>
-                    <span className="text-gray-500">Duration:</span>
-                    <span className="ml-1 font-medium">{med.duration}</span>
-                  </div>
-                )}
-                {med.timing && (
-                  <div>
-                    <span className="text-gray-500">Timing:</span>
-                    <span className="ml-1 font-medium">{med.timing.replace('_', ' ')}</span>
-                  </div>
-                )}
-              </div>
-              {med.instructions && (
-                <p className="mt-2 text-sm text-gray-600 italic">
-                  Instructions: {med.instructions}
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-3 mt-6">
-        <Button
-          variant="outline"
-          leftIcon={<Printer className="w-4 h-4" />}
-          onClick={() => toast.info('Print feature coming soon')}
-        >
-          Print
-        </Button>
-        <Button
-          variant="primary"
-          leftIcon={<Download className="w-4 h-4" />}
-          onClick={() => toast.info('Download feature coming soon')}
-        >
-          Download
         </Button>
       </div>
     </Modal>
@@ -1087,170 +752,142 @@ const Consultations = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // State
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [consultations, setConsultations] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [error, setError] = useState(null);
-  const [pagination, setPagination] = useState({ count: 0, next: null, previous: null });
-
-  // Filters
+  // Filters State
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || '');
   const [dateRange, setDateRange] = useState(searchParams.get('range') || 'this_month');
-  const [customStartDate, setCustomStartDate] = useState(null);
-  const [customEndDate, setCustomEndDate] = useState(null);
 
-  // Modals
+  // Modal State
   const [selectedConsultation, setSelectedConsultation] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
-  const [showCalendarModal, setShowCalendarModal] = useState(false);
-  const [calendarTarget, setCalendarTarget] = useState(null);
 
   // ============================================================================
-  // CALCULATE DATE RANGE
+  // QUERIES
   // ============================================================================
 
-  const getDateRange = useCallback(() => {
-    const today = new Date();
-    
-    switch (dateRange) {
-      case 'today':
-        return { start: today, end: today };
-      case 'yesterday':
-        const yesterday = subDays(today, 1);
-        return { start: yesterday, end: yesterday };
-      case 'this_week':
-        return { start: startOfWeek(today, { weekStartsOn: 1 }), end: today };
-      case 'last_week':
-        const lastWeekStart = startOfWeek(subDays(today, 7), { weekStartsOn: 1 });
-        const lastWeekEnd = endOfWeek(subDays(today, 7), { weekStartsOn: 1 });
-        return { start: lastWeekStart, end: lastWeekEnd };
-      case 'this_month':
-        return { start: startOfMonth(today), end: today };
-      case 'last_month':
-        const lastMonth = subDays(startOfMonth(today), 1);
-        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
-      case 'custom':
-        if (customStartDate && customEndDate) {
-          return { start: customStartDate, end: customEndDate };
-        }
-        return { start: startOfMonth(today), end: today };
-      default:
-        return { start: startOfMonth(today), end: today };
-    }
-  }, [dateRange, customStartDate, customEndDate]);
-
-  // ============================================================================
-  // FETCH CONSULTATIONS
-  // ============================================================================
-
-  const fetchConsultations = useCallback(async (showRefresh = false) => {
-    try {
-      if (showRefresh) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
-      setError(null);
-
-      const { start, end } = getDateRange();
-
-      const params = {
-        status: statusFilter || undefined,
-        consultation_type: typeFilter || undefined
-      };
-
-      // Add date filtering if needed
-      if (start && end) {
-        // Note: API might not support date filtering directly
-        // You may need to filter client-side or implement backend support
-      }
-
-      const response = await consultationService.getConsultations(params);
-      const data = response?.data || response || {};
-      const consultationList = data?.results || data?.data || data || [];
-
-      setConsultations(Array.isArray(consultationList) ? consultationList : []);
-      setPagination({
-        count: data.count || 0,
-        next: data.next,
-        previous: data.previous
-      });
-
-      // Calculate stats from data
-      const allConsultations = Array.isArray(consultationList) ? consultationList : [];
-      const completed = allConsultations.filter(c => c.status === 'completed');
-      const totalDuration = completed.reduce((sum, c) => {
-        const dur = c.actual_duration || calculateDuration(c.actual_start, c.actual_end) || 0;
-        return sum + dur;
-      }, 0);
-      const avgDuration = completed.length > 0 ? Math.round(totalDuration / completed.length) : 0;
+  /**
+   * Fetch consultations
+   */
+  const {
+    data: consultationsResponse,
+    isLoading: consultationsLoading,
+    isError: consultationsError,
+    error: consultationsErrorData,
+    refetch: refetchConsultations,
+    isRefetching
+  } = useQuery({
+    queryKey: ['doctorConsultations', statusFilter, typeFilter],
+    queryFn: async () => {
+      const params = {};
+      if (statusFilter) params.status = statusFilter;
+      if (typeFilter) params.type = typeFilter;
       
-      const ratings = completed
-        .map(c => c.feedback?.overall_rating)
-        .filter(r => r !== undefined && r !== null);
-      const avgRating = ratings.length > 0 
-        ? ratings.reduce((sum, r) => sum + r, 0) / ratings.length 
-        : null;
+      const response = await consultationService.getConsultations(params);
+      return response;
+    },
+    staleTime: 1000 * 60 * 2,
+  });
 
-      setStats({
-        total: data.count || allConsultations.length,
-        completed: completed.length,
-        avgDuration,
-        avgRating,
-        totalTrend: 12, // Mock trend data
-        completedTrend: 8
-      });
+  /**
+   * Fetch stats
+   */
+  const {
+    data: statsResponse,
+    isLoading: statsLoading
+  } = useQuery({
+    queryKey: ['consultationStats'],
+    queryFn: async () => {
+      const response = await consultationService.getStats(30);
+      return response;
+    },
+    staleTime: 1000 * 60 * 5,
+  });
 
-    } catch (err) {
-      console.error('Error fetching consultations:', err);
-      setError(getErrorMessage(err, 'Failed to load consultations'));
-      setConsultations([]);
-      setStats({ total: 0, completed: 0, avgDuration: 0, avgRating: null });
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [statusFilter, typeFilter, getDateRange]);
+  // ============================================================================
+  // DERIVED DATA
+  // ============================================================================
 
-  // Initial load
-  useEffect(() => {
-    fetchConsultations();
-  }, [fetchConsultations]);
+  const consultations = useMemo(() => {
+    const data =
+      consultationsResponse?.results ||
+      consultationsResponse?.data?.results ||
+      consultationsResponse?.data ||
+      consultationsResponse ||
+      [];
+    return Array.isArray(data) ? data : [];
+  }, [consultationsResponse]);
 
-  // Update URL params
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (searchQuery) params.set('search', searchQuery);
-    if (statusFilter) params.set('status', statusFilter);
-    if (typeFilter) params.set('type', typeFilter);
-    if (dateRange !== 'this_month') params.set('range', dateRange);
-    setSearchParams(params, { replace: true });
-  }, [searchQuery, statusFilter, typeFilter, dateRange, setSearchParams]);
+  const stats = useMemo(() => {
+    return statsResponse?.data || statsResponse || {
+      total: consultations.length,
+      completed: consultations.filter(c => c.status === 'completed').length,
+      avg_duration: null,
+      avg_rating: null
+    };
+  }, [statsResponse, consultations]);
 
-  // Filter consultations client-side (for search and date range)
+  /**
+   * Filter consultations client-side
+   */
   const filteredConsultations = useMemo(() => {
     let filtered = [...consultations];
 
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(c => 
-        c.patient_info?.full_name?.toLowerCase().includes(query) ||
-        c.reason?.toLowerCase().includes(query) ||
-        c.diagnosis?.toLowerCase().includes(query)
-      );
+      filtered = filtered.filter(c => {
+        const patientName = c.patient_info?.full_name || c.patient_name || '';
+        const reason = c.reason || '';
+        const diagnosis = c.diagnosis || '';
+        return (
+          patientName.toLowerCase().includes(query) ||
+          reason.toLowerCase().includes(query) ||
+          diagnosis.toLowerCase().includes(query)
+        );
+      });
     }
 
     // Date range filter
-    const { start, end } = getDateRange();
-    if (start && end) {
+    const today = new Date();
+    let startDate = null;
+    let endDate = today;
+
+    switch (dateRange) {
+      case 'today':
+        startDate = today;
+        break;
+      case 'yesterday':
+        startDate = subDays(today, 1);
+        endDate = subDays(today, 1);
+        break;
+      case 'this_week':
+        startDate = startOfWeek(today, { weekStartsOn: 1 });
+        break;
+      case 'last_week':
+        startDate = startOfWeek(subDays(today, 7), { weekStartsOn: 1 });
+        endDate = endOfWeek(subDays(today, 7), { weekStartsOn: 1 });
+        break;
+      case 'this_month':
+        startDate = startOfMonth(today);
+        break;
+      case 'last_month':
+        startDate = startOfMonth(subDays(startOfMonth(today), 1));
+        endDate = endOfMonth(subDays(startOfMonth(today), 1));
+        break;
+      case 'all':
+      default:
+        startDate = null;
+        break;
+    }
+
+    if (startDate) {
       filtered = filtered.filter(c => {
         const consultDate = new Date(c.scheduled_start);
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
         return consultDate >= start && consultDate <= end;
       });
     }
@@ -1263,15 +900,15 @@ const Consultations = () => {
     });
 
     return filtered;
-  }, [consultations, searchQuery, getDateRange]);
+  }, [consultations, searchQuery, dateRange]);
 
   // ============================================================================
   // HANDLERS
   // ============================================================================
 
   const handleRefresh = useCallback(() => {
-    fetchConsultations(true);
-  }, [fetchConsultations]);
+    refetchConsultations();
+  }, [refetchConsultations]);
 
   const handleViewConsultation = useCallback((consultation) => {
     setSelectedConsultation(consultation);
@@ -1282,19 +919,9 @@ const Consultations = () => {
     if (patientId) {
       navigate(`/doctor/patients/${patientId}`);
     } else {
-      toast.error('Patient ID not available');
+      toast.error('Patient information not available');
     }
   }, [navigate]);
-
-  const handleViewPrescription = useCallback((consultation) => {
-    setSelectedConsultation(consultation);
-    setShowPrescriptionModal(true);
-  }, []);
-
-  const handleDownloadSummary = useCallback((consultation) => {
-    console.log('Download summary for:', consultation.id);
-    toast.info('Download feature coming soon');
-  }, []);
 
   const handleRejoin = useCallback((consultation) => {
     navigate(`/doctor/consultation/${consultation.id}`);
@@ -1304,39 +931,22 @@ const Consultations = () => {
     setSearchQuery('');
     setStatusFilter('');
     setTypeFilter('');
+    setDateRange('this_month');
   }, []);
 
-  const handleOpenCalendar = useCallback((target) => {
-    setCalendarTarget(target);
-    setShowCalendarModal(true);
-  }, []);
-
-  const handleCalendarDateSelect = useCallback((date) => {
-    if (calendarTarget === 'start') {
-      setCustomStartDate(date);
-      if (customEndDate && date > customEndDate) {
-        setCustomEndDate(date);
-      }
-    } else {
-      setCustomEndDate(date);
-      if (customStartDate && date < customStartDate) {
-        setCustomStartDate(date);
-      }
-    }
-  }, [calendarTarget, customStartDate, customEndDate]);
+  // Update URL params
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchQuery) params.set('search', searchQuery);
+    if (statusFilter) params.set('status', statusFilter);
+    if (typeFilter) params.set('type', typeFilter);
+    if (dateRange !== 'this_month') params.set('range', dateRange);
+    setSearchParams(params, { replace: true });
+  }, [searchQuery, statusFilter, typeFilter, dateRange, setSearchParams]);
 
   // ============================================================================
   // RENDER
   // ============================================================================
-
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader size="lg" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 pb-20 md:pb-6">
@@ -1354,81 +964,50 @@ const Consultations = () => {
           <Button
             variant="ghost"
             size="sm"
-            leftIcon={<RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />}
+            leftIcon={<RefreshCw className={`w-4 h-4 ${isRefetching ? 'animate-spin' : ''}`} />}
             onClick={handleRefresh}
-            disabled={isRefreshing}
+            disabled={isRefetching}
           >
             Refresh
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<Download className="w-4 h-4" />}
-            onClick={() => toast.info('Export feature coming soon')}
-          >
-            Export
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<BarChart3 className="w-4 h-4" />}
-            onClick={() => toast.info('Analytics feature coming soon')}
-          >
-            Analytics
           </Button>
         </div>
       </div>
 
       {/* Error Alert */}
-      {error && (
+      {consultationsError && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-          <p className="text-red-700 text-sm flex-1">{error}</p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setError(null)}
-          >
-            Dismiss
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-          >
+          <p className="text-red-700 text-sm flex-1">
+            {getErrorMessage(consultationsErrorData, 'Failed to load consultations')}
+          </p>
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
             Retry
           </Button>
         </div>
       )}
 
-      {/* Stats Cards */}
-      <StatsCards stats={stats} />
+      {/* Stats */}
+      <StatsCards stats={stats} isLoading={statsLoading} />
 
       {/* Filters */}
-      <Card padding="md">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <DateRangeSelector
-            dateRange={dateRange}
-            onDateRangeChange={setDateRange}
-            customStartDate={customStartDate}
-            customEndDate={customEndDate}
-            onOpenCalendar={handleOpenCalendar}
-          />
-
-          <FiltersBar
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            statusFilter={statusFilter}
-            onStatusChange={setStatusFilter}
-            typeFilter={typeFilter}
-            onTypeChange={setTypeFilter}
-            onClearFilters={handleClearFilters}
-          />
-        </div>
-      </Card>
+      <FiltersBar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        typeFilter={typeFilter}
+        onTypeChange={setTypeFilter}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        onClearFilters={handleClearFilters}
+      />
 
       {/* Consultations List */}
-      {filteredConsultations.length > 0 ? (
+      {consultationsLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader size="lg" />
+        </div>
+      ) : filteredConsultations.length > 0 ? (
         <div className="space-y-3">
           {filteredConsultations.map((consultation) => (
             <ConsultationCard
@@ -1436,14 +1015,12 @@ const Consultations = () => {
               consultation={consultation}
               onView={handleViewConsultation}
               onViewPatient={handleViewPatient}
-              onViewPrescription={handleViewPrescription}
-              onDownloadSummary={handleDownloadSummary}
               onRejoin={handleRejoin}
             />
           ))}
         </div>
       ) : (
-        <Card padding="md">
+        <Card padding="lg">
           <EmptyState
             icon={Video}
             title="No Consultations"
@@ -1453,7 +1030,7 @@ const Consultations = () => {
                 : 'You have no consultation history yet'
             }
             action={
-              (searchQuery || statusFilter || typeFilter) && (
+              (searchQuery || statusFilter || typeFilter || dateRange !== 'this_month') && (
                 <Button variant="outline" onClick={handleClearFilters}>
                   Clear Filters
                 </Button>
@@ -1463,7 +1040,7 @@ const Consultations = () => {
         </Card>
       )}
 
-      {/* Modals */}
+      {/* Details Modal */}
       <ConsultationDetailsModal
         isOpen={showDetailsModal}
         onClose={() => {
@@ -1472,24 +1049,6 @@ const Consultations = () => {
         }}
         consultation={selectedConsultation}
         onViewPatient={handleViewPatient}
-        onViewPrescription={handleViewPrescription}
-        onDownloadSummary={handleDownloadSummary}
-      />
-
-      <PrescriptionModal
-        isOpen={showPrescriptionModal}
-        onClose={() => {
-          setShowPrescriptionModal(false);
-        }}
-        consultation={selectedConsultation}
-      />
-
-      <CalendarModal
-        isOpen={showCalendarModal}
-        onClose={() => setShowCalendarModal(false)}
-        selectedDate={calendarTarget === 'start' ? customStartDate : customEndDate}
-        onDateSelect={handleCalendarDateSelect}
-        title={calendarTarget === 'start' ? 'Select Start Date' : 'Select End Date'}
       />
     </div>
   );

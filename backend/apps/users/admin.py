@@ -81,13 +81,17 @@ class PatientProfileInline(admin.StackedInline):
     
     fieldsets = (
         ('Medical Info', {
-            'fields': ('blood_group', 'height_cm', 'weight_kg', 'allergies', 'chronic_conditions')
+            'fields': ('allergies', 'chronic_conditions', 'current_medications', 'past_surgeries', 'family_history')
         }),
         ('Accessibility', {
             'fields': ('is_literate', 'needs_voice_assistance', 'needs_large_text')
         }),
         ('Emergency Contact', {
             'fields': ('emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relation'),
+            'classes': ('collapse',)
+        }),
+        ('Insurance', {
+            'fields': ('has_insurance', 'insurance_provider', 'insurance_id'),
             'classes': ('collapse',)
         }),
     )
@@ -150,6 +154,7 @@ class FamilyHelperInline(admin.TabularInline):
 
 class DoctorAvailabilityInline(admin.TabularInline):
     model = DoctorAvailability
+    fk_name = 'doctor'  # ✅ References User, not DoctorProfile
     extra = 0
     fields = ('day_of_week', 'start_time', 'end_time', 'is_available', 'max_appointments')
 
@@ -325,7 +330,7 @@ class UserAdmin(BaseUserAdmin):
             if obj.role == User.Role.PATIENT:
                 return [PatientProfileInline, FamilyHelperInline]
             elif obj.role == User.Role.DOCTOR:
-                return [DoctorProfileInline, DoctorAvailabilityInline]
+                return [DoctorProfileInline, DoctorAvailabilityInline]  # ✅ This is correct - keep it here
             elif obj.role == User.Role.ADMIN:
                 return [AdminProfileInline]
         return []
@@ -369,10 +374,10 @@ class UserAdmin(BaseUserAdmin):
 @admin.register(PatientProfile)
 class PatientProfileAdmin(admin.ModelAdmin):
     list_display = (
-        'patient_link', 'phone_display', 'blood_group', 'literacy_badge',
+        'patient_link', 'phone_display', 'literacy_badge',
         'total_appointments', 'total_consultations', 'created_at'
     )
-    list_filter = ('blood_group', 'is_literate', 'needs_voice_assistance')
+    list_filter = ('is_literate', 'needs_voice_assistance', 'has_insurance')
     search_fields = ('user__phone', 'user__first_name', 'user__last_name')
     readonly_fields = ('total_appointments', 'total_consultations', 'created_at', 'updated_at')
     list_select_related = ('user',)  # Performance
@@ -407,7 +412,7 @@ class DoctorProfileAdmin(admin.ModelAdmin):
     )
     list_select_related = ('user', 'verified_by')  # Performance
     list_per_page = 25
-    inlines = [DoctorAvailabilityInline]
+    # inlines = [DoctorAvailabilityInline]
     actions = ['verify_doctors', 'reject_doctors', 'export_doctors_csv']
     
     fieldsets = (
@@ -565,17 +570,17 @@ class DoctorAvailabilityAdmin(admin.ModelAdmin):
         'available_badge', 'max_appointments'
     )
     list_filter = ('day_of_week', 'is_available')
-    search_fields = ('doctor__user__phone', 'doctor__user__first_name')
-    list_select_related = ('doctor', 'doctor__user')
+    search_fields = ('doctor__phone', 'doctor__first_name')
+    list_select_related = ('doctor',)
     
     @admin.display(description='Doctor')
     def doctor_link(self, obj):
-        return obj.doctor.user.get_full_name() or obj.doctor.user.phone
+        url = reverse('admin:users_user_change', args=[obj.doctor.pk])
+        return format_html('<a href="{}">{}</a>', url, obj.doctor.get_full_name() or obj.doctor.phone)
     
     @admin.display(description='Day')
     def day_display(self, obj):
-        days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-        return days[obj.day_of_week] if obj.day_of_week < 7 else str(obj.day_of_week)
+        return obj.get_day_of_week_display()
     
     @admin.display(description='Time')
     def time_display(self, obj):
@@ -590,13 +595,14 @@ class DoctorAvailabilityAdmin(admin.ModelAdmin):
 class DoctorLeaveAdmin(admin.ModelAdmin):
     list_display = ('doctor_link', 'date', 'full_day_badge', 'time_display', 'reason')
     list_filter = ('is_full_day', 'date')
-    search_fields = ('doctor__user__phone', 'doctor__user__first_name')
+    search_fields = ('doctor__phone', 'doctor__first_name')
     date_hierarchy = 'date'
-    list_select_related = ('doctor', 'doctor__user')
+    list_select_related = ('doctor',)
     
     @admin.display(description='Doctor')
     def doctor_link(self, obj):
-        return obj.doctor.user.get_full_name() or obj.doctor.user.phone
+        url = reverse('admin:users_user_change', args=[obj.doctor.pk])
+        return format_html('<a href="{}">{}</a>', url, obj.doctor.get_full_name() or obj.doctor.phone)
     
     @admin.display(description='Full Day')
     def full_day_badge(self, obj):
@@ -606,7 +612,7 @@ class DoctorLeaveAdmin(admin.ModelAdmin):
     def time_display(self, obj):
         if obj.is_full_day:
             return 'All Day'
-        return f'{obj.start_time} - {obj.end_time}' if hasattr(obj, 'start_time') else '-'
+        return f'{obj.start_time.strftime("%H:%M")} - {obj.end_time.strftime("%H:%M")}' if obj.start_time and obj.end_time else '-'
 
 
 @admin.register(OTP)

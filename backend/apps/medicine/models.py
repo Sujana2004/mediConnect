@@ -416,7 +416,7 @@ class UserPrescription(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.title} - {self.user.phone_number}"
+        return f"{self.title} - {self.user.phone}"
     
     @property
     def is_expired(self):
@@ -792,4 +792,4 @@ class MedicineSearchHistory(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.user.phone_number}: {self.search_query}"
+        return f"{self.user.phone}: {self.search_query}"

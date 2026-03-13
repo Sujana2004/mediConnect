@@ -8,6 +8,12 @@ Models:
 4. Appointment - Patient appointments with doctors
 5. AppointmentQueue - Queue management for walk-ins and check-ins
 6. AppointmentReminder - Track sent reminders
+
+FIXES:
+- All doctor references now use User (not DoctorProfile)
+- Appointment model properly references User for patient/doctor
+- Fixed circular dependency with Consultation
+- Added proper indexes for query performance
 """
 
 import uuid
@@ -23,6 +29,7 @@ class DoctorSchedule(models.Model):
     """
     Doctor's weekly availability schedule.
     Defines regular working hours for each day of the week.
+    FIXED: References User directly with role validation.
     """
     
     DAY_CHOICES = [
@@ -39,7 +46,8 @@ class DoctorSchedule(models.Model):
     doctor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='schedules'
+        related_name='schedules',
+        limit_choices_to={'role': 'doctor'}
     )
     
     # Day of week (0=Monday, 6=Sunday)
@@ -99,6 +107,10 @@ class DoctorSchedule(models.Model):
     
     def clean(self):
         """Validate schedule times."""
+        # Verify doctor role
+        if self.doctor and self.doctor.role != 'doctor':
+            raise ValidationError({'doctor': 'Only users with doctor role can have schedules.'})
+            
         if self.start_time and self.end_time:
             if self.start_time >= self.end_time:
                 raise ValidationError('Start time must be before end time.')
@@ -122,6 +134,7 @@ class ScheduleException(models.Model):
     """
     Exceptions to regular schedule.
     Used for leaves, holidays, special hours, etc.
+    FIXED: References User directly.
     """
     
     EXCEPTION_TYPES = [
@@ -134,7 +147,8 @@ class ScheduleException(models.Model):
     doctor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='schedule_exceptions'
+        related_name='schedule_exceptions',
+        limit_choices_to={'role': 'doctor'}
     )
     
     # Exception date
@@ -166,6 +180,10 @@ class ScheduleException(models.Model):
     
     def clean(self):
         """Validate exception data."""
+        # Verify doctor role
+        if self.doctor and self.doctor.role != 'doctor':
+            raise ValidationError({'doctor': 'Only users with doctor role can have exceptions.'})
+            
         if self.exception_type in ['modified', 'extra']:
             if not self.start_time or not self.end_time:
                 raise ValidationError(
@@ -183,6 +201,7 @@ class TimeSlot(models.Model):
     """
     Pre-generated time slots for appointments.
     Generated daily for upcoming days.
+    FIXED: References User directly.
     """
     
     SLOT_STATUS = [
@@ -195,7 +214,8 @@ class TimeSlot(models.Model):
     doctor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='time_slots'
+        related_name='time_slots',
+        limit_choices_to={'role': 'doctor'}
     )
     
     # Slot date and time
@@ -230,6 +250,11 @@ class TimeSlot(models.Model):
     
     def __str__(self):
         return f"Dr. {self.doctor.get_full_name()} - {self.slot_date} {self.start_time} ({self.status})"
+    
+    def clean(self):
+        """Validate slot."""
+        if self.doctor and self.doctor.role != 'doctor':
+            raise ValidationError({'doctor': 'Only users with doctor role can have time slots.'})
     
     @property
     def is_available(self):
@@ -273,6 +298,7 @@ class Appointment(models.Model):
     """
     Patient appointments with doctors.
     Core model for appointment booking.
+    FIXED: All User references validated, consultation reference as UUID.
     """
     
     STATUS_CHOICES = [
@@ -295,16 +321,18 @@ class Appointment(models.Model):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # Patient and Doctor
+    # Patient and Doctor - FIXED: Both reference User directly
     patient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='patient_appointments'
+        related_name='patient_appointments',
+        limit_choices_to={'role': 'patient'}
     )
     doctor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='doctor_appointments'
+        related_name='doctor_appointments',
+        limit_choices_to={'role': 'doctor'}
     )
     
     # Time slot reference (optional - for slot-based booking)
@@ -317,7 +345,7 @@ class Appointment(models.Model):
     )
     
     # Appointment date and time
-    appointment_date = models.DateField()
+    appointment_date = models.DateField(db_index=True)
     start_time = models.TimeField()
     end_time = models.TimeField(null=True, blank=True)
     
@@ -325,7 +353,8 @@ class Appointment(models.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='pending'
+        default='pending',
+        db_index=True
     )
     
     # Booking details
@@ -380,6 +409,14 @@ class Appointment(models.Model):
         null=True,
         blank=True
     )
+    
+    # FIXED: Store consultation ID as UUID to avoid circular import
+    consultation_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text='Reference to consultation.Consultation (set when consultation created)'
+    )
+    
     prescription_id = models.UUIDField(
         null=True,
         blank=True,
@@ -400,8 +437,8 @@ class Appointment(models.Model):
         indexes = [
             models.Index(fields=['patient', 'status']),
             models.Index(fields=['doctor', 'status']),
-            models.Index(fields=['doctor', 'appointment_date']),
-            models.Index(fields=['patient', 'appointment_date']),
+            models.Index(fields=['doctor', 'appointment_date', 'status']),
+            models.Index(fields=['patient', 'appointment_date', 'status']),
             models.Index(fields=['status', 'appointment_date']),
             models.Index(fields=['appointment_date', 'start_time']),
         ]
@@ -411,6 +448,14 @@ class Appointment(models.Model):
     
     def clean(self):
         """Validate appointment data."""
+        # Verify patient role
+        if self.patient and self.patient.role != 'patient':
+            raise ValidationError({'patient': 'Only users with patient role can book appointments.'})
+        
+        # Verify doctor role
+        if self.doctor and self.doctor.role != 'doctor':
+            raise ValidationError({'doctor': 'Only users with doctor role can receive appointments.'})
+        
         # Check if appointment is in the past
         if self.appointment_date and self.start_time:
             appointment_datetime = timezone.make_aware(
@@ -488,7 +533,7 @@ class Appointment(models.Model):
         self.started_at = timezone.now()
         self.save()
     
-    def complete(self, doctor_notes='', fee=None):
+    def complete(self, doctor_notes='', fee=None, consultation_id=None):
         """Complete the consultation."""
         if self.status not in ['in_progress']:
             raise ValidationError('Consultation must be in progress to complete.')
@@ -498,6 +543,8 @@ class Appointment(models.Model):
             self.doctor_notes = doctor_notes
         if fee is not None:
             self.consultation_fee = fee
+        if consultation_id:
+            self.consultation_id = consultation_id
         self.save()
     
     def cancel(self, reason='', cancelled_by='patient'):

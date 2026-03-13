@@ -706,8 +706,22 @@ const Home = () => {
     finally { setProcessingReminderId(null); }
   };
 
-  const handleJoinAppointment = (appointment) => { navigate(`/patient/consultation/${appointment.id}`); };
-  const handleViewAppointment = (appointment) => { navigate(`/patient/appointments/${appointment.id}`); };
+  const handleJoinAppointment = (appointment) => {
+    const appointmentId = appointment?.id || appointment?.appointment_id;
+    if (!appointmentId) {
+      toast.error(t('appointments.notFound', 'Appointment not found'));
+      return;
+    }
+    navigate(`/patient/consultation/${appointmentId}`);
+  };
+  const handleViewAppointment = (appointment) => {
+    const appointmentId = appointment?.id || appointment?.appointment_id;
+    if (!appointmentId) {
+      toast.error(t('appointments.notFound', 'Appointment not found'));
+      return;
+    }
+    navigate(`/patient/appointments/${appointmentId}`);
+  };
   const handleQuickAction = (action) => { navigate(action.route); };
 
   if (!isOnline) {

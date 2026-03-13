@@ -2,6 +2,11 @@
 User models for MediConnect.
 Implements 3 roles: Patient, Doctor, Admin
 Plus Family Helper feature for Patients.
+
+FIXES:
+- Removed duplicate vitals fields from PatientProfile (moved to HealthProfile)
+- Standardized all references to use User.id only
+- Fixed DoctorProfile foreign key relationships
 """
 
 from django.db import models
@@ -42,7 +47,7 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_active', True)
         extra_fields.setdefault('role', User.Role.ADMIN)
-        extra_fields.setdefault('is_phone_verified', True)  # ✅ Auto-verified for admins
+        extra_fields.setdefault('is_phone_verified', True)
         
         if extra_fields.get('is_staff') is not True:
             raise ValueError(_('Superuser must have is_staff=True.'))
@@ -66,6 +71,7 @@ class UserManager(BaseUserManager):
             raise ValueError(_('Admin must have is_staff=True.'))
         
         return self.create_user(phone, password, **extra_fields)
+
 
 # ============================================
 # VALIDATORS
@@ -244,49 +250,20 @@ class User(AbstractUser):
 
 
 # ============================================
-# PATIENT PROFILE
+# PATIENT PROFILE (SIMPLIFIED - NO VITALS)
 # ============================================
 
 class PatientProfile(models.Model):
     """
     Extended profile for Patient role.
-    Includes health information and family helper feature.
+    NOTE: Vitals (height, weight, blood_group) moved to HealthProfile
+    to avoid duplication with health_records app.
     """
-    
-    class BloodGroup(models.TextChoices):
-        A_POSITIVE = 'A+', 'A+'
-        A_NEGATIVE = 'A-', 'A-'
-        B_POSITIVE = 'B+', 'B+'
-        B_NEGATIVE = 'B-', 'B-'
-        O_POSITIVE = 'O+', 'O+'
-        O_NEGATIVE = 'O-', 'O-'
-        AB_POSITIVE = 'AB+', 'AB+'
-        AB_NEGATIVE = 'AB-', 'AB-'
     
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
         related_name='patient_profile'
-    )
-    
-    # Health Information
-    blood_group = models.CharField(
-        _('Blood Group'),
-        max_length=5,
-        choices=BloodGroup.choices,
-        blank=True
-    )
-    height_cm = models.PositiveIntegerField(
-        _('Height (cm)'),
-        null=True,
-        blank=True
-    )
-    weight_kg = models.DecimalField(
-        _('Weight (kg)'),
-        max_digits=5,
-        decimal_places=2,
-        null=True,
-        blank=True
     )
     
     # Medical History (stored as JSON for flexibility)
@@ -385,14 +362,6 @@ class PatientProfile(models.Model):
         return f"Patient: {self.user.phone}"
     
     @property
-    def bmi(self):
-        """Calculate BMI if height and weight are available."""
-        if self.height_cm and self.weight_kg:
-            height_m = self.height_cm / 100
-            return round(float(self.weight_kg) / (height_m ** 2), 1)
-        return None
-    
-    @property
     def age(self):
         """Calculate age from date of birth."""
         if self.user.date_of_birth:
@@ -486,7 +455,7 @@ class FamilyHelper(models.Model):
 
 
 # ============================================
-# DOCTOR PROFILE
+# DOCTOR PROFILE (FIXED REFERENCES)
 # ============================================
 
 class DoctorProfile(models.Model):
@@ -607,7 +576,8 @@ class DoctorProfile(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='verified_doctors'
+        related_name='verified_doctors',
+        limit_choices_to={'role': User.Role.ADMIN}
     )
     rejection_reason = models.TextField(blank=True)
     
@@ -651,6 +621,7 @@ class DoctorProfile(models.Model):
 class DoctorAvailability(models.Model):
     """
     Doctor's weekly availability schedule.
+    FIXED: References DoctorProfile through user relationship
     """
     
     class DayOfWeek(models.IntegerChoices):
@@ -662,11 +633,14 @@ class DoctorAvailability(models.Model):
         SATURDAY = 5, _('Saturday')
         SUNDAY = 6, _('Sunday')
     
+    # FIXED: Reference User directly, not DoctorProfile
     doctor = models.ForeignKey(
-        DoctorProfile,
+        User,
         on_delete=models.CASCADE,
-        related_name='availabilities'
+        related_name='availabilities',
+        limit_choices_to={'role': User.Role.DOCTOR}
     )
+    
     day_of_week = models.IntegerField(
         _('Day of Week'),
         choices=DayOfWeek.choices
@@ -693,7 +667,7 @@ class DoctorAvailability(models.Model):
         ordering = ['day_of_week', 'start_time']
     
     def __str__(self):
-        return f"{self.doctor.user.get_full_name()} - {self.get_day_of_week_display()}"
+        return f"{self.doctor.get_full_name()} - {self.get_day_of_week_display()}"
 
 
 # ============================================
@@ -703,12 +677,14 @@ class DoctorAvailability(models.Model):
 class DoctorLeave(models.Model):
     """
     Doctor's leave/unavailable dates.
+    FIXED: References User directly
     """
     
     doctor = models.ForeignKey(
-        DoctorProfile,
+        User,
         on_delete=models.CASCADE,
-        related_name='leaves'
+        related_name='leaves',
+        limit_choices_to={'role': User.Role.DOCTOR}
     )
     date = models.DateField(_('Leave Date'))
     reason = models.CharField(_('Reason'), max_length=200, blank=True)
@@ -725,7 +701,7 @@ class DoctorLeave(models.Model):
         ordering = ['date']
     
     def __str__(self):
-        return f"{self.doctor.user.get_full_name()} - {self.date}"
+        return f"{self.doctor.get_full_name()} - {self.date}"
 
 
 # ============================================

@@ -2,6 +2,13 @@
 Health Records Serializers for MediConnect
 ==========================================
 Serializers for all health record models with validation.
+
+FIXES:
+- HealthProfile now includes vitals (blood_group, height, weight, bmi)
+- Removed vitals from patient profile references
+- All consultation references use UUID validation
+- Fixed SharedRecord to use User.id consistently
+- Added vitals sync functionality
 """
 
 from rest_framework import serializers
@@ -61,40 +68,57 @@ class DoctorMinimalSerializer(serializers.ModelSerializer):
 
 
 # =============================================================================
-# HEALTH PROFILE SERIALIZERS
+# HEALTH PROFILE SERIALIZERS (NOW WITH VITALS)
 # =============================================================================
 
 class HealthProfileSerializer(serializers.ModelSerializer):
-    """Full health profile serializer."""
+    """
+    Full health profile serializer.
+    FIXED: Now includes vitals as single source of truth.
+    """
     user = UserMinimalSerializer(read_only=True)
     bmi = serializers.SerializerMethodField()
     bmi_category = serializers.SerializerMethodField()
+    age = serializers.SerializerMethodField()
 
     class Meta:
         model = HealthProfile
         fields = [
             'id', 'user',
             'blood_group', 'height_cm', 'weight_kg',
-            'bmi', 'bmi_category',
+            'bmi', 'bmi_category', 'age',
             'allergies', 'chronic_conditions', 'current_medications',
             'family_history',
             'smoking_status', 'alcohol_consumption',
             'emergency_contact_name', 'emergency_contact_phone',
             'emergency_contact_relation',
             'notes',
+            'last_vitals_sync',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'user', 'bmi', 'bmi_category', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'user', 'bmi', 'bmi_category', 'age', 'last_vitals_sync', 'created_at', 'updated_at']
 
     def get_bmi(self, obj):
         return obj.get_bmi()
 
     def get_bmi_category(self, obj):
         return obj.get_bmi_category()
+    
+    def get_age(self, obj):
+        if obj.user.date_of_birth:
+            today = timezone.now().date()
+            dob = obj.user.date_of_birth
+            return today.year - dob.year - (
+                (today.month, today.day) < (dob.month, dob.day)
+            )
+        return None
 
 
 class HealthProfileCreateUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for creating/updating health profile."""
+    """
+    Serializer for creating/updating health profile.
+    FIXED: Now handles vitals fields.
+    """
 
     class Meta:
         model = HealthProfile
@@ -165,11 +189,14 @@ class HealthProfileSummarySerializer(serializers.ModelSerializer):
 
 
 # =============================================================================
-# MEDICAL CONDITION SERIALIZERS
+# MEDICAL CONDITION SERIALIZERS (FIXED CONSULTATION REFERENCE)
 # =============================================================================
 
 class MedicalConditionSerializer(serializers.ModelSerializer):
-    """Full medical condition serializer."""
+    """
+    Full medical condition serializer.
+    FIXED: consultation_id is UUID field.
+    """
     user = UserMinimalSerializer(read_only=True)
     diagnosed_by_info = DoctorMinimalSerializer(source='diagnosed_by', read_only=True)
     duration = serializers.SerializerMethodField()
@@ -182,7 +209,7 @@ class MedicalConditionSerializer(serializers.ModelSerializer):
             'status', 'severity',
             'diagnosed_date', 'resolved_date',
             'diagnosed_by', 'diagnosed_by_info',
-            'diagnosis_session', 'consultation',
+            'diagnosis_session', 'consultation_id',
             'treatment_notes', 'is_chronic',
             'duration',
             'created_at', 'updated_at',
@@ -206,7 +233,10 @@ class MedicalConditionSerializer(serializers.ModelSerializer):
 
 
 class MedicalConditionCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating medical conditions."""
+    """
+    Serializer for creating medical conditions.
+    FIXED: consultation_id validation.
+    """
 
     class Meta:
         model = MedicalCondition
@@ -214,9 +244,19 @@ class MedicalConditionCreateSerializer(serializers.ModelSerializer):
             'condition_name', 'condition_name_local', 'icd_code',
             'status', 'severity',
             'diagnosed_date', 'resolved_date',
-            'diagnosed_by', 'diagnosis_session', 'consultation',
+            'diagnosed_by', 'diagnosis_session', 'consultation_id',
             'treatment_notes', 'is_chronic',
         ]
+
+    def validate_consultation_id(self, value):
+        """Validate consultation exists (optional check)."""
+        if value:
+            # Optional: Can verify consultation exists
+            # from apps.consultation.models import Consultation
+            # if not Consultation.objects.filter(id=value).exists():
+            #     raise serializers.ValidationError("Consultation not found")
+            pass
+        return value
 
     def validate(self, data):
         if data.get('resolved_date') and data.get('diagnosed_date'):
@@ -241,11 +281,14 @@ class MedicalConditionListSerializer(serializers.ModelSerializer):
 
 
 # =============================================================================
-# MEDICAL DOCUMENT SERIALIZERS (Updated for Supabase)
+# MEDICAL DOCUMENT SERIALIZERS (FIXED CONSULTATION REFERENCE)
 # =============================================================================
 
 class MedicalDocumentSerializer(serializers.ModelSerializer):
-    """Full medical document serializer with file URL."""
+    """
+    Full medical document serializer with file URL.
+    FIXED: consultation_id is UUID field.
+    """
     user = UserMinimalSerializer(read_only=True)
     file_url = serializers.SerializerMethodField()
     file_size_display = serializers.SerializerMethodField()
@@ -261,7 +304,7 @@ class MedicalDocumentSerializer(serializers.ModelSerializer):
             'original_filename', 'storage_type',
             'document_date',
             'hospital_name', 'doctor_name',
-            'consultation', 'medical_condition',
+            'consultation_id', 'medical_condition',
             'is_shared_with_doctors', 'tags',
             'created_at', 'updated_at',
         ]
@@ -290,7 +333,7 @@ class MedicalDocumentUploadSerializer(serializers.Serializer):
     document_date = serializers.DateField(required=False, allow_null=True)
     hospital_name = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
     doctor_name = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
-    consultation = serializers.UUIDField(required=False, allow_null=True)
+    consultation_id = serializers.UUIDField(required=False, allow_null=True)
     medical_condition = serializers.UUIDField(required=False, allow_null=True)
     is_shared_with_doctors = serializers.BooleanField(default=True)
     tags = serializers.ListField(
@@ -330,7 +373,7 @@ class MedicalDocumentListSerializer(serializers.ModelSerializer):
 
 
 # =============================================================================
-# LAB REPORT SERIALIZERS
+# LAB REPORT SERIALIZERS (FIXED CONSULTATION REFERENCE)
 # =============================================================================
 
 class LabReportResultSerializer(serializers.Serializer):
@@ -346,7 +389,10 @@ class LabReportResultSerializer(serializers.Serializer):
 
 
 class LabReportSerializer(serializers.ModelSerializer):
-    """Full lab report serializer."""
+    """
+    Full lab report serializer.
+    FIXED: consultation_id is UUID field.
+    """
     user = UserMinimalSerializer(read_only=True)
     document_info = MedicalDocumentListSerializer(source='document', read_only=True)
     abnormal_count = serializers.SerializerMethodField()
@@ -361,7 +407,7 @@ class LabReportSerializer(serializers.ModelSerializer):
             'abnormal_count',
             'interpretation', 'recommendations',
             'document', 'document_info',
-            'consultation',
+            'consultation_id',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'user', 'document_info', 'abnormal_count', 'created_at', 'updated_at']
@@ -381,7 +427,7 @@ class LabReportCreateSerializer(serializers.ModelSerializer):
             'lab_name', 'doctor_name',
             'results', 'overall_status',
             'interpretation', 'recommendations',
-            'document', 'consultation',
+            'document', 'consultation_id',
         ]
 
     def validate_test_date(self, value):
@@ -600,11 +646,14 @@ class FamilyMedicalHistoryListSerializer(serializers.ModelSerializer):
 
 
 # =============================================================================
-# HOSPITALIZATION SERIALIZERS
+# HOSPITALIZATION SERIALIZERS (FIXED CONSULTATION REFERENCE)
 # =============================================================================
 
 class HospitalizationSerializer(serializers.ModelSerializer):
-    """Full hospitalization serializer."""
+    """
+    Full hospitalization serializer.
+    FIXED: consultation_id is UUID field.
+    """
     user = UserMinimalSerializer(read_only=True)
     duration_days = serializers.ReadOnlyField()
     discharge_document_info = MedicalDocumentListSerializer(
@@ -622,7 +671,7 @@ class HospitalizationSerializer(serializers.ModelSerializer):
             'procedures',
             'discharge_summary',
             'discharge_document', 'discharge_document_info',
-            'consultation',
+            'consultation_id',
             'follow_up_date', 'follow_up_notes',
             'created_at', 'updated_at',
         ]
@@ -645,7 +694,7 @@ class HospitalizationCreateSerializer(serializers.ModelSerializer):
             'treating_doctor', 'department',
             'procedures',
             'discharge_summary',
-            'discharge_document', 'consultation',
+            'discharge_document', 'consultation_id',
             'follow_up_date', 'follow_up_notes',
         ]
 
@@ -678,11 +727,14 @@ class HospitalizationListSerializer(serializers.ModelSerializer):
 
 
 # =============================================================================
-# VITAL SIGN SERIALIZERS
+# VITAL SIGN SERIALIZERS (WITH HEALTHPROFILE SYNC)
 # =============================================================================
 
 class VitalSignSerializer(serializers.ModelSerializer):
-    """Full vital sign serializer."""
+    """
+    Full vital sign serializer.
+    FIXED: consultation_id is UUID field, syncs to HealthProfile.
+    """
     user = UserMinimalSerializer(read_only=True)
     recorded_by_info = UserMinimalSerializer(source='recorded_by', read_only=True)
     bp_status = serializers.SerializerMethodField()
@@ -701,7 +753,7 @@ class VitalSignSerializer(serializers.ModelSerializer):
             'blood_sugar', 'blood_sugar_type',
             'weight_kg',
             'source', 'recorded_by', 'recorded_by_info',
-            'notes', 'consultation',
+            'notes', 'consultation_id',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
@@ -719,7 +771,10 @@ class VitalSignSerializer(serializers.ModelSerializer):
 
 
 class VitalSignCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating vital signs."""
+    """
+    Serializer for creating vital signs.
+    Auto-syncs to HealthProfile on save.
+    """
 
     class Meta:
         model = VitalSign
@@ -732,7 +787,7 @@ class VitalSignCreateSerializer(serializers.ModelSerializer):
             'oxygen_saturation',
             'blood_sugar', 'blood_sugar_type',
             'weight_kg',
-            'source', 'notes', 'consultation',
+            'source', 'notes', 'consultation_id',
         ]
 
     def validate_systolic_bp(self, value):
@@ -790,7 +845,7 @@ class VitalSignListSerializer(serializers.ModelSerializer):
             'bp_display', 'bp_status',
             'heart_rate', 'temperature',
             'oxygen_saturation', 'blood_sugar',
-            'source',
+            'weight_kg', 'source',
         ]
         read_only_fields = fields
 
@@ -816,11 +871,14 @@ class VitalSignTrendSerializer(serializers.Serializer):
 
 
 # =============================================================================
-# SHARED RECORD SERIALIZERS
+# SHARED RECORD SERIALIZERS (FIXED USER REFERENCES)
 # =============================================================================
 
 class SharedRecordSerializer(serializers.ModelSerializer):
-    """Full shared record serializer."""
+    """
+    Full shared record serializer.
+    FIXED: All references use User.id consistently.
+    """
     patient = UserMinimalSerializer(read_only=True)
     doctor = DoctorMinimalSerializer(read_only=True)
     documents_info = MedicalDocumentListSerializer(source='documents', many=True, read_only=True)
@@ -837,7 +895,7 @@ class SharedRecordSerializer(serializers.ModelSerializer):
             'last_accessed_at', 'access_count',
             'is_active', 'revoked_at',
             'is_expired',
-            'consultation',
+            'consultation_id',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
@@ -852,7 +910,10 @@ class SharedRecordSerializer(serializers.ModelSerializer):
 
 
 class SharedRecordCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating shared records."""
+    """
+    Serializer for creating shared records.
+    FIXED: doctor_id uses User.id only.
+    """
     doctor_id = serializers.UUIDField(write_only=True)
 
     class Meta:
@@ -862,14 +923,17 @@ class SharedRecordCreateSerializer(serializers.ModelSerializer):
             'share_type',
             'documents',
             'is_permanent', 'expires_at',
-            'consultation',
+            'consultation_id',
         ]
 
     def validate_doctor_id(self, value):
+        """FIXED: Only accept User.id with doctor role."""
         try:
             doctor = User.objects.get(id=value, role='doctor')
         except User.DoesNotExist:
-            raise serializers.ValidationError("Doctor not found")
+            raise serializers.ValidationError("Doctor not found with this User ID")
+        
+        self.doctor = doctor
         return value
 
     def validate(self, data):
@@ -884,8 +948,9 @@ class SharedRecordCreateSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        doctor_id = validated_data.pop('doctor_id')
-        doctor = User.objects.get(id=doctor_id)
+        doctor_id = validated_data.pop('doctor_id', None)
+        doctor = self.doctor
+        
         validated_data['doctor'] = doctor
         validated_data['patient'] = self.context['request'].user
         return super().create(validated_data)

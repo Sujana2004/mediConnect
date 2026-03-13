@@ -463,12 +463,20 @@ export const getHealthAnalytics = async () => {
   return response.data;
 };
 
+// ========== Compatibility Aliases ==========
+
+export const getProfile = getHealthProfile;
+export const getSharing = getSharedRecords;
+export const shareWithDoctor = shareRecordsWithDoctor;
+export const revokeAccess = revokeSharing;
+
 /**
  * Health Records service default export
  * Groups all health records-related API methods
  */
 export default {
   // Profile
+  getProfile,
   getHealthProfile,
   updateHealthProfile,
   // Vitals
@@ -502,8 +510,11 @@ export default {
   getHospitalizations,
   addHospitalization,
   // Sharing
+  getSharing,
   getSharedRecords,
+  shareWithDoctor,
   shareRecordsWithDoctor,
+  revokeAccess,
   revokeSharing,
   getAccessiblePatients,
   // Analytics

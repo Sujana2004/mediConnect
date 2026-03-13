@@ -107,13 +107,12 @@ class PatientProfileSerializer(serializers.ModelSerializer):
     Serializer for Patient Profile.
     """
     user = UserSerializer(read_only=True)
-    bmi = serializers.FloatField(read_only=True)
-    age = serializers.IntegerField(read_only=True)
+    age = serializers.SerializerMethodField()
     
     class Meta:
         model = PatientProfile
         fields = [
-            'id', 'user', 'blood_group', 'height_cm', 'weight_kg', 'bmi', 'age',
+            'id', 'user', 'age',
             'chronic_conditions', 'allergies', 'current_medications',
             'past_surgeries', 'family_history',
             'emergency_contact_name', 'emergency_contact_phone',
@@ -124,16 +123,18 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = [
-            'id', 'user', 'bmi', 'age',
+            'id', 'user', 'age',
             'total_appointments', 'total_consultations',
             'created_at', 'updated_at'
         ]
+    
+    def get_age(self, obj):
+        return obj.age
 
 
 class PatientRegistrationSerializer(serializers.Serializer):
     """
     Serializer for Patient Registration.
-    Validates Firebase token and creates user with patient profile.
     """
     firebase_token = serializers.CharField(
         write_only=True,
@@ -164,12 +165,7 @@ class PatientRegistrationSerializer(serializers.Serializer):
     village = serializers.CharField(max_length=100, required=False, allow_blank=True)
     district = serializers.CharField(max_length=100, required=False, allow_blank=True)
     
-    # Patient specific
-    blood_group = serializers.ChoiceField(
-        choices=PatientProfile.BloodGroup.choices,
-        required=False,
-        allow_blank=True
-    )
+    # Emergency contact
     emergency_contact_name = serializers.CharField(
         max_length=100,
         required=False,
@@ -185,7 +181,7 @@ class PatientRegistrationSerializer(serializers.Serializer):
     is_literate = serializers.BooleanField(default=True)
     needs_voice_assistance = serializers.BooleanField(default=False)
     
-    # FCM Token for push notifications
+    # FCM Token
     fcm_token = serializers.CharField(
         max_length=500,
         required=False,
@@ -193,9 +189,6 @@ class PatientRegistrationSerializer(serializers.Serializer):
     )
     
     def validate_firebase_token(self, value):
-        """
-        Validate Firebase token and extract phone number.
-        """
         phone = get_phone_from_token(value)
         
         if not phone:
@@ -203,16 +196,12 @@ class PatientRegistrationSerializer(serializers.Serializer):
                 "Invalid or expired Firebase token"
             )
         
-        # Store phone for later use
         self._phone = phone
         self._firebase_token = value
         
         return value
     
     def validate(self, attrs):
-        """
-        Check if user already exists.
-        """
         phone = getattr(self, '_phone', None)
         
         if phone and User.objects.filter(phone=phone).exists():
@@ -224,13 +213,9 @@ class PatientRegistrationSerializer(serializers.Serializer):
     
     @transaction.atomic
     def create(self, validated_data):
-        """
-        Create user and patient profile.
-        """
         phone = self._phone
         
         # Remove non-user fields
-        blood_group = validated_data.pop('blood_group', '')
         emergency_contact_name = validated_data.pop('emergency_contact_name', '')
         emergency_contact_phone = validated_data.pop('emergency_contact_phone', '')
         is_literate = validated_data.pop('is_literate', True)
@@ -245,13 +230,11 @@ class PatientRegistrationSerializer(serializers.Serializer):
             **validated_data
         )
         
-        # Set unusable password (phone auth only)
         user.set_unusable_password()
         user.save()
         
         # Update patient profile (created by signal)
         patient_profile = user.patient_profile
-        patient_profile.blood_group = blood_group
         patient_profile.emergency_contact_name = emergency_contact_name
         patient_profile.emergency_contact_phone = emergency_contact_phone
         patient_profile.is_literate = is_literate
@@ -303,7 +286,6 @@ class PatientUpdateSerializer(serializers.ModelSerializer):
             'address', 'village', 'mandal', 'district', 'pincode',
             'latitude', 'longitude', 'fcm_token',
             # Patient profile fields
-            'blood_group', 'height_cm', 'weight_kg',
             'chronic_conditions', 'allergies', 'current_medications',
             'past_surgeries', 'family_history',
             'emergency_contact_name', 'emergency_contact_phone',
@@ -314,12 +296,8 @@ class PatientUpdateSerializer(serializers.ModelSerializer):
     
     @transaction.atomic
     def update(self, instance, validated_data):
-        """
-        Update both user and patient profile.
-        """
         user = instance.user
         
-        # User fields to update
         user_fields = [
             'first_name', 'last_name', 'email', 'date_of_birth', 'gender',
             'profile_photo', 'preferred_language',
@@ -327,12 +305,10 @@ class PatientUpdateSerializer(serializers.ModelSerializer):
             'latitude', 'longitude', 'fcm_token'
         ]
         
-        # Update user fields
         for field in user_fields:
             if field in validated_data:
                 setattr(user, field, validated_data.pop(field))
         
-        # Check if profile is complete
         user.is_profile_complete = all([
             user.first_name,
             user.date_of_birth,
@@ -342,7 +318,6 @@ class PatientUpdateSerializer(serializers.ModelSerializer):
         
         user.save()
         
-        # Update patient profile fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         
@@ -386,7 +361,11 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
         source='get_verification_status_display',
         read_only=True
     )
-    availabilities = DoctorAvailabilitySerializer(many=True, read_only=True)
+    availabilities = DoctorAvailabilitySerializer(
+        many=True, 
+        read_only=True,
+        source='user.availabilities'
+    )
     
     class Meta:
         model = DoctorProfile
@@ -414,28 +393,48 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
 class DoctorPublicSerializer(serializers.ModelSerializer):
     """
     Public serializer for Doctor (for patients to view).
-    Only shows verified doctors with limited info.
+    FIXED: Returns user.id as primary ID for frontend
     """
+    # ✅ FIXED - Use IntegerField (not UUIDField)
+    id = serializers.IntegerField(source='user.id', read_only=True)
+    
     name = serializers.SerializerMethodField()
+    profile_id = serializers.IntegerField(source='pk', read_only=True)
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
     profile_photo = serializers.ImageField(source='user.profile_photo', read_only=True)
     specialization_display = serializers.CharField(
         source='get_specialization_display',
         read_only=True
     )
     languages = serializers.JSONField(source='languages_spoken', read_only=True)
-    availabilities = DoctorAvailabilitySerializer(many=True, read_only=True)
+    availabilities = DoctorAvailabilitySerializer(
+        many=True, 
+        read_only=True,
+        source='user.availabilities'
+    )
     
     class Meta:
         model = DoctorProfile
         fields = [
-            'id', 'name', 'profile_photo',
-            'specialization', 'specialization_display',
-            'qualification', 'experience_years',
+            'id',           # ✅ Returns User.id (Integer)
+            'profile_id',   # DoctorProfile.id
+            'user_id',      # Also available explicitly
+            'name', 
+            'profile_photo',
+            'specialization', 
+            'specialization_display',
+            'qualification', 
+            'experience_years',
             'hospital_name',
-            'consultation_fee', 'consultation_duration',
-            'languages', 'is_available_online',
-            'average_rating', 'total_reviews', 'total_consultations',
-            'bio', 'availabilities'
+            'consultation_fee', 
+            'consultation_duration',
+            'languages', 
+            'is_available_online',
+            'average_rating', 
+            'total_reviews', 
+            'total_consultations',
+            'bio', 
+            'availabilities'
         ]
     
     def get_name(self, obj):
@@ -496,9 +495,6 @@ class DoctorRegistrationSerializer(serializers.Serializer):
     fcm_token = serializers.CharField(max_length=500, required=False, allow_blank=True)
     
     def validate_firebase_token(self, value):
-        """
-        Validate Firebase token and extract phone number.
-        """
         phone = get_phone_from_token(value)
         
         if not phone:
@@ -510,9 +506,6 @@ class DoctorRegistrationSerializer(serializers.Serializer):
         return value
     
     def validate_registration_number(self, value):
-        """
-        Check if registration number is unique.
-        """
         if DoctorProfile.objects.filter(registration_number=value).exists():
             raise serializers.ValidationError(
                 "A doctor with this registration number already exists."
@@ -520,9 +513,6 @@ class DoctorRegistrationSerializer(serializers.Serializer):
         return value
     
     def validate(self, attrs):
-        """
-        Check if user already exists.
-        """
         phone = getattr(self, '_phone', None)
         
         if phone and User.objects.filter(phone=phone).exists():
@@ -534,9 +524,6 @@ class DoctorRegistrationSerializer(serializers.Serializer):
     
     @transaction.atomic
     def create(self, validated_data):
-        """
-        Create user and doctor profile.
-        """
         phone = self._phone
         
         # Extract doctor profile fields
@@ -552,7 +539,6 @@ class DoctorRegistrationSerializer(serializers.Serializer):
         bio = validated_data.pop('bio', '')
         verification_document = validated_data.pop('verification_document', None)
         
-        # Remove firebase_token
         validated_data.pop('firebase_token', None)
         
         # Create user
@@ -567,7 +553,7 @@ class DoctorRegistrationSerializer(serializers.Serializer):
         user.save()
         
         # Create doctor profile
-        doctor_profile = DoctorProfile.objects.create(
+        DoctorProfile.objects.create(
             user=user,
             registration_number=registration_number,
             registration_council=registration_council,
@@ -619,32 +605,26 @@ class DoctorUpdateSerializer(serializers.ModelSerializer):
     
     @transaction.atomic
     def update(self, instance, validated_data):
-        """
-        Update both user and doctor profile.
-        """
         user = instance.user
         
-        # User fields to update
         user_fields = [
             'first_name', 'last_name', 'email', 'date_of_birth', 'gender',
             'profile_photo', 'preferred_language', 'address', 'fcm_token'
         ]
         
-        # Update user fields
         for field in user_fields:
             if field in validated_data:
                 setattr(user, field, validated_data.pop(field))
         
         user.save()
         
-        # Update doctor profile fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         
         instance.save()
         
         return instance
-    
+
 
 # ============================================
 # DOCTOR LEAVE SERIALIZER
@@ -663,10 +643,6 @@ class DoctorLeaveSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
     
     def validate_date(self, value):
-        """
-        Validate that leave date is not in the past.
-        """
-        from django.utils import timezone
         if value < timezone.now().date():
             raise serializers.ValidationError(
                 "Cannot add leave for past dates."
@@ -674,9 +650,6 @@ class DoctorLeaveSerializer(serializers.ModelSerializer):
         return value
     
     def validate(self, attrs):
-        """
-        Validate time fields for partial day leave.
-        """
         is_full_day = attrs.get('is_full_day', True)
         start_time = attrs.get('start_time')
         end_time = attrs.get('end_time')
@@ -714,9 +687,6 @@ class LoginSerializer(serializers.Serializer):
     )
     
     def validate_firebase_token(self, value):
-        """
-        Validate Firebase token and get phone number.
-        """
         phone = get_phone_from_token(value)
         
         if not phone:
@@ -728,9 +698,6 @@ class LoginSerializer(serializers.Serializer):
         return value
     
     def validate(self, attrs):
-        """
-        Check if user exists.
-        """
         phone = getattr(self, '_phone', None)
         
         try:
@@ -751,9 +718,6 @@ class LoginSerializer(serializers.Serializer):
         return attrs
     
     def get_user(self):
-        """
-        Return the authenticated user.
-        """
         return getattr(self, '_user', None)
 
 
@@ -806,10 +770,6 @@ class AddFamilyHelperSerializer(serializers.ModelSerializer):
         ]
     
     def validate_helper_phone(self, value):
-        """
-        Validate phone number format.
-        """
-        # Remove any spaces or special characters
         value = ''.join(filter(str.isdigit, value))
         
         if len(value) != 10:
@@ -817,7 +777,7 @@ class AddFamilyHelperSerializer(serializers.ModelSerializer):
                 "Please enter a valid 10-digit phone number."
             )
         
-        if not value[0] in '6789':
+        if value[0] not in '6789':
             raise serializers.ValidationError(
                 "Please enter a valid Indian mobile number."
             )
@@ -825,9 +785,6 @@ class AddFamilyHelperSerializer(serializers.ModelSerializer):
         return value
     
     def validate(self, attrs):
-        """
-        Check if helper already exists for this patient.
-        """
         patient = self.context['request'].user
         helper_phone = attrs.get('helper_phone')
         
@@ -839,7 +796,6 @@ class AddFamilyHelperSerializer(serializers.ModelSerializer):
                 'helper_phone': 'This helper is already linked to your account.'
             })
         
-        # If setting as primary, unset other primary helpers
         if attrs.get('is_primary', False):
             FamilyHelper.objects.filter(
                 patient=patient,
@@ -849,12 +805,8 @@ class AddFamilyHelperSerializer(serializers.ModelSerializer):
         return attrs
     
     def create(self, validated_data):
-        """
-        Create family helper.
-        """
         patient = self.context['request'].user
         
-        # Check if helper phone belongs to a registered user
         helper_user = None
         try:
             helper_user = User.objects.get(phone=validated_data['helper_phone'])
@@ -879,28 +831,19 @@ class AdminProfileSerializer(serializers.ModelSerializer):
     Serializer for Admin Profile.
     """
     user = UserSerializer(read_only=True)
-    admin_level_display = serializers.CharField(
-        source='get_admin_level_display',
-        read_only=True
-    )
     
     class Meta:
         model = AdminProfile
         fields = [
-            'id', 'user', 'admin_level', 'admin_level_display',
+            'id', 'user',
             'department', 'designation',
             'can_manage_doctors', 'can_manage_patients',
             'can_verify_doctors', 'can_view_reports',
-            'can_manage_content', 'can_manage_admins',
-            'can_access_system_settings',
+            'can_manage_content',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
 
-
-# ============================================
-# DOCTOR VERIFICATION SERIALIZER (Admin)
-# ============================================
 
 class DoctorVerificationSerializer(serializers.Serializer):
     """

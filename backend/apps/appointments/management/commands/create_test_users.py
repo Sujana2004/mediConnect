@@ -91,19 +91,12 @@ class Command(BaseCommand):
         self.stdout.write('Clearing existing test users...')
         
         # Delete users with test phone numbers
-        # Try both 'phone' and 'phone_number' fields
         deleted_count = 0
         
         try:
             count, _ = User.objects.filter(phone__startswith='+91900000').delete()
             deleted_count += count
-        except:
-            pass
-        
-        try:
-            count, _ = User.objects.filter(phone_number__startswith='+91900000').delete()
-            deleted_count += count
-        except:
+        except Exception:
             pass
         
         self.stdout.write(
@@ -111,37 +104,16 @@ class Command(BaseCommand):
         )
 
     def _get_phone_field_name(self):
-        """Detect the phone field name in User model."""
-        user_fields = [f.name for f in User._meta.get_fields()]
-        
-        if 'phone' in user_fields:
-            return 'phone'
-        elif 'phone_number' in user_fields:
-            return 'phone_number'
-        else:
-            return None
+        """Get canonical phone field name in User model."""
+        return 'phone'
 
     def _user_exists(self, phone):
         """Check if user with phone exists."""
-        phone_field = self._get_phone_field_name()
-        
-        if phone_field == 'phone':
-            return User.objects.filter(phone=phone).exists()
-        elif phone_field == 'phone_number':
-            return User.objects.filter(phone_number=phone).exists()
-        else:
-            return False
+        return User.objects.filter(phone=phone).exists()
 
     def _get_user_by_phone(self, phone):
         """Get user by phone."""
-        phone_field = self._get_phone_field_name()
-        
-        if phone_field == 'phone':
-            return User.objects.get(phone=phone)
-        elif phone_field == 'phone_number':
-            return User.objects.get(phone_number=phone)
-        else:
-            return None
+        return User.objects.get(phone=phone)
 
     @transaction.atomic
     def _create_doctors(self, count):

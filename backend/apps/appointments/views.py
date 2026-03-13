@@ -124,23 +124,16 @@ class IsVerifiedUser(permissions.BasePermission):
 
 
 def resolve_doctor_user_by_any_id(doctor_id):
-    """Resolve doctor user by either User.id or DoctorProfile.id."""
+    """Resolve doctor user by User.id (Integer)."""
     from django.contrib.auth import get_user_model
-
     User = get_user_model()
 
     try:
-        user = User.objects.get(id=doctor_id)
-        if hasattr(user, 'doctor_profile'):
-            return user
-    except Exception:
-        pass
-
-    doctor_profile = DoctorProfile.objects.select_related('user').filter(id=doctor_id).first()
-    if doctor_profile:
-        return doctor_profile.user
-
-    raise User.DoesNotExist
+        # doctor_id is now Integer
+        user = User.objects.get(id=int(doctor_id), role='doctor')
+        return user
+    except (User.DoesNotExist, ValueError, TypeError):
+        raise User.DoesNotExist(f"Doctor not found with ID: {doctor_id}")
 
 
 class IsAppointmentParticipant(permissions.BasePermission):

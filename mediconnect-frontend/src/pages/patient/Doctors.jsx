@@ -115,6 +115,8 @@ const PAGE_SIZE = 10;
 
 const normalizeDoctorData = (doc) => ({
   ...doc,
+  id: doc.id,  // Keep original id
+  user_id: doc.user_id || doc.user?.id || doc.id,  // ✅ ADD THIS LINE
   full_name: doc.full_name || doc.name || `Dr. ${doc.user?.first_name || ''} ${doc.user?.last_name || ''}`.trim() || 'Doctor',
   profile_picture: doc.profile_picture || doc.profile_photo || doc.user?.profile_photo || null,
   rating: parseFloat(doc.rating || doc.average_rating || 0),
@@ -811,11 +813,14 @@ const Doctors = () => {
   };
 
   const handleViewProfile = (doctor) => {
-    navigate(`/patient/doctors/${doctor.id}`);
+    const doctorUserId = doctor.user_id || doctor.id;
+    navigate(`/patient/doctors/${doctorUserId}`);
   };
 
   const handleBookAppointment = (doctor) => {
-    navigate(`/patient/appointments/book/${doctor.id}`, {
+    // Use user_id (UUID) for booking, not profile id
+    const doctorUserId = doctor.user_id || doctor.id;
+    navigate(`/patient/appointments/book/${doctorUserId}`, {
       state: { doctor }
     });
   };

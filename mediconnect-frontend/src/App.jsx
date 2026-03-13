@@ -222,6 +222,7 @@ const App = () => {
           <Route path="doctors" element={<PatientDoctors />} />
           <Route path="doctors/:id" element={<PatientDoctorProfile />} />
           <Route path="appointments" element={<PatientAppointments />} />
+          <Route path="appointments/:appointmentId" element={<PatientAppointments />} />
           <Route path="appointments/book" element={<PatientBookAppointment />} />
           <Route path="appointments/book/:doctorId" element={<PatientBookAppointment />} />
           {/* ✅ ADDED: Missing routes that other components navigate to */}

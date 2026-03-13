@@ -1,19 +1,16 @@
 """
 Appointments App Serializers for MediConnect.
 
-Serializers for:
-1. DoctorSchedule - Weekly availability management
-2. ScheduleException - Leaves and modified hours
-3. TimeSlot - Available time slots
-4. Appointment - Appointment booking and management
-5. AppointmentQueue - Queue management
-6. AppointmentReminder - Reminder tracking
+FIXES:
+- Changed doctor_id from UUIDField to IntegerField (User.id is Integer)
+- Standardized all doctor_id validation to User model with role='doctor'
 """
 
 from datetime import datetime, timedelta, time
 from rest_framework import serializers
 from django.utils import timezone
 from django.db import transaction
+from django.contrib.auth import get_user_model
 
 from .models import (
     DoctorSchedule,
@@ -23,27 +20,8 @@ from .models import (
     AppointmentQueue,
     AppointmentReminder,
 )
-from apps.users.models import DoctorProfile
 
-
-def resolve_doctor_user_by_any_id(doctor_id):
-    """Resolve doctor user by either User.id or DoctorProfile.id."""
-    from django.contrib.auth import get_user_model
-
-    User = get_user_model()
-
-    try:
-        user = User.objects.get(id=doctor_id)
-        if hasattr(user, 'doctor_profile'):
-            return user
-    except User.DoesNotExist:
-        pass
-
-    doctor_profile = DoctorProfile.objects.select_related('user').filter(id=doctor_id).first()
-    if doctor_profile:
-        return doctor_profile.user
-
-    raise User.DoesNotExist
+User = get_user_model()
 
 
 # =============================================================================
@@ -53,9 +31,9 @@ def resolve_doctor_user_by_any_id(doctor_id):
 class DoctorScheduleSerializer(serializers.ModelSerializer):
     """Full serializer for doctor schedule."""
     
-    doctor_id = serializers.UUIDField(source='doctor.id', read_only=True)
+    doctor_id = serializers.IntegerField(source='doctor.id', read_only=True)  # ✅ Changed to IntegerField
     doctor_name = serializers.CharField(source='doctor.get_full_name', read_only=True)
-    doctor_phone = serializers.CharField(source='doctor.phone_number', read_only=True)
+    doctor_phone = serializers.CharField(source='doctor.phone', read_only=True)
     day_name = serializers.CharField(source='get_day_name', read_only=True)
     
     class Meta:
@@ -129,7 +107,12 @@ class DoctorScheduleCreateSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """Create schedule with current user as doctor."""
-        validated_data['doctor'] = self.context['request'].user
+        user = self.context['request'].user
+        
+        if user.role != 'doctor':
+            raise serializers.ValidationError("Only doctors can create schedules")
+        
+        validated_data['doctor'] = user
         return super().create(validated_data)
 
 
@@ -155,7 +138,7 @@ class DoctorScheduleListSerializer(serializers.ModelSerializer):
 class WeeklyScheduleSerializer(serializers.Serializer):
     """Serializer for complete weekly schedule."""
     
-    doctor_id = serializers.UUIDField()
+    doctor_id = serializers.IntegerField()  # ✅ Changed to IntegerField
     doctor_name = serializers.CharField()
     schedules = DoctorScheduleListSerializer(many=True)
     exceptions = serializers.ListField(child=serializers.DictField(), required=False)
@@ -168,7 +151,7 @@ class WeeklyScheduleSerializer(serializers.Serializer):
 class ScheduleExceptionSerializer(serializers.ModelSerializer):
     """Full serializer for schedule exceptions."""
     
-    doctor_id = serializers.UUIDField(source='doctor.id', read_only=True)
+    doctor_id = serializers.IntegerField(source='doctor.id', read_only=True)  # ✅ Changed
     doctor_name = serializers.CharField(source='doctor.get_full_name', read_only=True)
     exception_type_display = serializers.CharField(
         source='get_exception_type_display',
@@ -234,7 +217,12 @@ class ScheduleExceptionCreateSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """Create exception with current user as doctor."""
-        validated_data['doctor'] = self.context['request'].user
+        user = self.context['request'].user
+        
+        if user.role != 'doctor':
+            raise serializers.ValidationError("Only doctors can create schedule exceptions")
+        
+        validated_data['doctor'] = user
         return super().create(validated_data)
 
 
@@ -245,7 +233,7 @@ class ScheduleExceptionCreateSerializer(serializers.ModelSerializer):
 class TimeSlotSerializer(serializers.ModelSerializer):
     """Full serializer for time slots."""
     
-    doctor_id = serializers.UUIDField(source='doctor.id', read_only=True)
+    doctor_id = serializers.IntegerField(source='doctor.id', read_only=True)  # ✅ Changed
     doctor_name = serializers.CharField(source='doctor.get_full_name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_available = serializers.BooleanField(read_only=True)
@@ -286,10 +274,23 @@ class TimeSlotListSerializer(serializers.ModelSerializer):
 
 
 class AvailableSlotsRequestSerializer(serializers.Serializer):
-    """Serializer for available slots request."""
+    """
+    Serializer for available slots request.
+    FIXED: Only accepts User.id (Integer) for doctor.
+    """
     
-    doctor_id = serializers.UUIDField(required=True)
+    doctor_id = serializers.IntegerField(required=True)  # ✅ Changed to IntegerField
     date = serializers.DateField(required=True)
+    
+    def validate_doctor_id(self, value):
+        """FIXED: Validate doctor exists using User.id (Integer)."""
+        try:
+            doctor = User.objects.get(id=value, role='doctor')
+        except User.DoesNotExist:
+            raise serializers.ValidationError('Doctor not found with this User ID')
+        
+        self.doctor = doctor
+        return value
     
     def validate_date(self, value):
         """Validate date is not in the past."""
@@ -301,7 +302,7 @@ class AvailableSlotsRequestSerializer(serializers.Serializer):
 class AvailableSlotsResponseSerializer(serializers.Serializer):
     """Serializer for available slots response."""
     
-    doctor_id = serializers.UUIDField()
+    doctor_id = serializers.IntegerField()  # ✅ Changed
     doctor_name = serializers.CharField()
     date = serializers.DateField()
     slots = TimeSlotListSerializer(many=True)
@@ -310,21 +311,24 @@ class AvailableSlotsResponseSerializer(serializers.Serializer):
 
 
 # =============================================================================
-# APPOINTMENT SERIALIZERS
+# APPOINTMENT SERIALIZERS (FIXED - USER.ID IS INTEGER)
 # =============================================================================
 
 class AppointmentSerializer(serializers.ModelSerializer):
-    """Full serializer for appointments."""
+    """
+    Full serializer for appointments.
+    FIXED: All IDs are Integer (User.id).
+    """
     
     # Patient details
-    patient_id = serializers.UUIDField(source='patient.id', read_only=True)
+    patient_id = serializers.IntegerField(source='patient.id', read_only=True)  # ✅ Changed
     patient_name = serializers.CharField(source='patient.get_full_name', read_only=True)
-    patient_phone = serializers.CharField(source='patient.phone_number', read_only=True)
+    patient_phone = serializers.CharField(source='patient.phone', read_only=True)
     
     # Doctor details
-    doctor_id = serializers.UUIDField(source='doctor.id', read_only=True)
+    doctor_id = serializers.IntegerField(source='doctor.id', read_only=True)  # ✅ Changed
     doctor_name = serializers.CharField(source='doctor.get_full_name', read_only=True)
-    doctor_phone = serializers.CharField(source='doctor.phone_number', read_only=True)
+    doctor_phone = serializers.CharField(source='doctor.phone', read_only=True)
     
     # Display fields
     status_display = serializers.CharField(source='get_status_display', read_only=True)
@@ -371,6 +375,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'completed_at',
             'cancelled_at',
             'consultation_fee',
+            'consultation_id',
             'prescription_id',
             'reminder_24h_sent',
             'reminder_1h_sent',
@@ -388,7 +393,8 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'doctor_id', 'doctor_name', 'doctor_phone',
             'status', 'confirmed_at', 'checked_in_at', 'started_at',
             'completed_at', 'cancelled_at', 'reminder_24h_sent',
-            'reminder_1h_sent', 'created_at', 'updated_at',
+            'reminder_1h_sent', 'consultation_id',
+            'created_at', 'updated_at',
         ]
     
     def get_queue_number(self, obj):
@@ -431,9 +437,12 @@ class AppointmentListSerializer(serializers.ModelSerializer):
 
 
 class AppointmentCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating appointments."""
+    """
+    Serializer for creating appointments.
+    FIXED: Only accepts User.id (Integer) for doctor.
+    """
     
-    doctor_id = serializers.CharField(write_only=True)
+    doctor_id = serializers.IntegerField(write_only=True)  # ✅ Changed to IntegerField
     time_slot_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     
     class Meta:
@@ -450,30 +459,31 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
         ]
     
     def validate_doctor_id(self, value):
-        """Validate doctor exists and is a doctor."""
+        """FIXED: Validate doctor exists using User.id (Integer)."""
         try:
-            resolve_doctor_user_by_any_id(value)
-            return value
-        except Exception:
-            raise serializers.ValidationError('Doctor not found.')
+            doctor = User.objects.get(id=value, role='doctor')
+        except User.DoesNotExist:
+            raise serializers.ValidationError('Doctor not found with this User ID')
+        
+        # Check if doctor is verified
+        if hasattr(doctor, 'doctor_profile'):
+            if doctor.doctor_profile.verification_status != 'verified':
+                raise serializers.ValidationError('Doctor is not verified')
+        
+        self.doctor = doctor
+        return value
     
     def validate_appointment_date(self, value):
         """Validate appointment date."""
         if value < timezone.now().date():
             raise serializers.ValidationError('Appointment date cannot be in the past.')
         
-        # Check if date is too far in future (e.g., 90 days)
         max_date = timezone.now().date() + timedelta(days=90)
         if value > max_date:
             raise serializers.ValidationError(
                 'Appointments can only be booked up to 90 days in advance.'
             )
         
-        return value
-    
-    def validate_start_time(self, value):
-        """Validate start time."""
-        # Basic validation - more detailed validation in validate()
         return value
     
     def validate(self, attrs):
@@ -483,12 +493,14 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
         start_time = attrs.get('start_time')
         time_slot_id = attrs.get('time_slot_id')
 
-        try:
-            doctor = resolve_doctor_user_by_any_id(doctor_id)
-        except Exception:
-            raise serializers.ValidationError({'doctor_id': 'Doctor not found.'})
-
+        doctor = self.doctor
         patient = self.context['request'].user
+        
+        # Verify patient role
+        if patient.role != 'patient':
+            raise serializers.ValidationError({
+                'patient': 'Only patients can book appointments'
+            })
         
         # Check patient is not the doctor
         if doctor.id == patient.id:
@@ -504,7 +516,6 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({
                         'time_slot_id': 'Selected time slot is not available.'
                     })
-                # Override date and time from slot
                 attrs['appointment_date'] = time_slot.slot_date
                 attrs['start_time'] = time_slot.start_time
                 attrs['end_time'] = time_slot.end_time
@@ -528,13 +539,11 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
                     'appointment_date': f'Doctor is not available on {appointment_date.strftime("%A")}.'
                 })
             
-            # Check if time is within schedule
             if start_time < schedule.start_time or start_time >= schedule.end_time:
                 raise serializers.ValidationError({
                     'start_time': f'Time must be between {schedule.start_time} and {schedule.end_time}.'
                 })
             
-            # Check if time is during break
             if schedule.break_start and schedule.break_end:
                 if schedule.break_start <= start_time < schedule.break_end:
                     raise serializers.ValidationError({
@@ -590,8 +599,8 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         """Create appointment."""
-        doctor_id = validated_data.pop('doctor_id', None)
-        time_slot_id = validated_data.pop('time_slot_id', None)
+        validated_data.pop('doctor_id', None)
+        validated_data.pop('time_slot_id', None)
         time_slot = validated_data.pop('time_slot', None)
         doctor = validated_data.pop('doctor')
         
@@ -700,7 +709,7 @@ class AppointmentQueueSerializer(serializers.ModelSerializer):
         read_only=True
     )
     patient_phone = serializers.CharField(
-        source='appointment.patient.phone_number',
+        source='appointment.patient.phone',
         read_only=True
     )
     appointment_time = serializers.TimeField(
@@ -859,7 +868,7 @@ class AppointmentReminderSerializer(serializers.ModelSerializer):
 class DoctorAvailabilitySerializer(serializers.Serializer):
     """Serializer for doctor availability summary."""
     
-    doctor_id = serializers.UUIDField()
+    doctor_id = serializers.IntegerField()  # ✅ Changed
     doctor_name = serializers.CharField()
     specialization = serializers.CharField(required=False, allow_null=True)
     consultation_fee = serializers.DecimalField(

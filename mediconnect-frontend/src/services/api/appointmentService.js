@@ -168,12 +168,20 @@ export const updateAppointment = async (appointmentId, updateData) => {
  * Backend auto-determines cancelled_by from user role
  * 
  * @param {string} appointmentId - Appointment UUID
- * @param {string} [reason] - Cancellation reason
+ * @param {string|Object} reasonOrData - Cancellation reason (string) or {reason: string}
  * @returns {Promise<Object>} { success, message, data: Appointment }
  */
-export const cancelAppointment = async (appointmentId, reason = '') => {
+export const cancelAppointment = async (appointmentId, reasonOrData = '') => {
   const endpoint = buildEndpoint(APPOINTMENT_ENDPOINTS.APPOINTMENTS, appointmentId, 'cancel');
-  const response = await api.post(endpoint, { reason });
+  
+  // Support both string and object formats for backward compatibility
+  const payload = {
+    reason: typeof reasonOrData === 'string' 
+      ? reasonOrData 
+      : (reasonOrData?.reason || '')
+  };
+  
+  const response = await api.post(endpoint, payload);
   return response.data;
 };
 

@@ -97,7 +97,7 @@ class ChatSession(models.Model):
         ]
     
     def __str__(self):
-        return f"Chat {self.id} - {self.user.phone_number} ({self.language})"
+        return f"Chat {self.id} - {self.user.phone} ({self.language})"
     
     def end_session(self):
         """Mark session as ended."""

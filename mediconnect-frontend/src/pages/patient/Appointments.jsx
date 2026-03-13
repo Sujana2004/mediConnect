@@ -451,40 +451,51 @@ const Appointments = () => {
   const [cancelModalData, setCancelModalData] = useState(null);
 
   const {
-    data: appointmentsResponse,
+    data: appointmentsData,
     isLoading,
     isError,
     refetch
   } = useQuery({
     queryKey: ['appointments', activeTab],
-    queryFn: () => {
+    queryFn: async () => {
       const params = {};
 
       if (activeTab === 'upcoming') {
-        params.upcoming = true;
+        params.upcoming = 'true';
       } else if (activeTab === 'past') {
         params.status = 'completed';
       } else if (activeTab === 'cancelled') {
         params.status = 'cancelled';
       }
 
-      return getAppointments(params);
+      const response = await getAppointments(params);
+      return response;
     },
     staleTime: 1000 * 60 * 2,
     enabled: isOnline
   });
 
-  const appointments = appointmentsResponse?.data || [];
+  const appointments = Array.isArray(appointmentsData?.data?.results) 
+    ? appointmentsData.data.results 
+    : Array.isArray(appointmentsData?.data) 
+    ? appointmentsData.data 
+    : Array.isArray(appointmentsData?.results)
+    ? appointmentsData.results
+    : Array.isArray(appointmentsData)
+    ? appointmentsData
+    : [];
 
   const cancelMutation = useMutation({
-    mutationFn: ({ id, reason }) => cancelAppointment(id, reason),
+    mutationFn: ({ id, reason }) => cancelAppointment(id, { reason }),
     onSuccess: () => {
       toast.success(t('appointments.cancelSuccess', 'Appointment cancelled successfully'));
       setCancelModalData(null);
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
     onError: (error) => {
-      const errorMessage = error.response?.data?.message ||
+      const errorMessage = error?.response?.data?.detail || 
+        error?.response?.data?.message || 
+        error?.response?.data?.error ||
         t('appointments.cancelFailed', 'Failed to cancel appointment');
       toast.error(errorMessage);
     }
@@ -496,11 +507,15 @@ const Appointments = () => {
   }, [setSearchParams]);
 
   const handleViewDetails = useCallback((appointment) => {
-    navigate(`/patient/appointments/${appointment.id}`);
+    const appointmentId = appointment?.id;
+    if (!appointmentId) return;
+    navigate(`/patient/appointments/${appointmentId}`);
   }, [navigate]);
 
   const handleJoin = useCallback((appointment) => {
-    navigate(`/patient/consultation/${appointment.id}`);
+    const appointmentId = appointment?.id;
+    if (!appointmentId) return;
+    navigate(`/patient/consultation/${appointmentId}`);
   }, [navigate]);
 
   const handleCancel = useCallback((appointment) => {
@@ -508,7 +523,11 @@ const Appointments = () => {
   }, []);
 
   const handleReschedule = useCallback((appointment) => {
-    const doctorId = appointment.doctor_id || appointment.doctor?.id;
+    const doctorId = appointment?.doctor_id;
+    if (!doctorId) {
+      toast.error('Doctor information not available');
+      return;
+    }
     navigate(`/patient/appointments/book/${doctorId}`, {
       state: {
         rescheduleFrom: appointment.id,
@@ -517,7 +536,7 @@ const Appointments = () => {
   }, [navigate]);
 
   const handleConfirmCancel = useCallback((id, reason) => {
-    cancelMutation.mutate({ id, reason });
+    cancelMutation.mutate({ id, reason: reason || 'No reason provided' });
   }, [cancelMutation]);
 
   const tabs = useMemo(() =>

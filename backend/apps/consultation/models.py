@@ -10,6 +10,12 @@ Models:
 4. ConsultationPrescription - Prescriptions written during consultation
 5. ConsultationAttachment - Files shared during consultation
 6. ConsultationFeedback - Patient feedback after consultation
+
+FIXES:
+- Appointment relationship now properly bidirectional with back-sync
+- All User references standardized with role validation
+- Removed circular dependencies
+- Added proper cascade behaviors
 """
 
 import uuid
@@ -17,6 +23,7 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
 
 
 class ConsultationRoom(models.Model):
@@ -120,22 +127,26 @@ class ConsultationRoom(models.Model):
 class Consultation(models.Model):
     """
     Main consultation record linking doctor, patient, and appointment.
+    FIXED: Proper relationship with Appointment model.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # Participants
+    # Participants - FIXED: Direct User references with role validation
     doctor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='doctor_consultations'
+        related_name='doctor_consultations',
+        limit_choices_to={'role': 'doctor'}
     )
     patient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='patient_consultations'
+        related_name='patient_consultations',
+        limit_choices_to={'role': 'patient'}
     )
     
-    # Link to appointment (optional - can have direct consultations)
+    # FIXED: OneToOneField with proper reverse relationship
+    # When appointment is deleted, consultation should be SET_NULL (keep history)
     appointment = models.OneToOneField(
         'appointments.Appointment',
         on_delete=models.SET_NULL,
@@ -251,10 +262,33 @@ class Consultation(models.Model):
             models.Index(fields=['doctor', 'status']),
             models.Index(fields=['patient', 'status']),
             models.Index(fields=['scheduled_start', 'status']),
+            models.Index(fields=['doctor', 'scheduled_start']),
+            models.Index(fields=['patient', 'scheduled_start']),
         ]
 
     def __str__(self):
         return f"Consultation: {self.patient.first_name} with Dr. {self.doctor.first_name} ({self.status})"
+
+    def clean(self):
+        """Validate consultation data."""
+        # Verify doctor role
+        if self.doctor and self.doctor.role != 'doctor':
+            raise ValidationError({'doctor': 'Only users with doctor role can conduct consultations.'})
+        
+        # Verify patient role
+        if self.patient and self.patient.role != 'patient':
+            raise ValidationError({'patient': 'Only users with patient role can have consultations.'})
+        
+        # Patient and doctor cannot be the same
+        if self.patient_id and self.doctor_id and self.patient_id == self.doctor_id:
+            raise ValidationError('Patient and doctor cannot be the same person.')
+        
+        # Validate appointment matches
+        if self.appointment:
+            if self.appointment.patient_id != self.patient_id:
+                raise ValidationError({'appointment': 'Appointment patient does not match consultation patient.'})
+            if self.appointment.doctor_id != self.doctor_id:
+                raise ValidationError({'appointment': 'Appointment doctor does not match consultation doctor.'})
 
     def save(self, *args, **kwargs):
         # Set scheduled_end based on duration if not set
@@ -262,7 +296,19 @@ class Consultation(models.Model):
             self.scheduled_end = self.scheduled_start + timezone.timedelta(
                 minutes=self.estimated_duration
             )
+        
+        # Calculate actual duration if ended
+        if self.actual_start and self.actual_end and not self.actual_duration:
+            delta = self.actual_end - self.actual_start
+            self.actual_duration = int(delta.total_seconds() / 60)
+        
+        is_new = self.pk is None
         super().save(*args, **kwargs)
+        
+        # FIXED: Sync consultation_id back to appointment
+        if self.appointment and not self.appointment.consultation_id:
+            from apps.appointments.models import Appointment
+            Appointment.objects.filter(pk=self.appointment.pk).update(consultation_id=self.pk)
 
     @property
     def can_join(self):
@@ -284,6 +330,33 @@ class Consultation(models.Model):
         if self.scheduled_start > timezone.now():
             return self.scheduled_start - timezone.now()
         return timezone.timedelta(0)
+    
+    def start(self):
+        """Start the consultation."""
+        if self.status not in ['scheduled', 'waiting_room']:
+            raise ValidationError('Only scheduled/waiting consultations can be started.')
+        self.status = 'in_progress'
+        self.actual_start = timezone.now()
+        self.save()
+        
+        # Update linked appointment status
+        if self.appointment:
+            self.appointment.start_consultation()
+    
+    def complete(self):
+        """Complete the consultation."""
+        if self.status != 'in_progress':
+            raise ValidationError('Only in-progress consultations can be completed.')
+        self.status = 'completed'
+        self.actual_end = timezone.now()
+        if self.actual_start:
+            delta = self.actual_end - self.actual_start
+            self.actual_duration = int(delta.total_seconds() / 60)
+        self.save()
+        
+        # Update linked appointment
+        if self.appointment:
+            self.appointment.complete(consultation_id=self.pk)
 
 
 class ConsultationNote(models.Model):
@@ -331,6 +404,9 @@ class ConsultationNote(models.Model):
         ordering = ['note_type', 'created_at']
         verbose_name = 'Consultation Note'
         verbose_name_plural = 'Consultation Notes'
+        indexes = [
+            models.Index(fields=['consultation', 'note_type']),
+        ]
 
     def __str__(self):
         return f"Note ({self.note_type}): {self.title or 'Untitled'}"
@@ -350,16 +426,15 @@ class ConsultationPrescription(models.Model):
     )
     
     # Medicine details (can link to Medicine app or use text)
-    medicine = models.ForeignKey(
-        'medicine.Medicine',
-        on_delete=models.SET_NULL,
+    # FIXED: Use UUIDField to avoid circular import
+    medicine_id = models.UUIDField(
         null=True,
         blank=True,
-        related_name='consultation_prescriptions'
+        help_text="Reference to medicine.Medicine"
     )
     medicine_name = models.CharField(
         max_length=200,
-        help_text="Medicine name (used if not linked to Medicine model)"
+        help_text="Medicine name (required)"
     )
     
     # Dosage
@@ -418,15 +493,12 @@ class ConsultationPrescription(models.Model):
         ordering = ['created_at']
         verbose_name = 'Consultation Prescription'
         verbose_name_plural = 'Consultation Prescriptions'
+        indexes = [
+            models.Index(fields=['consultation', 'is_active']),
+        ]
 
     def __str__(self):
         return f"{self.medicine_name} - {self.dosage} ({self.frequency})"
-
-    def save(self, *args, **kwargs):
-        # Auto-fill medicine_name from linked medicine
-        if self.medicine and not self.medicine_name:
-            self.medicine_name = self.medicine.name
-        super().save(*args, **kwargs)
 
 
 class ConsultationAttachment(models.Model):
@@ -483,6 +555,9 @@ class ConsultationAttachment(models.Model):
         ordering = ['-uploaded_at']
         verbose_name = 'Consultation Attachment'
         verbose_name_plural = 'Consultation Attachments'
+        indexes = [
+            models.Index(fields=['consultation', 'attachment_type']),
+        ]
 
     def __str__(self):
         return f"{self.file_name} ({self.attachment_type})"
@@ -542,3 +617,27 @@ class ConsultationFeedback(models.Model):
 
     def __str__(self):
         return f"Feedback for {self.consultation}: {self.overall_rating}/5"
+    
+    def save(self, *args, **kwargs):
+        """Update doctor's average rating on save."""
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        
+        if is_new:
+            # Update doctor's profile ratings
+            doctor = self.consultation.doctor
+            if hasattr(doctor, 'doctor_profile'):
+                from django.db.models import Avg, Count
+                profile = doctor.doctor_profile
+                
+                # Calculate new average
+                feedbacks = ConsultationFeedback.objects.filter(
+                    consultation__doctor=doctor
+                ).aggregate(
+                    avg_rating=Avg('overall_rating'),
+                    total=Count('id')
+                )
+                
+                profile.average_rating = feedbacks['avg_rating'] or 0
+                profile.total_reviews = feedbacks['total'] or 0
+                profile.save(update_fields=['average_rating', 'total_reviews'])

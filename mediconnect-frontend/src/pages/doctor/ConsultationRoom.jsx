@@ -2,23 +2,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Video,
   VideoOff,
   Mic,
   MicOff,
-  Phone,
   PhoneOff,
-  MessageSquare,
-  FileText,
   User,
-  Clock,
   AlertCircle,
-  CheckCircle,
   ChevronLeft,
   ChevronRight,
-  Send,
-  Paperclip,
   Pill,
   Stethoscope,
   ClipboardList,
@@ -29,25 +23,18 @@ import {
   Activity,
   Heart,
   Thermometer,
-  Settings,
   Maximize,
   Minimize,
-  Users,
-  Calendar,
-  Download,
-  Printer,
-  MoreVertical,
   Edit,
   Trash2,
-  Image,
-  Camera,
-  Loader2
+  FileText,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 
 import { useAuth } from '../../hooks/useAuth';
-import { useVoice } from '../../hooks/useVoice';
 import { consultationService, healthRecordsService, medicineService } from '../../services/api';
 import {
   Card,
@@ -66,6 +53,8 @@ import { JitsiMeet } from '../../components/consultation';
 // ============================================================================
 // CONSTANTS
 // ============================================================================
+
+const isDev = import.meta.env.DEV;
 
 const PRESCRIPTION_FREQUENCIES = [
   { value: 'once_daily', label: 'Once Daily' },
@@ -98,40 +87,39 @@ const NOTE_TYPES = [
   { value: 'plan', label: 'Plan (P)' }
 ];
 
+const CONSULTATION_STATES = {
+  LOADING: 'loading',
+  STARTING: 'starting',
+  IN_CALL: 'in_call',
+  ENDING: 'ending',
+  ENDED: 'ended',
+  ERROR: 'error'
+};
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
-const formatTime = (dateString) => {
-  if (!dateString) return '';
-  try {
-    return format(new Date(dateString), 'h:mm a');
-  } catch {
-    return dateString;
-  }
+const logger = {
+  log: (...args) => isDev && console.log('[DoctorConsultation]', ...args),
+  error: (...args) => isDev && console.error('[DoctorConsultation]', ...args),
+};
+
+const getErrorMessage = (error, fallback = 'An error occurred') => {
+  return (
+    error?.response?.data?.message ||
+    error?.response?.data?.detail ||
+    error?.response?.data?.error?.message ||
+    error?.message ||
+    fallback
+  );
 };
 
 const formatDuration = (minutes) => {
   if (!minutes) return '0m';
   const hrs = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  if (hrs > 0) {
-    return `${hrs}h ${mins}m`;
-  }
-  return `${mins}m`;
-};
-
-const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
-  if (error?.response?.data?.error?.message) {
-    return error.response.data.error.message;
-  }
-  if (error?.response?.data?.message) {
-    return error.response.data.message;
-  }
-  if (error?.message) {
-    return error.message;
-  }
-  return fallbackMessage;
+  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
 };
 
 // ============================================================================
@@ -185,8 +173,6 @@ const ConsultationTimer = ({ startTime }) => {
  * Patient Info Panel
  */
 const PatientInfoPanel = ({ patient, vitals, allergies, conditions, onViewFullRecords }) => {
-  const { t } = useTranslation();
-
   if (!patient) {
     return (
       <div className="text-center py-8">
@@ -199,14 +185,11 @@ const PatientInfoPanel = ({ patient, vitals, allergies, conditions, onViewFullRe
     <div className="space-y-4">
       {/* Patient Header */}
       <div className="flex items-center gap-3">
-        <Avatar
-          name={patient.full_name}
-          size="lg"
-        />
+        <Avatar name={patient.full_name} size="lg" />
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-gray-900 truncate">{patient.full_name}</h3>
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            {patient.age && <span>{patient.age}</span>}
+            {patient.age && <span>{patient.age} yrs</span>}
             {patient.gender && <span>• {patient.gender}</span>}
           </div>
           {patient.phone && (
@@ -269,7 +252,7 @@ const PatientInfoPanel = ({ patient, vitals, allergies, conditions, onViewFullRe
           <div className="flex flex-wrap gap-1">
             {allergies.map((allergy, index) => (
               <Badge key={index} variant="danger" size="sm">
-                {allergy.allergen}
+                {allergy.allergen || allergy.name}
               </Badge>
             ))}
           </div>
@@ -285,7 +268,7 @@ const PatientInfoPanel = ({ patient, vitals, allergies, conditions, onViewFullRe
           <div className="flex flex-wrap gap-1">
             {conditions.map((condition, index) => (
               <Badge key={index} variant="secondary" size="sm">
-                {condition.condition_name}
+                {condition.condition_name || condition.name}
               </Badge>
             ))}
           </div>
@@ -309,30 +292,73 @@ const PatientInfoPanel = ({ patient, vitals, allergies, conditions, onViewFullRe
 /**
  * Notes Panel Component
  */
-const NotesPanel = ({ notes, onAddNote, onUpdateNote, onDeleteNote, isLoading }) => {
-  const { t } = useTranslation();
+const NotesPanel = ({ 
+  consultationId,
+  notes, 
+  onNotesChange,
+  isLoading 
+}) => {
   const [newNote, setNewNote] = useState({ content: '', note_type: 'general', title: '' });
   const [editingNote, setEditingNote] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSubmit = async () => {
+  const handleAddNote = async () => {
     if (!newNote.content.trim()) {
       toast.error('Please enter note content');
       return;
     }
-    
-    await onAddNote(newNote);
-    setNewNote({ content: '', note_type: 'general', title: '' });
+
+    try {
+      setIsSaving(true);
+      const response = await consultationService.addNote(consultationId, newNote);
+      const addedNote = response?.data || response;
+      
+      onNotesChange(prev => [addedNote, ...prev]);
+      setNewNote({ content: '', note_type: 'general', title: '' });
+      toast.success('Note added');
+    } catch (err) {
+      logger.error('Error adding note:', err);
+      toast.error(getErrorMessage(err, 'Failed to add note'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleUpdate = async () => {
+  const handleUpdateNote = async () => {
     if (!editingNote?.content.trim()) return;
-    
-    await onUpdateNote(editingNote.id, {
-      content: editingNote.content,
-      note_type: editingNote.note_type,
-      title: editingNote.title
-    });
-    setEditingNote(null);
+
+    try {
+      setIsSaving(true);
+      await consultationService.updateNote(consultationId, editingNote.id, {
+        content: editingNote.content,
+        note_type: editingNote.note_type,
+        title: editingNote.title
+      });
+      
+      onNotesChange(prev => prev.map(n => 
+        n.id === editingNote.id ? editingNote : n
+      ));
+      setEditingNote(null);
+      toast.success('Note updated');
+    } catch (err) {
+      logger.error('Error updating note:', err);
+      toast.error(getErrorMessage(err, 'Failed to update note'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteId) => {
+    if (!window.confirm('Delete this note?')) return;
+
+    try {
+      await consultationService.deleteNote(consultationId, noteId);
+      onNotesChange(prev => prev.filter(n => n.id !== noteId));
+      toast.success('Note deleted');
+    } catch (err) {
+      logger.error('Error deleting note:', err);
+      toast.error(getErrorMessage(err, 'Failed to delete note'));
+    }
   };
 
   return (
@@ -363,9 +389,9 @@ const NotesPanel = ({ notes, onAddNote, onUpdateNote, onDeleteNote, isLoading })
         <Button
           variant="primary"
           size="sm"
-          leftIcon={isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-          onClick={handleSubmit}
-          disabled={isLoading || !newNote.content.trim()}
+          leftIcon={isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          onClick={handleAddNote}
+          disabled={isSaving || !newNote.content.trim()}
           fullWidth
         >
           Add Note
@@ -374,7 +400,11 @@ const NotesPanel = ({ notes, onAddNote, onUpdateNote, onDeleteNote, isLoading })
 
       {/* Notes List */}
       <div className="flex-1 overflow-y-auto space-y-3">
-        {notes && notes.length > 0 ? (
+        {isLoading ? (
+          <div className="text-center py-8">
+            <Loader size="md" />
+          </div>
+        ) : notes && notes.length > 0 ? (
           notes.map((note) => (
             <div 
               key={note.id}
@@ -407,10 +437,10 @@ const NotesPanel = ({ notes, onAddNote, onUpdateNote, onDeleteNote, isLoading })
                     <Button
                       variant="primary"
                       size="sm"
-                      onClick={handleUpdate}
-                      disabled={isLoading}
+                      onClick={handleUpdateNote}
+                      disabled={isSaving}
                     >
-                      Save
+                      {isSaving ? 'Saving...' : 'Save'}
                     </Button>
                     <Button
                       variant="ghost"
@@ -434,13 +464,13 @@ const NotesPanel = ({ notes, onAddNote, onUpdateNote, onDeleteNote, isLoading })
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
-                        onClick={() => setEditingNote(note)}
+                        onClick={() => setEditingNote({ ...note })}
                         className="p-1 text-gray-400 hover:text-primary-600"
                       >
                         <Edit className="w-3 h-3" />
                       </button>
                       <button
-                        onClick={() => onDeleteNote(note.id)}
+                        onClick={() => handleDeleteNote(note.id)}
                         className="p-1 text-gray-400 hover:text-red-600"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -454,7 +484,7 @@ const NotesPanel = ({ notes, onAddNote, onUpdateNote, onDeleteNote, isLoading })
                   
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-xs text-gray-400">
-                      {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
+                      {note.created_at && formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
                     </span>
                     {note.is_private && (
                       <Badge variant="warning" size="sm">Private</Badge>
@@ -481,14 +511,62 @@ const NotesPanel = ({ notes, onAddNote, onUpdateNote, onDeleteNote, isLoading })
  * Prescription Panel Component
  */
 const PrescriptionPanel = ({ 
+  consultationId,
   prescriptions, 
-  onAddMedicine, 
-  onRemoveMedicine, 
-  onSavePrescription,
+  onPrescriptionsChange,
   isLoading 
 }) => {
-  const { t } = useTranslation();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [localPrescriptions, setLocalPrescriptions] = useState([]);
+
+  // Sync with props
+  useEffect(() => {
+    setLocalPrescriptions(prescriptions || []);
+  }, [prescriptions]);
+
+  const handleAddMedicine = (medicine) => {
+    const newMed = { ...medicine, _isNew: true };
+    setLocalPrescriptions(prev => [...prev, newMed]);
+    toast.success('Medicine added to list');
+  };
+
+  const handleRemoveMedicine = (index) => {
+    setLocalPrescriptions(prev => prev.filter((_, i) => i !== index));
+    toast.success('Medicine removed');
+  };
+
+  const handleSavePrescriptions = async () => {
+    const newMedicines = localPrescriptions.filter(m => m._isNew);
+    
+    if (newMedicines.length === 0) {
+      toast.info('No new medicines to save');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      // Save each new medicine
+      for (const medicine of newMedicines) {
+        const { _isNew, ...medicineData } = medicine;
+        await consultationService.addPrescription(consultationId, medicineData);
+      }
+      
+      // Mark all as saved
+      setLocalPrescriptions(prev => prev.map(m => ({ ...m, _isNew: false })));
+      onPrescriptionsChange(localPrescriptions.map(m => ({ ...m, _isNew: false })));
+      
+      toast.success('Prescriptions saved');
+    } catch (err) {
+      logger.error('Error saving prescriptions:', err);
+      toast.error(getErrorMessage(err, 'Failed to save prescriptions'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const hasUnsavedChanges = localPrescriptions.some(m => m._isNew);
 
   return (
     <div className="h-full flex flex-col">
@@ -497,6 +575,9 @@ const PrescriptionPanel = ({
         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
           <Pill className="w-4 h-4 text-primary-600" />
           Prescription
+          {hasUnsavedChanges && (
+            <span className="text-xs text-amber-600">(unsaved)</span>
+          )}
         </h3>
         <Button
           variant="primary"
@@ -504,26 +585,37 @@ const PrescriptionPanel = ({
           leftIcon={<Plus className="w-4 h-4" />}
           onClick={() => setShowAddModal(true)}
         >
-          Add Medicine
+          Add
         </Button>
       </div>
 
       {/* Prescription List */}
       <div className="flex-1 overflow-y-auto space-y-3">
-        {prescriptions && prescriptions.length > 0 ? (
-          prescriptions.map((medicine, index) => (
+        {isLoading ? (
+          <div className="text-center py-8">
+            <Loader size="md" />
+          </div>
+        ) : localPrescriptions && localPrescriptions.length > 0 ? (
+          localPrescriptions.map((medicine, index) => (
             <div 
-              key={index}
-              className="bg-gray-50 rounded-lg p-3 relative group"
+              key={medicine.id || index}
+              className={`bg-gray-50 rounded-lg p-3 relative group ${
+                medicine._isNew ? 'ring-2 ring-primary-200' : ''
+              }`}
             >
               <button
-                onClick={() => onRemoveMedicine(index)}
+                onClick={() => handleRemoveMedicine(index)}
                 className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <X className="w-4 h-4" />
               </button>
               
-              <h4 className="font-medium text-gray-900 pr-6">{medicine.medicine_name}</h4>
+              <div className="flex items-start justify-between pr-6">
+                <h4 className="font-medium text-gray-900">{medicine.medicine_name}</h4>
+                {medicine._isNew && (
+                  <Badge variant="warning" size="sm">New</Badge>
+                )}
+              </div>
               <p className="text-sm text-gray-600 mt-1">
                 {medicine.dosage} • {medicine.frequency}
               </p>
@@ -555,14 +647,14 @@ const PrescriptionPanel = ({
       </div>
 
       {/* Save Button */}
-      {prescriptions && prescriptions.length > 0 && (
+      {hasUnsavedChanges && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           <Button
             variant="success"
             fullWidth
-            leftIcon={isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            onClick={onSavePrescription}
-            disabled={isLoading}
+            leftIcon={isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            onClick={handleSavePrescriptions}
+            disabled={isSaving}
           >
             Save Prescription
           </Button>
@@ -573,7 +665,7 @@ const PrescriptionPanel = ({
       <AddMedicineModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
-        onAdd={onAddMedicine}
+        onAdd={handleAddMedicine}
       />
     </div>
   );
@@ -583,7 +675,6 @@ const PrescriptionPanel = ({
  * Add Medicine Modal
  */
 const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
-  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -594,27 +685,25 @@ const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
     duration: '',
     timing: 'after_food',
     instructions: '',
-    quantity: '',
-    refills_allowed: 0
+    quantity: ''
   });
 
   // Search medicines with debounce
   useEffect(() => {
-    const searchMedicines = async () => {
-      if (!searchQuery || searchQuery.length < 2) {
-        setSearchResults([]);
-        return;
-      }
+    if (!searchQuery || searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
 
+    const searchMedicines = async () => {
       try {
         setIsSearching(true);
-        
-        // API expects POST with { query: "..." }
         const response = await medicineService.search({ query: searchQuery });
-        setSearchResults(response.data?.results || []);
+        const results = response?.data?.results || response?.results || [];
+        setSearchResults(results);
       } catch (error) {
-        console.error('Error searching medicines:', error);
-        toast.error('Failed to search medicines');
+        logger.error('Error searching medicines:', error);
+        setSearchResults([]);
       } finally {
         setIsSearching(false);
       }
@@ -631,36 +720,29 @@ const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
   };
 
   const handleSubmit = () => {
-    if (!selectedMedicine || !formData.dosage || !formData.duration) {
-      toast.error('Please fill all required fields');
+    if (!formData.dosage || !formData.duration) {
+      toast.error('Please fill dosage and duration');
       return;
     }
 
-    // API expects specific structure
+    const medicineName = selectedMedicine?.name || searchQuery;
+    if (!medicineName) {
+      toast.error('Please select or enter medicine name');
+      return;
+    }
+
     onAdd({
-      medicine_id: selectedMedicine.id,
-      medicine_name: selectedMedicine.name,
+      medicine_id: selectedMedicine?.id || null,
+      medicine_name: medicineName,
       dosage: formData.dosage,
       frequency: formData.frequency,
       duration: formData.duration,
       timing: formData.timing,
       instructions: formData.instructions,
-      quantity: formData.quantity ? parseInt(formData.quantity) : null,
-      refills_allowed: formData.refills_allowed
+      quantity: formData.quantity ? parseInt(formData.quantity) : null
     });
 
-    // Reset form
-    setSelectedMedicine(null);
-    setFormData({
-      dosage: '',
-      frequency: 'twice_daily',
-      duration: '',
-      timing: 'after_food',
-      instructions: '',
-      quantity: '',
-      refills_allowed: 0
-    });
-    onClose();
+    handleClose();
   };
 
   const handleClose = () => {
@@ -673,8 +755,7 @@ const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
       duration: '',
       timing: 'after_food',
       instructions: '',
-      quantity: '',
-      refills_allowed: 0
+      quantity: ''
     });
     onClose();
   };
@@ -691,14 +772,14 @@ const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
         {!selectedMedicine ? (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Search Medicine *
+              Medicine Name *
             </label>
             <div className="relative">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Type medicine name..."
+                placeholder="Search or type medicine name..."
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 autoFocus
               />
@@ -720,12 +801,9 @@ const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
                   >
                     <p className="font-medium text-gray-900">{medicine.name}</p>
                     <p className="text-sm text-gray-500">
-                      {medicine.name_generic && `${medicine.name_generic} • `}
+                      {medicine.generic_name && `${medicine.generic_name} • `}
                       {medicine.manufacturer}
                     </p>
-                    {medicine.strength && (
-                      <p className="text-xs text-gray-400">{medicine.strength}</p>
-                    )}
                   </button>
                 ))}
               </div>
@@ -735,7 +813,7 @@ const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
           <div className="bg-primary-50 rounded-lg p-3 flex items-center justify-between">
             <div>
               <p className="font-medium text-gray-900">{selectedMedicine.name}</p>
-              <p className="text-sm text-gray-600">{selectedMedicine.name_generic}</p>
+              <p className="text-sm text-gray-600">{selectedMedicine.generic_name}</p>
             </div>
             <button
               onClick={() => setSelectedMedicine(null)}
@@ -752,7 +830,6 @@ const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
           value={formData.dosage}
           onChange={(e) => setFormData({ ...formData, dosage: e.target.value })}
           placeholder="e.g., 500mg, 1 tablet, 5ml"
-          required
         />
 
         {/* Frequency */}
@@ -761,7 +838,6 @@ const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
           value={formData.frequency}
           onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
           options={PRESCRIPTION_FREQUENCIES}
-          required
         />
 
         {/* Timing */}
@@ -778,7 +854,6 @@ const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
           value={formData.duration}
           onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
           placeholder="e.g., 7 days, 2 weeks"
-          required
         />
 
         {/* Quantity */}
@@ -808,7 +883,7 @@ const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
         <Button
           variant="primary"
           onClick={handleSubmit}
-          disabled={!selectedMedicine || !formData.dosage || !formData.duration}
+          disabled={!formData.dosage || !formData.duration || (!selectedMedicine && !searchQuery)}
         >
           Add to Prescription
         </Button>
@@ -820,8 +895,7 @@ const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
 /**
  * Diagnosis Panel Component
  */
-const DiagnosisPanel = ({ diagnosis, onUpdateDiagnosis, isLoading }) => {
-  const { t } = useTranslation();
+const DiagnosisPanel = ({ diagnosis, onDiagnosisChange }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [localDiagnosis, setLocalDiagnosis] = useState(diagnosis || '');
 
@@ -830,8 +904,9 @@ const DiagnosisPanel = ({ diagnosis, onUpdateDiagnosis, isLoading }) => {
   }, [diagnosis]);
 
   const handleSave = () => {
-    onUpdateDiagnosis(localDiagnosis);
+    onDiagnosisChange(localDiagnosis);
     setIsEditing(false);
+    toast.success('Diagnosis saved');
   };
 
   return (
@@ -863,12 +938,7 @@ const DiagnosisPanel = ({ diagnosis, onUpdateDiagnosis, isLoading }) => {
             autoFocus
           />
           <div className="flex gap-2 mt-3">
-            <Button 
-              variant="primary" 
-              size="sm" 
-              onClick={handleSave}
-              disabled={isLoading}
-            >
+            <Button variant="primary" size="sm" onClick={handleSave}>
               Save
             </Button>
             <Button 
@@ -907,12 +977,11 @@ const EndConsultationModal = ({
   onClose, 
   consultation,
   diagnosis,
-  prescriptions,
-  notes,
+  prescriptionsCount,
+  notesCount,
   onConfirm, 
   isLoading 
 }) => {
-  const { t } = useTranslation();
   const [followUpRequired, setFollowUpRequired] = useState(false);
   const [followUpNotes, setFollowUpNotes] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
@@ -951,38 +1020,20 @@ const EndConsultationModal = ({
               <span className="text-gray-500">Duration:</span>
               <span className="ml-2 font-medium">{formatDuration(duration)}</span>
             </div>
+            <div>
+              <span className="text-gray-500">Notes:</span>
+              <span className="ml-2 font-medium">{notesCount} notes</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Medicines:</span>
+              <span className="ml-2 font-medium">{prescriptionsCount} prescribed</span>
+            </div>
           </div>
 
-          {/* Diagnosis Preview */}
           {diagnosis && (
             <div>
               <span className="text-gray-500 text-sm">Diagnosis:</span>
               <p className="mt-1 text-gray-700 line-clamp-2">{diagnosis}</p>
-            </div>
-          )}
-
-          {/* Prescriptions Preview */}
-          {prescriptions && prescriptions.length > 0 && (
-            <div>
-              <span className="text-gray-500 text-sm">Prescribed Medicines:</span>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {prescriptions.slice(0, 5).map((med, index) => (
-                  <Badge key={index} variant="primary">
-                    {med.medicine_name}
-                  </Badge>
-                ))}
-                {prescriptions.length > 5 && (
-                  <Badge variant="secondary">+{prescriptions.length - 5} more</Badge>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Notes Count */}
-          {notes && notes.length > 0 && (
-            <div>
-              <span className="text-gray-500 text-sm">Notes:</span>
-              <span className="ml-2">{notes.length} consultation notes</span>
             </div>
           )}
         </div>
@@ -1033,9 +1084,9 @@ const EndConsultationModal = ({
         <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-xl border border-amber-100">
           <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-medium text-amber-800">Are you sure you want to end this consultation?</p>
+            <p className="font-medium text-amber-800">End this consultation?</p>
             <p className="text-sm text-amber-700 mt-1">
-              This action cannot be undone. Make sure all notes and prescriptions are saved.
+              Make sure all notes and prescriptions are saved before ending.
             </p>
           </div>
         </div>
@@ -1066,21 +1117,20 @@ const DoctorConsultationRoom = () => {
   const { t } = useTranslation();
   const { consultationId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { speak } = useVoice();
 
   // Refs
   const jitsiApiRef = useRef(null);
+  const containerRef = useRef(null);
+  const hasStartedRef = useRef(false);
 
   // State
-  const [isLoading, setIsLoading] = useState(true);
-  const [isActionLoading, setIsActionLoading] = useState(false);
-  const [consultation, setConsultation] = useState(null);
-  const [patientHealth, setPatientHealth] = useState(null);
+  const [consultationState, setConsultationState] = useState(CONSULTATION_STATES.LOADING);
   const [notes, setNotes] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
   const [diagnosis, setDiagnosis] = useState('');
-  const [error, setError] = useState(null);
+  const [patientHealth, setPatientHealth] = useState(null);
 
   // Video controls
   const [isMuted, setIsMuted] = useState(false);
@@ -1094,331 +1144,348 @@ const DoctorConsultationRoom = () => {
   // Modals
   const [showEndModal, setShowEndModal] = useState(false);
 
-  // Tabs for side panel
+  // Side panel tabs
   const sidePanelTabs = [
     { id: 'patient', label: 'Patient', icon: User },
     { id: 'notes', label: 'Notes', icon: ClipboardList },
-    { id: 'prescription', label: 'Prescription', icon: Pill },
+    { id: 'prescription', label: 'Rx', icon: Pill },
     { id: 'diagnosis', label: 'Diagnosis', icon: Stethoscope }
   ];
 
   // ============================================================================
-  // FETCH DATA
+  // QUERIES
   // ============================================================================
 
-  const fetchConsultationData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
+  /**
+   * Fetch consultation details
+   */
+  const {
+    data: consultationResponse,
+    isLoading: consultationLoading,
+    isError: consultationError,
+    error: consultationErrorData,
+    refetch: refetchConsultation
+  } = useQuery({
+    queryKey: ['consultation', consultationId],
+    queryFn: async () => {
+      const response = await consultationService.getById(consultationId);
+      return response?.data || response;
+    },
+    enabled: !!consultationId,
+    staleTime: 1000 * 60,
+  });
 
-      // Fetch consultation details
-      const consultationRes = await consultationService.getById(consultationId);
-      const consultationData = consultationRes.data;
-      setConsultation(consultationData);
+  const consultation = consultationResponse?.data || consultationResponse;
 
-      // Set initial diagnosis
-      setDiagnosis(consultationData.diagnosis || '');
-
-      // Fetch notes
-      try {
-        const notesRes = await consultationService.getNotes(consultationId);
-        setNotes(notesRes.data?.results || notesRes.data || []);
-      } catch (err) {
-        console.log('Could not fetch notes:', err);
-        setNotes([]);
-      }
-
-      // Fetch prescriptions
-      try {
-        const prescriptionsRes = await consultationService.getPrescriptions(consultationId);
-        // API returns { count, results: [{ id, medicine_name, dosage, ... }] }
-        const prescriptionData = prescriptionsRes.data?.results || prescriptionsRes.data || [];
-        setPrescriptions(prescriptionData);
-      } catch (err) {
-        console.log('Could not fetch prescriptions:', err);
-        setPrescriptions([]);
-      }
-
-      // Fetch patient health info (vitals, allergies, conditions)
-      if (consultationData.patient) {
-        try {
-          const [vitalsRes, allergiesRes, conditionsRes] = await Promise.allSettled([
-            healthRecordsService.getLatestVitals(),
-            healthRecordsService.getActiveAllergies(),
-            healthRecordsService.getActiveConditions()
-          ]);
-
-          setPatientHealth({
-            vitals: vitalsRes.status === 'fulfilled' ? vitalsRes.value.data : null,
-            allergies: allergiesRes.status === 'fulfilled' ? allergiesRes.value.data?.results || [] : [],
-            conditions: conditionsRes.status === 'fulfilled' ? conditionsRes.value.data?.results || [] : []
-          });
-        } catch (err) {
-          console.log('Could not fetch patient health info:', err);
-        }
-      }
-
-      // Start consultation if not started
-      if (['scheduled', 'waiting_room'].includes(consultationData.status)) {
-        try {
-          await consultationService.start(consultationId);
-          // Refetch to get updated status
-          const updatedRes = await consultationService.getById(consultationId);
-          setConsultation(updatedRes.data);
-        } catch (err) {
-          console.error('Error starting consultation:', err);
-        }
-      }
-
-    } catch (err) {
-      console.error('Error fetching consultation:', err);
-      setError(getErrorMessage(err, 'Failed to load consultation'));
-    } finally {
-      setIsLoading(false);
+  /**
+   * Fetch notes
+   */
+  const { data: notesResponse, isLoading: notesLoading } = useQuery({
+    queryKey: ['consultationNotes', consultationId],
+    queryFn: async () => {
+      const response = await consultationService.getNotes(consultationId);
+      return response?.data || response;
+    },
+    enabled: !!consultationId && !!consultation,
+    onSuccess: (data) => {
+      setNotes(data?.results || data || []);
     }
-  }, [consultationId]);
+  });
 
-  // Initial load
-  useEffect(() => {
-    fetchConsultationData();
-  }, [fetchConsultationData]);
-
-  // Voice announcement on load
-  useEffect(() => {
-    if (consultation && !isLoading && consultation.patient_info?.full_name) {
-      speak(`Consultation started with ${consultation.patient_info.full_name}`);
+  /**
+   * Fetch prescriptions
+   */
+  const { data: prescriptionsResponse, isLoading: prescriptionsLoading } = useQuery({
+    queryKey: ['consultationPrescriptions', consultationId],
+    queryFn: async () => {
+      const response = await consultationService.getPrescriptions(consultationId);
+      return response?.data || response;
+    },
+    enabled: !!consultationId && !!consultation,
+    onSuccess: (data) => {
+      setPrescriptions(data?.results || data || []);
     }
-  }, [consultation, isLoading, speak]);
+  });
 
   // ============================================================================
-  // JITSI HANDLERS
+  // MUTATIONS
+  // ============================================================================
+
+  /**
+   * Start consultation
+   */
+  const startConsultationMutation = useMutation({
+    mutationFn: async () => {
+      logger.log('Starting consultation:', consultationId);
+      const response = await consultationService.start(consultationId);
+      return response?.data || response;
+    },
+    onSuccess: (data) => {
+      logger.log('Consultation started:', data);
+      setConsultationState(CONSULTATION_STATES.IN_CALL);
+      refetchConsultation();
+      toast.success('Consultation started');
+    },
+    onError: (error) => {
+      logger.error('Failed to start consultation:', error);
+      toast.error(getErrorMessage(error, 'Failed to start consultation'));
+      setConsultationState(CONSULTATION_STATES.ERROR);
+    }
+  });
+
+  /**
+   * End consultation
+   */
+  const endConsultationMutation = useMutation({
+    mutationFn: async (data) => {
+      logger.log('Ending consultation:', consultationId, data);
+      const response = await consultationService.end(consultationId, data);
+      return response?.data || response;
+    },
+    onSuccess: () => {
+      logger.log('Consultation ended');
+      setConsultationState(CONSULTATION_STATES.ENDED);
+      toast.success('Consultation ended');
+      
+      // Navigate after short delay
+      setTimeout(() => {
+        navigate('/doctor/queue');
+      }, 1500);
+    },
+    onError: (error) => {
+      logger.error('Failed to end consultation:', error);
+      toast.error(getErrorMessage(error, 'Failed to end consultation'));
+    }
+  });
+
+  // ============================================================================
+  // EFFECTS
+  // ============================================================================
+
+  /**
+   * Initialize consultation
+   */
+  useEffect(() => {
+    if (consultationLoading || !consultation || hasStartedRef.current) {
+      return;
+    }
+
+    // Set initial diagnosis
+    setDiagnosis(consultation.diagnosis || '');
+
+    // Check status and start if needed
+    const status = consultation.status;
+    
+    if (status === 'in_progress') {
+      // Already in progress
+      setConsultationState(CONSULTATION_STATES.IN_CALL);
+    } else if (['scheduled', 'waiting_room'].includes(status)) {
+      // Need to start
+      hasStartedRef.current = true;
+      setConsultationState(CONSULTATION_STATES.STARTING);
+      startConsultationMutation.mutate();
+    } else if (['completed', 'cancelled'].includes(status)) {
+      // Already ended
+      setConsultationState(CONSULTATION_STATES.ENDED);
+    } else {
+      setConsultationState(CONSULTATION_STATES.ERROR);
+    }
+  }, [consultation, consultationLoading]);
+
+  /**
+   * Fetch patient health data
+   */
+  useEffect(() => {
+    if (!consultation?.patient) return;
+
+    const fetchPatientHealth = async () => {
+      try {
+        const [vitalsRes, allergiesRes, conditionsRes] = await Promise.allSettled([
+          healthRecordsService.getLatestVitals(),
+          healthRecordsService.getActiveAllergies?.() || healthRecordsService.getAllergies?.(),
+          healthRecordsService.getActiveConditions?.() || healthRecordsService.getConditions?.()
+        ]);
+
+        setPatientHealth({
+          vitals: vitalsRes.status === 'fulfilled' ? (vitalsRes.value?.data || vitalsRes.value) : null,
+          allergies: allergiesRes.status === 'fulfilled' ? (allergiesRes.value?.data?.results || allergiesRes.value?.results || []) : [],
+          conditions: conditionsRes.status === 'fulfilled' ? (conditionsRes.value?.data?.results || conditionsRes.value?.results || []) : []
+        });
+      } catch (err) {
+        logger.error('Error fetching patient health:', err);
+      }
+    };
+
+    fetchPatientHealth();
+  }, [consultation?.patient]);
+
+  /**
+   * Set notes from query
+   */
+  useEffect(() => {
+    if (notesResponse) {
+      setNotes(notesResponse?.results || notesResponse || []);
+    }
+  }, [notesResponse]);
+
+  /**
+   * Set prescriptions from query
+   */
+  useEffect(() => {
+    if (prescriptionsResponse) {
+      setPrescriptions(prescriptionsResponse?.results || prescriptionsResponse || []);
+    }
+  }, [prescriptionsResponse]);
+
+  /**
+   * Cleanup on unmount
+   */
+  useEffect(() => {
+    return () => {
+      if (jitsiApiRef.current) {
+        try {
+          jitsiApiRef.current.dispose();
+        } catch (e) {
+          logger.error('Jitsi cleanup error:', e);
+        }
+        jitsiApiRef.current = null;
+      }
+    };
+  }, []);
+
+  /**
+   * Handle fullscreen change
+   */
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // ============================================================================
+  // HANDLERS
   // ============================================================================
 
   const handleJitsiApiReady = useCallback((api) => {
     jitsiApiRef.current = api;
-    console.log('Jitsi API ready');
+    logger.log('Jitsi API ready');
   }, []);
 
-  const handleVideoConferenceJoined = useCallback((data) => {
-    console.log('Video conference joined:', data);
-    toast.success('Joined consultation');
+  const handleVideoConferenceJoined = useCallback(() => {
+    logger.log('Video conference joined');
+    toast.success('Connected to consultation');
   }, []);
 
-  const handleVideoConferenceLeft = useCallback((data) => {
-    console.log('Video conference left:', data);
+  const handleVideoConferenceLeft = useCallback(() => {
+    logger.log('Video conference left');
   }, []);
 
   const handleParticipantJoined = useCallback((data) => {
-    console.log('Participant joined:', data);
-    speak('Patient joined the consultation');
-    toast.success('Patient joined');
-  }, [speak]);
+    logger.log('Participant joined:', data);
+    toast.success(`${data?.displayName || 'Patient'} joined`);
+  }, []);
 
   const handleParticipantLeft = useCallback((data) => {
-    console.log('Participant left:', data);
-    speak('Patient left the consultation');
-    toast.info('Patient left');
-  }, [speak]);
-
-  // ============================================================================
-  // CONTROL HANDLERS
-  // ============================================================================
+    logger.log('Participant left:', data);
+    toast.info(`${data?.displayName || 'Patient'} left`);
+  }, []);
 
   const handleToggleMute = useCallback(() => {
     if (jitsiApiRef.current) {
       jitsiApiRef.current.executeCommand('toggleAudio');
-      setIsMuted(!isMuted);
     }
-  }, [isMuted]);
+  }, []);
 
   const handleToggleVideo = useCallback(() => {
     if (jitsiApiRef.current) {
       jitsiApiRef.current.executeCommand('toggleVideo');
-      setIsVideoOff(!isVideoOff);
-    }
-  }, [isVideoOff]);
-
-  const handleToggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
     }
   }, []);
 
-  // ============================================================================
-  // NOTES HANDLERS
-  // ============================================================================
-
-  const handleAddNote = useCallback(async (noteData) => {
+  const handleToggleFullscreen = useCallback(async () => {
     try {
-      setIsActionLoading(true);
-      
-      // API expects: { note_type, title?, content, is_private? }
-      const response = await consultationService.addNote(consultationId, noteData);
-      
-      setNotes(prev => [response.data, ...prev]);
-      toast.success('Note added');
-      
-      return response.data;
-    } catch (err) {
-      console.error('Error adding note:', err);
-      toast.error(getErrorMessage(err, 'Failed to add note'));
-    } finally {
-      setIsActionLoading(false);
-    }
-  }, [consultationId]);
-
-  const handleUpdateNote = useCallback(async (noteId, noteData) => {
-    try {
-      setIsActionLoading(true);
-      
-      // Update locally (API endpoint may not exist)
-      setNotes(prev => prev.map(n => 
-        n.id === noteId ? { ...n, ...noteData } : n
-      ));
-      
-      toast.success('Note updated');
-    } catch (err) {
-      console.error('Error updating note:', err);
-      toast.error('Failed to update note');
-    } finally {
-      setIsActionLoading(false);
-    }
-  }, []);
-
-  const handleDeleteNote = useCallback(async (noteId) => {
-    if (!window.confirm('Delete this note?')) return;
-    
-    try {
-      // Delete locally (API endpoint may not exist)
-      setNotes(prev => prev.filter(n => n.id !== noteId));
-      toast.success('Note deleted');
-    } catch (err) {
-      console.error('Error deleting note:', err);
-      toast.error('Failed to delete note');
-    }
-  }, []);
-
-  // ============================================================================
-  // PRESCRIPTION HANDLERS
-  // ============================================================================
-
-  const handleAddMedicine = useCallback((medicine) => {
-    setPrescriptions(prev => [...prev, medicine]);
-    toast.success('Medicine added');
-  }, []);
-
-  const handleRemoveMedicine = useCallback((index) => {
-    setPrescriptions(prev => prev.filter((_, i) => i !== index));
-    toast.success('Medicine removed');
-  }, []);
-
-  const handleSavePrescription = useCallback(async () => {
-    if (prescriptions.length === 0) {
-      toast.error('Add at least one medicine');
-      return;
-    }
-
-    try {
-      setIsActionLoading(true);
-      
-      // API expects: { medicines: [{ medicine_id?, medicine_name, dosage, frequency, ... }] }
-      // Or individual calls to addPrescription for each medicine
-      
-      for (const medicine of prescriptions) {
-        await consultationService.addPrescription(consultationId, medicine);
+      if (!document.fullscreenElement) {
+        await containerRef.current?.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
       }
-      
-      speak('Prescription saved successfully');
-      toast.success('Prescription saved');
     } catch (err) {
-      console.error('Error saving prescription:', err);
-      toast.error(getErrorMessage(err, 'Failed to save prescription'));
-    } finally {
-      setIsActionLoading(false);
+      logger.error('Fullscreen error:', err);
     }
-  }, [consultationId, prescriptions, speak]);
-
-  // ============================================================================
-  // DIAGNOSIS HANDLER
-  // ============================================================================
-
-  const handleUpdateDiagnosis = useCallback(async (newDiagnosis) => {
-    setDiagnosis(newDiagnosis);
-    toast.success('Diagnosis updated');
-    
-    // Auto-save (will be sent when ending consultation)
   }, []);
 
-  // ============================================================================
-  // END CONSULTATION
-  // ============================================================================
-
-  const handleEndConsultation = useCallback(async (data) => {
-    try {
-      setIsActionLoading(true);
-      
-      // API expects: { diagnosis, follow_up_required, follow_up_notes, follow_up_date }
-      await consultationService.end(consultationId, data);
-
-      speak('Consultation ended successfully');
-      toast.success('Consultation ended');
-      
-      // Navigate back to queue/appointments
-      setTimeout(() => {
-        navigate('/doctor/queue');
-      }, 1000);
-    } catch (err) {
-      console.error('Error ending consultation:', err);
-      toast.error(getErrorMessage(err, 'Failed to end consultation'));
-    } finally {
-      setIsActionLoading(false);
-      setShowEndModal(false);
-    }
-  }, [consultationId, navigate, speak]);
-
-  // ============================================================================
-  // OTHER HANDLERS
-  // ============================================================================
+  const handleEndConsultation = useCallback((data) => {
+    setShowEndModal(false);
+    endConsultationMutation.mutate(data);
+  }, []);
 
   const handleViewFullRecords = useCallback(() => {
-    if (consultation?.patient) {
-      window.open(`/doctor/patients/${consultation.patient}`, '_blank');
+    const patientId = consultation?.patient?.id || consultation?.patient;
+    if (patientId) {
+      window.open(`/doctor/patients/${patientId}`, '_blank');
     }
   }, [consultation]);
 
+  const handleRetry = useCallback(() => {
+    hasStartedRef.current = false;
+    setConsultationState(CONSULTATION_STATES.LOADING);
+    refetchConsultation();
+  }, [refetchConsultation]);
+
   // ============================================================================
-  // RENDER
+  // DERIVED VALUES
   // ============================================================================
 
-  // Loading state
+  const roomName = consultation?.room?.room_name || '';
+  const jitsiDomain = consultation?.room?.jitsi_domain || 'meet.jit.si';
+  const doctorName = `Dr. ${user?.first_name || ''} ${user?.last_name || ''}`.trim();
+  const isLoading = consultationState === CONSULTATION_STATES.LOADING || 
+                    consultationState === CONSULTATION_STATES.STARTING ||
+                    consultationLoading;
+
+  // ============================================================================
+  // RENDER: Loading State
+  // ============================================================================
+
   if (isLoading) {
     return (
       <div className="fixed inset-0 bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <Loader size="lg" className="text-white mx-auto" />
-          <p className="text-white mt-4">Loading consultation...</p>
+          <p className="text-white mt-4">
+            {consultationState === CONSULTATION_STATES.STARTING 
+              ? 'Starting consultation...' 
+              : 'Loading consultation...'}
+          </p>
         </div>
       </div>
     );
   }
 
-  // Error state
-  if (error && !consultation) {
+  // ============================================================================
+  // RENDER: Error State
+  // ============================================================================
+
+  if (consultationError || consultationState === CONSULTATION_STATES.ERROR) {
     return (
       <div className="fixed inset-0 bg-gray-900 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
+        <Card className="max-w-md w-full p-6">
           <EmptyState
             icon={AlertCircle}
-            title="Consultation Not Found"
-            description={error}
+            title="Consultation Error"
+            description={getErrorMessage(consultationErrorData, 'Failed to load consultation')}
             action={
-              <Button variant="primary" onClick={() => navigate('/doctor/queue')}>
-                Go Back
-              </Button>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => navigate('/doctor/queue')}>
+                  Go Back
+                </Button>
+                <Button variant="primary" onClick={handleRetry} leftIcon={<RefreshCw className="w-4 h-4" />}>
+                  Retry
+                </Button>
+              </div>
             }
           />
         </Card>
@@ -1426,12 +1493,40 @@ const DoctorConsultationRoom = () => {
     );
   }
 
-  // Get join info
-  const roomUrl = consultation?.room?.full_room_url || '';
-  const roomName = consultation?.room?.room_name || '';
+  // ============================================================================
+  // RENDER: Ended State
+  // ============================================================================
+
+  if (consultationState === CONSULTATION_STATES.ENDED) {
+    return (
+      <div className="fixed inset-0 bg-gray-900 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full p-6 text-center">
+          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+            <PhoneOff size={32} className="text-green-600" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            Consultation Ended
+          </h2>
+          <p className="text-gray-500 mb-6">
+            The consultation has been completed successfully.
+          </p>
+          <Button
+            fullWidth
+            onClick={() => navigate('/doctor/queue')}
+          >
+            Back to Queue
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // RENDER: In-Call State
+  // ============================================================================
 
   return (
-    <div className="fixed inset-0 bg-gray-900 flex">
+    <div ref={containerRef} className="fixed inset-0 bg-gray-900 flex">
       {/* Main Video Area */}
       <div className={`flex-1 flex flex-col transition-all duration-300 ${
         isSidePanelOpen ? 'mr-80 lg:mr-96' : ''
@@ -1443,10 +1538,10 @@ const DoctorConsultationRoom = () => {
               variant="ghost"
               size="sm"
               leftIcon={<ChevronLeft className="w-4 h-4" />}
-              onClick={() => navigate('/doctor/queue')}
+              onClick={() => setShowEndModal(true)}
               className="text-white hover:bg-gray-700"
             >
-              Back
+              Exit
             </Button>
             
             <div className="h-6 w-px bg-gray-600" />
@@ -1492,10 +1587,10 @@ const DoctorConsultationRoom = () => {
           {roomName ? (
             <JitsiMeet
               roomName={roomName}
-              userName={`Dr. ${user?.first_name} ${user?.last_name}`}
+              userName={doctorName}
               userEmail={user?.email}
               isDoctor={true}
-              domain={consultation?.room?.jitsi_domain || 'meet.jit.si'}
+              domain={jitsiDomain}
               onApiReady={handleJitsiApiReady}
               onVideoConferenceJoined={handleVideoConferenceJoined}
               onVideoConferenceLeft={handleVideoConferenceLeft}
@@ -1508,20 +1603,9 @@ const DoctorConsultationRoom = () => {
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-white">
-                <Video className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p>Initializing video call...</p>
+                <Loader size="lg" className="mx-auto mb-4" />
+                <p>Connecting to video...</p>
               </div>
-            </div>
-          )}
-
-          {/* Error overlay */}
-          {error && (
-            <div className="absolute bottom-4 left-4 right-4 bg-red-500/90 text-white px-4 py-3 rounded-lg flex items-center gap-3 z-10">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <p className="flex-1">{error}</p>
-              <button onClick={() => setError(null)}>
-                <X className="w-4 h-4" />
-              </button>
             </div>
           )}
         </div>
@@ -1529,41 +1613,26 @@ const DoctorConsultationRoom = () => {
         {/* Bottom Controls */}
         <div className="bg-gray-800/90 backdrop-blur-sm px-4 py-4">
           <div className="flex items-center justify-center gap-4">
-            {/* Mute Button */}
             <button
               onClick={handleToggleMute}
               className={`p-4 rounded-full transition-colors ${
-                isMuted 
-                  ? 'bg-red-500 hover:bg-red-600' 
-                  : 'bg-gray-600 hover:bg-gray-500'
+                isMuted ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-600 hover:bg-gray-500'
               }`}
               title={isMuted ? 'Unmute' : 'Mute'}
             >
-              {isMuted ? (
-                <MicOff className="w-6 h-6 text-white" />
-              ) : (
-                <Mic className="w-6 h-6 text-white" />
-              )}
+              {isMuted ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />}
             </button>
 
-            {/* Video Button */}
             <button
               onClick={handleToggleVideo}
               className={`p-4 rounded-full transition-colors ${
-                isVideoOff 
-                  ? 'bg-red-500 hover:bg-red-600' 
-                  : 'bg-gray-600 hover:bg-gray-500'
+                isVideoOff ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-600 hover:bg-gray-500'
               }`}
               title={isVideoOff ? 'Turn on camera' : 'Turn off camera'}
             >
-              {isVideoOff ? (
-                <VideoOff className="w-6 h-6 text-white" />
-              ) : (
-                <Video className="w-6 h-6 text-white" />
-              )}
+              {isVideoOff ? <VideoOff className="w-6 h-6 text-white" /> : <Video className="w-6 h-6 text-white" />}
             </button>
 
-            {/* End Call Button */}
             <button
               onClick={() => setShowEndModal(true)}
               className="p-4 rounded-full bg-red-500 hover:bg-red-600 transition-colors"
@@ -1572,17 +1641,12 @@ const DoctorConsultationRoom = () => {
               <PhoneOff className="w-6 h-6 text-white" />
             </button>
 
-            {/* Fullscreen Button */}
             <button
               onClick={handleToggleFullscreen}
               className="p-4 rounded-full bg-gray-600 hover:bg-gray-500 transition-colors"
               title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
             >
-              {isFullscreen ? (
-                <Minimize className="w-6 h-6 text-white" />
-              ) : (
-                <Maximize className="w-6 h-6 text-white" />
-              )}
+              {isFullscreen ? <Minimize className="w-6 h-6 text-white" /> : <Maximize className="w-6 h-6 text-white" />}
             </button>
           </div>
         </div>
@@ -1592,7 +1656,7 @@ const DoctorConsultationRoom = () => {
       <div className={`fixed right-0 top-0 bottom-0 w-80 lg:w-96 bg-white shadow-xl flex flex-col transition-transform duration-300 z-20 ${
         isSidePanelOpen ? 'translate-x-0' : 'translate-x-full'
       }`}>
-        {/* Panel Header / Tabs */}
+        {/* Panel Tabs */}
         <div className="border-b border-gray-200">
           <div className="flex">
             {sidePanelTabs.map((tab) => (
@@ -1606,7 +1670,7 @@ const DoctorConsultationRoom = () => {
                 }`}
               >
                 <tab.icon className="w-4 h-4 mx-auto mb-1" />
-                <span className="hidden lg:block">{tab.label}</span>
+                <span className="hidden lg:block text-xs">{tab.label}</span>
               </button>
             ))}
           </div>
@@ -1626,29 +1690,26 @@ const DoctorConsultationRoom = () => {
 
           {sidePanelTab === 'notes' && (
             <NotesPanel
+              consultationId={consultationId}
               notes={notes}
-              onAddNote={handleAddNote}
-              onUpdateNote={handleUpdateNote}
-              onDeleteNote={handleDeleteNote}
-              isLoading={isActionLoading}
+              onNotesChange={setNotes}
+              isLoading={notesLoading}
             />
           )}
 
           {sidePanelTab === 'prescription' && (
             <PrescriptionPanel
+              consultationId={consultationId}
               prescriptions={prescriptions}
-              onAddMedicine={handleAddMedicine}
-              onRemoveMedicine={handleRemoveMedicine}
-              onSavePrescription={handleSavePrescription}
-              isLoading={isActionLoading}
+              onPrescriptionsChange={setPrescriptions}
+              isLoading={prescriptionsLoading}
             />
           )}
 
           {sidePanelTab === 'diagnosis' && (
             <DiagnosisPanel
               diagnosis={diagnosis}
-              onUpdateDiagnosis={handleUpdateDiagnosis}
-              isLoading={isActionLoading}
+              onDiagnosisChange={setDiagnosis}
             />
           )}
         </div>
@@ -1672,10 +1733,10 @@ const DoctorConsultationRoom = () => {
         onClose={() => setShowEndModal(false)}
         consultation={consultation}
         diagnosis={diagnosis}
-        prescriptions={prescriptions}
-        notes={notes}
+        prescriptionsCount={prescriptions.length}
+        notesCount={notes.length}
         onConfirm={handleEndConsultation}
-        isLoading={isActionLoading}
+        isLoading={endConsultationMutation.isPending}
       />
     </div>
   );

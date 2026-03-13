@@ -69,7 +69,7 @@ const Sidebar = ({
       section: 'patients',
       title: t('nav.patients'),
       items: [
-        { id: 'patients', label: t('queue.waitingList'), icon: UserCheck, path: '/doctor/patients', gradient: 'from-green-500 to-emerald-500' },
+        { id: 'patients', label: t('doctor.patientRecords', 'Patient Records'), icon: UserCheck, path: '/doctor/patients', gradient: 'from-green-500 to-emerald-500' },
         { id: 'consultations', label: t('nav.consultations'), icon: Video, path: '/doctor/consultations', gradient: 'from-rose-500 to-pink-500' },
         { id: 'prescriptions', label: t('nav.prescriptions'), icon: FileEdit, path: '/doctor/prescriptions', gradient: 'from-teal-500 to-cyan-500' },
       ]

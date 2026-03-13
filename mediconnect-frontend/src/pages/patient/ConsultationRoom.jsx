@@ -2,18 +2,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Phone,
-  Video,
   AlertCircle,
-  Clock,
   FileText,
-  MessageCircle,
   WifiOff,
-  RefreshCw,
-  X
+  RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -24,34 +20,59 @@ import {
   ChatPanel
 } from '../../components/consultation';
 import { Card, Button, Loader, EmptyState, Modal, Avatar } from '../../components/common';
-import { consultationService } from '../../services/api';
-import { appointmentService } from '../../services/api';
+import { consultationService, appointmentService } from '../../services/api';
 import { useAuth } from '../../hooks';
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
 
 const isDev = import.meta.env.DEV;
 
-/**
- * Consultation states
- */
 const CONSULTATION_STATES = {
   LOADING: 'loading',
+  NO_CONSULTATION: 'no_consultation', // Appointment exists but no consultation yet
   WAITING_ROOM: 'waiting_room',
   IN_CALL: 'in_call',
   ENDED: 'ended',
   ERROR: 'error'
 };
 
-/**
- * Patient Consultation Room Page
- * Fully dynamic — TanStack Query, mutations, offline detection, cleanup
- */
+// Valid appointment statuses that can have consultations
+const VALID_APPOINTMENT_STATUSES = ['confirmed', 'checked_in', 'in_progress'];
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+const logger = {
+  log: (...args) => isDev && console.log('[ConsultationRoom]', ...args),
+  error: (...args) => isDev && console.error('[ConsultationRoom]', ...args),
+};
+
+const getErrorMessage = (error, fallback = 'An error occurred') => {
+  return (
+    error?.response?.data?.message ||
+    error?.response?.data?.detail ||
+    error?.response?.data?.error?.message ||
+    error?.message ||
+    fallback
+  );
+};
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 const ConsultationRoom = () => {
-  const { id } = useParams();
+  const { consultationId: routeConsultationId, id } = useParams();
+  const appointmentId = routeConsultationId || id; // route uses :consultationId, value is appointment ID
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  // ── Online status ──
+  // ── Online Status ──
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
@@ -67,6 +88,8 @@ const ConsultationRoom = () => {
 
   // ── State ──
   const [consultationState, setConsultationState] = useState(CONSULTATION_STATES.LOADING);
+  const [consultationId, setConsultationId] = useState(null);
+  const [roomInfo, setRoomInfo] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -75,140 +98,268 @@ const ConsultationRoom = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [showEndCallModal, setShowEndCallModal] = useState(false);
-  const [roomInfo, setRoomInfo] = useState(null);
+  const [joinInfoRetryCount, setJoinInfoRetryCount] = useState(0);
 
   // ── Refs ──
   const jitsiApiRef = useRef(null);
   const containerRef = useRef(null);
-  const hasJoinedRef = useRef(false); // Prevent duplicate join calls
+  const hasInitializedRef = useRef(false);
 
-  // ── Fetch appointment details ──
+  // ============================================================================
+  // QUERIES
+  // ============================================================================
+
+  /**
+   * Fetch appointment details
+   */
   const {
-    data: appointmentData,
+    data: appointmentResponse,
     isLoading: appointmentLoading,
     isError: appointmentError,
+    error: appointmentErrorData,
     refetch: refetchAppointment
   } = useQuery({
-    queryKey: ['appointment', id],
-    queryFn: () => appointmentService.getById(id),
+    queryKey: ['appointment', appointmentId],
+    queryFn: async () => {
+      const response = await appointmentService.getAppointmentById(appointmentId);
+      return response?.data || response;
+    },
+    enabled: isOnline && !!appointmentId,
     staleTime: 1000 * 60 * 2,
-    enabled: isOnline
+    retry: 2,
   });
 
-  const appointment = appointmentData?.data || appointmentData;
-  const doctor = appointment?.doctor;
+  const appointment = appointmentResponse?.data || appointmentResponse;
+  const doctor = appointment?.doctor_info || appointment?.doctor;
 
-  // ── Fetch consultation room info ──
-  const {
-    data: consultationData,
-    isLoading: consultationLoading
-  } = useQuery({
-    queryKey: ['consultationRoom', id],
-    queryFn: () => consultationService.getJoinInfo(id),
-    enabled: isOnline && !!appointment && ['confirmed', 'waiting', 'in_progress'].includes(appointment?.status),
-    staleTime: 1000 * 60,
+  // ============================================================================
+  // MUTATIONS
+  // ============================================================================
+
+  /**
+   * Create consultation from appointment
+   */
+  const createConsultationMutation = useMutation({
+    mutationFn: async () => {
+      logger.log('Creating consultation from appointment:', appointmentId);
+      const response = await consultationService.createFromAppointment(appointmentId, 'video');
+      return response?.data || response;
+    },
+    onSuccess: (data) => {
+      logger.log('Consultation created:', data);
+      const consult = data?.data || data;
+      setConsultationId(consult?.id);
+      setRoomInfo(consult?.room_info || consult?.room);
+      
+      // Now join waiting room
+      joinWaitingRoomMutation.mutate(consult?.id);
+    },
+    onError: (error) => {
+      logger.error('Failed to create consultation:', error);
+      
+      // Check if consultation already exists
+      if (error?.response?.status === 400 && 
+          error?.response?.data?.message?.includes('already has a consultation')) {
+        // Try to get existing consultation
+        fetchExistingConsultation();
+      } else {
+        toast.error(getErrorMessage(error, t('consultation.createError', 'Failed to start consultation')));
+        setConsultationState(CONSULTATION_STATES.ERROR);
+      }
+    }
   });
 
-  // ── Join waiting room mutation ──
+  /**
+   * Join waiting room
+   */
   const joinWaitingRoomMutation = useMutation({
-    mutationFn: () => consultationService.joinWaitingRoom(id),
-    onSuccess: (response) => {
-      const data = response?.data || response;
-      setRoomInfo(data);
+    mutationFn: async (consultId) => {
+      const targetId = consultId || consultationId;
+      logger.log('Joining waiting room for consultation:', targetId);
+      const response = await consultationService.joinWaitingRoom(targetId);
+      return response?.data || response;
+    },
+    onSuccess: (data) => {
+      logger.log('Joined waiting room:', data);
+      const joinData = data?.data || data;
+      setRoomInfo(prev => ({ ...prev, ...joinData }));
       setConsultationState(CONSULTATION_STATES.WAITING_ROOM);
     },
     onError: (error) => {
-      toast.error(error.response?.data?.message || t('consultation.joinError', 'Failed to join waiting room'));
+      logger.error('Failed to join waiting room:', error);
+      toast.error(getErrorMessage(error, t('consultation.joinError', 'Failed to join waiting room')));
       setConsultationState(CONSULTATION_STATES.ERROR);
     }
   });
 
-  // ── Check-in mutation ──
-  const checkInMutation = useMutation({
-    mutationFn: () => appointmentService.checkIn(id),
-    onSuccess: () => {
-      refetchAppointment();
+  /**
+   * Get join info for call
+   */
+  const getJoinInfoMutation = useMutation({
+    mutationFn: async (consultId) => {
+      const targetId = consultId || consultationId;
+      logger.log('Getting join info for consultation:', targetId);
+      const response = await consultationService.getJoinInfo(targetId);
+      return response?.data || response;
+    },
+    onSuccess: (data) => {
+      logger.log('Got join info:', data);
+      const joinData = data?.data || data;
+      setRoomInfo(prev => ({ ...prev, ...joinData }));
     },
     onError: (error) => {
-      if (isDev) console.error('Check-in failed:', error);
+      logger.error('Failed to get join info:', error);
     }
   });
 
-  // ── End/leave consultation mutation ──
-  const endConsultationMutation = useMutation({
-    mutationFn: () => consultationService.leave(id),
-    onSuccess: () => {
-      setConsultationState(CONSULTATION_STATES.ENDED);
-    },
-    onError: () => {
-      // Still transition to ended state even if API fails
-      setConsultationState(CONSULTATION_STATES.ENDED);
-    }
-  });
+  // ============================================================================
+  // HELPER FUNCTIONS
+  // ============================================================================
 
-  // ── Initialize consultation (with duplicate-join guard) ──
+  /**
+   * Fetch existing consultation for appointment
+   */
+  const fetchExistingConsultation = useCallback(async () => {
+    try {
+      logger.log('Fetching existing consultation for appointment:', appointmentId);
+      
+      // Get consultations and find one matching this appointment
+      const response = await consultationService.getConsultations({ 
+        appointment: appointmentId
+      });
+
+      const consultations =
+        response?.data?.results ||
+        response?.results ||
+        response?.data ||
+        (Array.isArray(response) ? response : []);
+      const existingConsultation = consultations.find(c => 
+        c.appointment === appointmentId || c.appointment?.id === appointmentId
+      );
+
+      if (existingConsultation) {
+        logger.log('Found existing consultation:', existingConsultation.id);
+        setConsultationId(existingConsultation.id);
+        setRoomInfo(existingConsultation.room);
+        
+        if (existingConsultation.status === 'in_progress') {
+          // Get join info and go directly to call
+          getJoinInfoMutation.mutate(existingConsultation.id);
+          setConsultationState(CONSULTATION_STATES.IN_CALL);
+        } else {
+          joinWaitingRoomMutation.mutate(existingConsultation.id);
+        }
+      } else {
+        // No existing consultation, create new one
+        createConsultationMutation.mutate();
+      }
+    } catch (error) {
+      logger.error('Error fetching existing consultation:', error);
+      setConsultationState(CONSULTATION_STATES.ERROR);
+    }
+  }, [appointmentId]);
+
+  // ============================================================================
+  // INITIALIZATION EFFECT
+  // ============================================================================
+
   useEffect(() => {
-    if (appointmentLoading || consultationLoading) {
-      setConsultationState(CONSULTATION_STATES.LOADING);
+    // Don't run if already initialized or still loading
+    if (hasInitializedRef.current || appointmentLoading) {
       return;
     }
 
-    if (appointmentError || !appointment) {
+    // Handle appointment error
+    if (appointmentError) {
+      logger.error('Appointment error:', appointmentErrorData);
       setConsultationState(CONSULTATION_STATES.ERROR);
       return;
     }
 
-    const validStatuses = ['confirmed', 'waiting', 'in_progress'];
-    if (!validStatuses.includes(appointment.status)) {
+    // Wait for appointment data
+    if (!appointment) {
+      return;
+    }
+
+    // Validate appointment status
+    if (!VALID_APPOINTMENT_STATUSES.includes(appointment.status)) {
+      logger.log('Invalid appointment status:', appointment.status);
       setConsultationState(CONSULTATION_STATES.ERROR);
       return;
     }
 
-    // Set room info from consultation data
-    if (consultationData?.data || consultationData) {
-      setRoomInfo(consultationData.data || consultationData);
-    }
+    // Mark as initialized
+    hasInitializedRef.current = true;
 
-    // Auto-join waiting room only once
-    if (appointment.status === 'confirmed' && !hasJoinedRef.current) {
-      hasJoinedRef.current = true;
-      joinWaitingRoomMutation.mutate();
-    } else if (['waiting', 'in_progress'].includes(appointment.status)) {
-      setConsultationState(CONSULTATION_STATES.WAITING_ROOM);
+    // Check if appointment already has a consultation
+    if (appointment.consultation) {
+      const consultId = typeof appointment.consultation === 'object' 
+        ? appointment.consultation.id 
+        : appointment.consultation;
+      
+      logger.log('Appointment has consultation:', consultId);
+      setConsultationId(consultId);
+      
+      // Get join info and join waiting room
+      joinWaitingRoomMutation.mutate(consultId);
+    } else {
+      // Create new consultation from appointment
+      logger.log('Creating new consultation for appointment');
+      createConsultationMutation.mutate();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appointment?.status, appointmentLoading, appointmentError, consultationLoading, consultationData]);
+  }, [appointment, appointmentLoading, appointmentError]);
 
-  // ── Cleanup on unmount: leave consultation if in call ──
+  // ============================================================================
+  // CLEANUP EFFECT
+  // ============================================================================
+
   useEffect(() => {
     return () => {
+      // Cleanup Jitsi on unmount
       if (jitsiApiRef.current) {
         try {
           jitsiApiRef.current.executeCommand('hangup');
           jitsiApiRef.current.dispose();
         } catch (e) {
-          if (isDev) console.error('Jitsi cleanup error:', e);
+          logger.error('Jitsi cleanup error:', e);
         }
-      }
-      // Fire-and-forget leave call
-      if (consultationState === CONSULTATION_STATES.IN_CALL) {
-        consultationService.leave(id).catch(() => {});
+        jitsiApiRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Handle join call from waiting room ──
+  // ============================================================================
+  // FULLSCREEN EFFECT
+  // ============================================================================
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // ============================================================================
+  // HANDLERS
+  // ============================================================================
+
+  /**
+   * Handle join call from waiting room
+   */
   const handleJoinCall = useCallback(({ cameraEnabled, micEnabled }) => {
     setIsMuted(!micEnabled);
     setIsVideoOff(!cameraEnabled);
-    setConsultationState(CONSULTATION_STATES.IN_CALL);
-
-    if (appointment?.status === 'confirmed') {
-      checkInMutation.mutate();
+    
+    // Get fresh join info before joining
+    if (consultationId) {
+      getJoinInfoMutation.mutate(consultationId);
+      setJoinInfoRetryCount(0);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appointment?.status]);
+    
+    setConsultationState(CONSULTATION_STATES.IN_CALL);
+  }, [consultationId]);
 
   /**
    * Handle cancel from waiting room
@@ -222,12 +373,14 @@ const ConsultationRoom = () => {
    */
   const handleApiReady = useCallback((api) => {
     jitsiApiRef.current = api;
+    logger.log('Jitsi API ready');
   }, []);
 
   /**
    * Handle video conference joined
    */
   const handleVideoConferenceJoined = useCallback(() => {
+    logger.log('Video conference joined');
     toast.success(t('consultation.connected', 'Connected to consultation'));
   }, [t]);
 
@@ -235,6 +388,7 @@ const ConsultationRoom = () => {
    * Handle video conference left
    */
   const handleVideoConferenceLeft = useCallback(() => {
+    logger.log('Video conference left');
     setConsultationState(CONSULTATION_STATES.ENDED);
   }, []);
 
@@ -242,6 +396,7 @@ const ConsultationRoom = () => {
    * Handle ready to close
    */
   const handleReadyToClose = useCallback(() => {
+    logger.log('Ready to close');
     setConsultationState(CONSULTATION_STATES.ENDED);
   }, []);
 
@@ -249,24 +404,18 @@ const ConsultationRoom = () => {
    * Handle participant joined
    */
   const handleParticipantJoined = useCallback((data) => {
-    toast.success(
-      t('consultation.participantJoined', {
-        name: data?.displayName || t('consultation.someone', 'Someone'),
-        defaultValue: `${data?.displayName || 'Someone'} joined`
-      })
-    );
+    logger.log('Participant joined:', data);
+    const name = data?.displayName || t('consultation.doctor', 'Doctor');
+    toast.success(t('consultation.participantJoined', { name, defaultValue: `${name} joined` }));
   }, [t]);
 
   /**
    * Handle participant left
    */
   const handleParticipantLeft = useCallback((data) => {
-    toast(
-      t('consultation.participantLeft', {
-        name: data?.displayName || t('consultation.someone', 'Someone'),
-        defaultValue: `${data?.displayName || 'Someone'} left`
-      })
-    );
+    logger.log('Participant left:', data);
+    const name = data?.displayName || t('consultation.someone', 'Someone');
+    toast(t('consultation.participantLeft', { name, defaultValue: `${name} left` }));
   }, [t]);
 
   /**
@@ -287,7 +436,7 @@ const ConsultationRoom = () => {
    * Handle Jitsi error
    */
   const handleJitsiError = useCallback((error) => {
-    if (isDev) console.error('Jitsi error:', error);
+    logger.error('Jitsi error:', error);
     toast.error(t('consultation.videoError', 'Video connection error occurred'));
   }, [t]);
 
@@ -338,30 +487,16 @@ const ConsultationRoom = () => {
     try {
       if (!document.fullscreenElement) {
         await containerRef.current.requestFullscreen();
-        setIsFullscreen(true);
       } else {
         await document.exitFullscreen();
-        setIsFullscreen(false);
       }
     } catch (err) {
-      if (isDev) console.error('Fullscreen error:', err);
+      logger.error('Fullscreen error:', err);
     }
   }, []);
 
   /**
-   * Handle fullscreen change event
-   */
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  /**
-   * Handle end call
+   * Handle end call button
    */
   const handleEndCall = useCallback(() => {
     setShowEndCallModal(true);
@@ -374,11 +509,15 @@ const ConsultationRoom = () => {
     setShowEndCallModal(false);
 
     if (jitsiApiRef.current) {
-      jitsiApiRef.current.executeCommand('hangup');
+      try {
+        jitsiApiRef.current.executeCommand('hangup');
+      } catch (e) {
+        logger.error('Hangup error:', e);
+      }
     }
 
-    endConsultationMutation.mutate();
-  }, [endConsultationMutation]);
+    setConsultationState(CONSULTATION_STATES.ENDED);
+  }, []);
 
   /**
    * Handle send chat message
@@ -417,21 +556,50 @@ const ConsultationRoom = () => {
    * Handle retry
    */
   const handleRetry = useCallback(() => {
-    hasJoinedRef.current = false;
+    hasInitializedRef.current = false;
     setConsultationState(CONSULTATION_STATES.LOADING);
+    setConsultationId(null);
+    setRoomInfo(null);
+    setJoinInfoRetryCount(0);
     refetchAppointment();
   }, [refetchAppointment]);
 
-  // ── Derived values ──
-  const roomName = roomInfo?.room_name ||
-                   roomInfo?.jitsi_room ||
-                   `mediconnect-${id}-${Date.now()}`;
+  useEffect(() => {
+    if (
+      consultationState !== CONSULTATION_STATES.IN_CALL ||
+      roomName ||
+      !consultationId ||
+      getJoinInfoMutation.isPending ||
+      joinInfoRetryCount >= 2
+    ) {
+      return;
+    }
 
-  const userName = user?.full_name || user?.first_name || t('consultation.patient', 'Patient');
+    const timer = setTimeout(() => {
+      setJoinInfoRetryCount((count) => count + 1);
+      getJoinInfoMutation.mutate(consultationId);
+    }, 1200);
 
-  // ══════════════════════════════════════════
+    return () => clearTimeout(timer);
+  }, [consultationState, roomName, consultationId, getJoinInfoMutation.isPending, joinInfoRetryCount]);
+
+  // ============================================================================
+  // DERIVED VALUES
+  // ============================================================================
+
+  const roomName = roomInfo?.room_name || roomInfo?.roomName || roomInfo?.meeting_room || '';
+  const jitsiDomain = roomInfo?.jitsi_domain || roomInfo?.domain || 'meet.jit.si';
+  const userName = user?.full_name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || t('consultation.patient', 'Patient');
+
+  const isLoading = consultationState === CONSULTATION_STATES.LOADING ||
+                    appointmentLoading ||
+                    createConsultationMutation.isPending ||
+                    joinWaitingRoomMutation.isPending;
+
+  // ============================================================================
   // RENDER: Offline State
-  // ══════════════════════════════════════════
+  // ============================================================================
+
   if (!isOnline && consultationState !== CONSULTATION_STATES.IN_CALL) {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
@@ -439,7 +607,7 @@ const ConsultationRoom = () => {
           <EmptyState
             icon={WifiOff}
             title={t('common.offline', 'You are offline')}
-            description={t('consultation.offlineDesc', 'A stable internet connection is required for video consultations. Please check your connection and try again.')}
+            description={t('consultation.offlineDesc', 'A stable internet connection is required for video consultations.')}
             action={
               <Button
                 onClick={() => window.location.reload()}
@@ -454,25 +622,32 @@ const ConsultationRoom = () => {
     );
   }
 
-  // ══════════════════════════════════════════
+  // ============================================================================
   // RENDER: Loading State
-  // ══════════════════════════════════════════
-  if (consultationState === CONSULTATION_STATES.LOADING) {
+  // ============================================================================
+
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <Loader size="lg" className="text-white" />
           <p className="text-white mt-4">
-            {t('consultation.loading', 'Preparing your consultation...')}
+            {createConsultationMutation.isPending 
+              ? t('consultation.creating', 'Setting up your consultation...')
+              : joinWaitingRoomMutation.isPending
+                ? t('consultation.joining', 'Joining waiting room...')
+                : t('consultation.loading', 'Preparing your consultation...')
+            }
           </p>
         </div>
       </div>
     );
   }
 
-  // ══════════════════════════════════════════
+  // ============================================================================
   // RENDER: Error State
-  // ══════════════════════════════════════════
+  // ============================================================================
+
   if (consultationState === CONSULTATION_STATES.ERROR) {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
@@ -480,7 +655,7 @@ const ConsultationRoom = () => {
           <EmptyState
             icon={AlertCircle}
             title={t('consultation.notAvailable', 'Consultation not available')}
-            description={t('consultation.notAvailableDesc', 'This consultation is no longer available or the appointment status has changed.')}
+            description={t('consultation.notAvailableDesc', 'This consultation is not available. The appointment may not be confirmed yet or has already ended.')}
             action={
               <div className="flex flex-col gap-3 w-full">
                 <Button onClick={handleRetry} leftIcon={<RefreshCw size={18} />}>
@@ -500,9 +675,10 @@ const ConsultationRoom = () => {
     );
   }
 
-  // ══════════════════════════════════════════
+  // ============================================================================
   // RENDER: Ended State
-  // ══════════════════════════════════════════
+  // ============================================================================
+
   if (consultationState === CONSULTATION_STATES.ENDED) {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
@@ -538,7 +714,7 @@ const ConsultationRoom = () => {
           <div className="space-y-3">
             <Button
               fullWidth
-              onClick={() => navigate(`/patient/appointments/${id}`)}
+              onClick={() => navigate(`/patient/appointments/${appointmentId}`)}
               leftIcon={<FileText size={18} />}
             >
               {t('consultation.viewSummary', 'View Summary')}
@@ -556,9 +732,10 @@ const ConsultationRoom = () => {
     );
   }
 
-  // ══════════════════════════════════════════
+  // ============================================================================
   // RENDER: Waiting Room State
-  // ══════════════════════════════════════════
+  // ============================================================================
+
   if (consultationState === CONSULTATION_STATES.WAITING_ROOM) {
     return (
       <WaitingRoom
@@ -568,14 +745,51 @@ const ConsultationRoom = () => {
         estimatedWait={roomInfo?.estimated_wait || 0}
         onJoin={handleJoinCall}
         onCancel={handleCancelWaiting}
-        isLoading={joinWaitingRoomMutation.isPending}
+        isLoading={getJoinInfoMutation.isPending}
       />
     );
   }
 
-  // ══════════════════════════════════════════
+  // ============================================================================
   // RENDER: In-Call State
-  // ══════════════════════════════════════════
+  // ============================================================================
+
+  if (!roomName && consultationState === CONSULTATION_STATES.IN_CALL && !getJoinInfoMutation.isPending) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4">
+        <Card className="max-w-md mx-auto p-6 mt-12">
+          <EmptyState
+            icon={AlertCircle}
+            title={t('consultation.connectingIssue', 'Unable to connect to consultation room')}
+            description={t('consultation.connectingIssueDesc', 'We could not get room details. Please try again.')}
+            action={
+              <div className="flex flex-col gap-3 w-full">
+                <Button
+                  onClick={() => {
+                    if (consultationId) {
+                      setJoinInfoRetryCount(0);
+                      getJoinInfoMutation.mutate(consultationId);
+                    }
+                  }}
+                  leftIcon={<RefreshCw size={18} />}
+                  disabled={!consultationId}
+                >
+                  {t('common.retry', 'Retry')}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/patient/appointments')}
+                >
+                  {t('consultation.backToAppointments', 'Back to Appointments')}
+                </Button>
+              </div>
+            }
+          />
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div ref={containerRef} className="h-screen bg-gray-900 flex flex-col">
       {/* Header - hidden in fullscreen */}
@@ -622,24 +836,33 @@ const ConsultationRoom = () => {
       <div className="flex-1 flex relative overflow-hidden">
         {/* Video area */}
         <div className={`flex-1 relative ${isChatOpen ? 'hidden sm:block' : ''}`}>
-          <JitsiMeet
-            roomName={roomName}
-            userName={userName}
-            userEmail={user?.email}
-            isDoctor={false}
-            domain={roomInfo?.jitsi_domain || 'meet.jit.si'}
-            jwt={roomInfo?.jwt}
-            onApiReady={handleApiReady}
-            onReadyToClose={handleReadyToClose}
-            onVideoConferenceJoined={handleVideoConferenceJoined}
-            onVideoConferenceLeft={handleVideoConferenceLeft}
-            onParticipantJoined={handleParticipantJoined}
-            onParticipantLeft={handleParticipantLeft}
-            onAudioMuteStatusChanged={handleAudioMuteStatusChanged}
-            onVideoMuteStatusChanged={handleVideoMuteStatusChanged}
-            onError={handleJitsiError}
-            className="w-full h-full"
-          />
+          {roomName ? (
+            <JitsiMeet
+              roomName={roomName}
+              userName={userName}
+              userEmail={user?.email}
+              isDoctor={false}
+              domain={jitsiDomain}
+              jwt={roomInfo?.jwt}
+              onApiReady={handleApiReady}
+              onReadyToClose={handleReadyToClose}
+              onVideoConferenceJoined={handleVideoConferenceJoined}
+              onVideoConferenceLeft={handleVideoConferenceLeft}
+              onParticipantJoined={handleParticipantJoined}
+              onParticipantLeft={handleParticipantLeft}
+              onAudioMuteStatusChanged={handleAudioMuteStatusChanged}
+              onVideoMuteStatusChanged={handleVideoMuteStatusChanged}
+              onError={handleJitsiError}
+              className="w-full h-full"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center text-white">
+                <Loader size="lg" className="mx-auto mb-4" />
+                <p>{t('consultation.connectingVideo', 'Connecting to video...')}</p>
+              </div>
+            </div>
+          )}
 
           {/* Call Controls */}
           <CallControls
@@ -692,7 +915,6 @@ const ConsultationRoom = () => {
               variant="danger"
               onClick={confirmEndCall}
               fullWidth
-              loading={endConsultationMutation.isPending}
             >
               {t('consultation.endCall', 'End Call')}
             </Button>

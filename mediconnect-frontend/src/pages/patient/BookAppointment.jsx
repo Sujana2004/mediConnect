@@ -123,8 +123,9 @@ const normalizeDoctorData = (doc) => {
   if (!doc) return null;
   return {
     ...doc,
-    id: doc.id,
-    full_name: doc.full_name || doc.name || `${doc.user?.first_name || ''} ${doc.user?.last_name || ''}`.trim() || 'Doctor',
+    id: doc.id, // Keep DoctorProfile.id for reference
+    user_id: doc.user_id || doc.user?.id,  // ADD THIS - User UUID for API calls
+    full_name: doc.full_name || doc.name || `${doc.first_name || doc.user?.first_name || ''} ${doc.last_name || doc.user?.last_name || ''}`.trim() || 'Doctor',
     first_name: doc.first_name || doc.user?.first_name || '',
     last_name: doc.last_name || doc.user?.last_name || '',
     profile_picture: doc.profile_picture || doc.profile_photo || doc.user?.profile_photo || null,
@@ -566,7 +567,8 @@ const BookAppointment = () => {
   const { user } = useAuth();
 
   const preSelectedData = location.state || {};
-  const effectiveDoctorId = doctorId || preSelectedData?.doctor?.id;
+  // Prefer user_id (UUID) over id
+  const effectiveDoctorId = doctorId || preSelectedData?.doctor?.user_id || preSelectedData?.doctor?.id;
 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -615,9 +617,9 @@ const BookAppointment = () => {
     error: doctorQueryError,
     refetch: refetchDoctor
   } = useQuery({
-    queryKey: ['doctor', doctorId],
-    queryFn: () => authService.getDoctorById(doctorId),
-    enabled: !!doctorId && isOnline && !preSelectedDoctor,
+    queryKey: ['doctor', effectiveDoctorId],
+    queryFn: () => authService.getDoctorById(effectiveDoctorId),
+    enabled: !!effectiveDoctorId && isOnline && !preSelectedDoctor,
     staleTime: 1000 * 60 * 10,
     retry: false,
     refetchOnWindowFocus: false,
@@ -636,10 +638,10 @@ const BookAppointment = () => {
   }, [selectedDate]);
 
   useEffect(() => {
-    if (!doctorId && !preSelectedDoctor) {
+    if (!effectiveDoctorId && !preSelectedDoctor) {
       navigate('/patient/doctors', { replace: true });
     }
-  }, [doctorId, preSelectedDoctor, navigate]);
+  }, [effectiveDoctorId, preSelectedDoctor, navigate]);
 
   const {
     data: availabilityData,
@@ -649,7 +651,10 @@ const BookAppointment = () => {
     refetch: refetchAvailability,
   } = useQuery({
     queryKey: ['doctor-availability', effectiveDoctorId],
-    queryFn: () => getDoctorAvailability(effectiveDoctorId, { days: 60 }),
+    queryFn: async () => {
+      const response = await getDoctorAvailability(effectiveDoctorId, { days: 60 });
+      return response;
+    },
     enabled: !!effectiveDoctorId && isOnline,
     staleTime: 1000 * 60 * 5,
     retry: false,
@@ -664,7 +669,10 @@ const BookAppointment = () => {
     refetch: refetchSlots
   } = useQuery({
     queryKey: ['slots', effectiveDoctorId, selectedDateKey],
-    queryFn: () => getAvailableSlots(effectiveDoctorId, selectedDateKey),
+    queryFn: async () => {
+      const response = await getAvailableSlots(effectiveDoctorId, selectedDateKey);
+      return response;
+    },
     enabled: !!effectiveDoctorId && !!selectedDateKey && isOnline,
     staleTime: 1000 * 60 * 2,
     retry: false,
@@ -680,40 +688,62 @@ const BookAppointment = () => {
       });
     },
     onError: (error) => {
-      const errorMessage = error.response?.data?.message ||
-        error.response?.data?.detail ||
-        (error.response?.data && typeof error.response.data === 'object'
-          ? Object.values(error.response.data).flat().join(', ')
-          : t('booking.error', 'Failed to book appointment'));
+      const errorData = error?.response?.data;
+      let errorMessage = t('booking.error', 'Failed to book appointment');
+
+      if (errorData) {
+        if (typeof errorData === 'string') {
+          errorMessage = errorData;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (typeof errorData === 'object') {
+          const errors = Object.entries(errorData)
+            .map(([key, value]) => {
+              const msg = Array.isArray(value) ? value.join(', ') : String(value);
+              return `${key}: ${msg}`;
+            })
+            .join('; ');
+          if (errors) errorMessage = errors;
+        }
+      }
+
       toast.error(errorMessage);
     }
   });
 
   const slots = useMemo(() => {
-    const apiSlots = slotsResponse?.data?.slots || slotsResponse?.slots || [];
-    return apiSlots;
+    const rawSlots = slotsResponse?.data?.slots || slotsResponse?.slots || [];
+    return Array.isArray(rawSlots) ? rawSlots : [];
   }, [slotsResponse]);
 
   const isAvailableOnDate = slotsResponse?.data?.is_available !== false;
 
   const availableDates = useMemo(() => {
-    return availabilityData?.data?.available_days ||
+    const dates = availabilityData?.data?.available_days ||
            availabilityData?.available_days ||
            [];
+    return Array.isArray(dates) ? dates : [];
   }, [availabilityData]);
 
   const bookingDoctorId = useMemo(() => {
-    return (
+    // Get the correct UUID - prefer user_id over id
+    const doctorUUID = 
       slotsResponse?.data?.doctor_id ||
       slotsResponse?.doctor_id ||
       availabilityData?.data?.doctor_id ||
       availabilityData?.doctor_id ||
-      doctor?.user?.id ||
       doctor?.user_id ||
-      doctor?.doctor_user_id ||
-      effectiveDoctorId ||
-      null
-    );
+      doctor?.user?.id;
+    
+    // ✅ Only use effectiveDoctorId if it looks like a UUID (contains dashes)
+    const fallbackId = effectiveDoctorId;
+    const isUUID = fallbackId && String(fallbackId).includes('-');
+    
+    return doctorUUID || (isUUID ? fallbackId : null);
   }, [slotsResponse, availabilityData, doctor, effectiveDoctorId]);
 
   useEffect(() => {
@@ -780,7 +810,7 @@ const BookAppointment = () => {
 
   const handleSubmitBooking = useCallback(() => {
     if (!bookingDoctorId) {
-      toast.error(t('errors.doctorNotFound', 'Doctor not found'));
+      toast.error(t('errors.doctorNotFound', 'Doctor information not available'));
       return;
     }
 
@@ -798,12 +828,15 @@ const BookAppointment = () => {
       doctor_id: bookingDoctorId,
       appointment_date: selectedDateKey,
       start_time: selectedSlot.start_time,
-      time_slot_id: selectedSlot?.id || undefined,
       booking_type: selectedBookingType,
-      reason: patientDetails.symptoms || undefined,
-      symptoms: patientDetails.symptoms || undefined,
-      patient_notes: patientDetails.notes || undefined,
+      reason: patientDetails.symptoms || '',
+      symptoms: patientDetails.symptoms || '',
+      patient_notes: patientDetails.notes || '',
     };
+
+    if (selectedSlot?.id) {
+      appointmentData.time_slot_id = selectedSlot.id;
+    }
 
     createAppointmentMutation.mutate(appointmentData);
     setShowConfirmModal(false);

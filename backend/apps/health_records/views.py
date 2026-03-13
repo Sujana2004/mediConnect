@@ -1540,7 +1540,7 @@ class HealthAnalyticsView(views.APIView):
             severity__in=['severe', 'life_threatening']
         )
         
-        latest_vitals = VitalSign.objects.filter(user=user).first()
+        latest_vitals = VitalSign.objects.filter(user=user).order_by('-recorded_at').first()
         
         recent_hospitalizations = Hospitalization.objects.filter(user=user)[:3]
         

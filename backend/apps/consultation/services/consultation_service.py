@@ -5,7 +5,7 @@ Main business logic for consultations.
 """
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from django.db import transaction
 from django.utils import timezone
@@ -125,21 +125,39 @@ class ConsultationService:
         """
         if hasattr(appointment, 'consultation') and appointment.consultation:
             raise ValueError("Appointment already has a consultation")
+
+        appointment_date = getattr(appointment, 'appointment_date', None) or getattr(appointment, 'date', None)
+        start_time = getattr(appointment, 'start_time', None)
+
+        if not start_time and getattr(appointment, 'time_slot', None):
+            start_time = getattr(appointment.time_slot, 'start_time', None)
+
+        if not appointment_date or not start_time:
+            raise ValueError("Appointment is missing date/time information")
+
+        scheduled_start = datetime.combine(appointment_date, start_time)
+        if timezone.is_naive(scheduled_start):
+            scheduled_start = timezone.make_aware(scheduled_start)
+
+        duration_minutes = 15
+        end_time = getattr(appointment, 'end_time', None)
+        if not end_time and getattr(appointment, 'time_slot', None):
+            end_time = getattr(appointment.time_slot, 'end_time', None)
+
+        if end_time:
+            total_minutes = int((datetime.combine(appointment_date, end_time) - datetime.combine(appointment_date, start_time)).total_seconds() // 60)
+            duration_minutes = max(total_minutes, 1)
         
         return cls.create_consultation(
             doctor=appointment.doctor,
             patient=appointment.patient,
-            scheduled_start=timezone.make_aware(
-                timezone.datetime.combine(appointment.date, appointment.time_slot.start_time)
-            ) if timezone.is_naive(
-                timezone.datetime.combine(appointment.date, appointment.time_slot.start_time)
-            ) else timezone.datetime.combine(appointment.date, appointment.time_slot.start_time),
+            scheduled_start=scheduled_start,
             consultation_type='video',
-            reason=appointment.reason,
-            symptoms=appointment.symptoms,
-            duration_minutes=15,
+            reason=getattr(appointment, 'reason', ''),
+            symptoms=getattr(appointment, 'symptoms', ''),
+            duration_minutes=duration_minutes,
             appointment=appointment,
-            language=appointment.patient.preferred_language
+            language=getattr(appointment.patient, 'preferred_language', 'en')
         )
     
     @classmethod

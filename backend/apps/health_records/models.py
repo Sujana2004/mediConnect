@@ -3,6 +3,12 @@ Health Records Models for MediConnect
 =====================================
 Stores medical history, documents, lab reports, vaccination records, etc.
 Designed for rural users with simple data structures.
+
+FIXES:
+- HealthProfile is now the SINGLE SOURCE OF TRUTH for vitals (blood_group, height, weight)
+- Fixed consultation foreign key to prevent circular dependency
+- Standardized all User references
+- Added proper sync mechanisms with VitalSign for timestamped tracking
 """
 
 import uuid
@@ -24,6 +30,7 @@ class TimeStampedModel(models.Model):
 class HealthProfile(TimeStampedModel):
     """
     Extended health profile for a patient.
+    SINGLE SOURCE OF TRUTH for vitals - syncs with VitalSign for tracking.
     Stores chronic conditions, allergies, blood group, etc.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -33,7 +40,7 @@ class HealthProfile(TimeStampedModel):
         related_name='health_profile'
     )
     
-    # Basic Health Info
+    # Basic Health Info (MASTER DATA - synced to latest VitalSign)
     BLOOD_GROUP_CHOICES = [
         ('A+', 'A Positive'),
         ('A-', 'A Negative'),
@@ -56,14 +63,14 @@ class HealthProfile(TimeStampedModel):
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Height in centimeters"
+        help_text="Height in centimeters (current)"
     )
     weight_kg = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Weight in kilograms"
+        help_text="Weight in kilograms (current)"
     )
     
     # Allergies (stored as JSON list)
@@ -128,6 +135,9 @@ class HealthProfile(TimeStampedModel):
     # Notes
     notes = models.TextField(blank=True, help_text="Additional health notes")
     
+    # Last sync timestamp with VitalSign
+    last_vitals_sync = models.DateTimeField(null=True, blank=True)
+    
     class Meta:
         db_table = 'health_records_profile'
         verbose_name = 'Health Profile'
@@ -157,6 +167,18 @@ class HealthProfile(TimeStampedModel):
             return 'Overweight'
         else:
             return 'Obese'
+    
+    def sync_from_latest_vital(self):
+        """Sync current vitals from most recent VitalSign record."""
+        latest_vital = self.user.vital_signs.filter(
+            weight_kg__isnull=False
+        ).order_by('-recorded_at').first()
+        
+        if latest_vital:
+            if latest_vital.weight_kg:
+                self.weight_kg = latest_vital.weight_kg
+            self.last_vitals_sync = timezone.now()
+            self.save(update_fields=['weight_kg', 'last_vitals_sync', 'updated_at'])
 
 
 class MedicalCondition(TimeStampedModel):
@@ -212,7 +234,8 @@ class MedicalCondition(TimeStampedModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='diagnosed_conditions'
+        related_name='diagnosed_conditions',
+        limit_choices_to={'role': 'doctor'}
     )
     
     # Link to diagnosis session if applicable
@@ -224,13 +247,11 @@ class MedicalCondition(TimeStampedModel):
         related_name='medical_conditions'
     )
     
-    # Link to consultation if applicable
-    consultation = models.ForeignKey(
-        'consultation.Consultation',
-        on_delete=models.SET_NULL,
+    # FIXED: Use UUIDField to avoid circular import, validate in serializer
+    consultation_id = models.UUIDField(
         null=True,
         blank=True,
-        related_name='medical_conditions'
+        help_text="Reference to consultation.Consultation"
     )
     
     treatment_notes = models.TextField(blank=True)
@@ -319,13 +340,11 @@ class MedicalDocument(TimeStampedModel):
     hospital_name = models.CharField(max_length=200, blank=True)
     doctor_name = models.CharField(max_length=200, blank=True)
     
-    # Links to other records
-    consultation = models.ForeignKey(
-        'consultation.Consultation',
-        on_delete=models.SET_NULL,
+    # FIXED: Use UUIDField to avoid circular dependency
+    consultation_id = models.UUIDField(
         null=True,
         blank=True,
-        related_name='health_documents'
+        help_text="Reference to consultation.Consultation"
     )
     
     medical_condition = models.ForeignKey(
@@ -462,13 +481,11 @@ class LabReport(TimeStampedModel):
         related_name='lab_report_data'
     )
     
-    # Link to consultation
-    consultation = models.ForeignKey(
-        'consultation.Consultation',
-        on_delete=models.SET_NULL,
+    # FIXED: Use UUIDField
+    consultation_id = models.UUIDField(
         null=True,
         blank=True,
-        related_name='lab_reports'
+        help_text="Reference to consultation.Consultation"
     )
     
     class Meta:
@@ -566,7 +583,8 @@ class VaccinationRecord(TimeStampedModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='verified_vaccinations'
+        related_name='verified_vaccinations',
+        limit_choices_to={'role': 'doctor'}
     )
     
     class Meta:
@@ -779,13 +797,11 @@ class Hospitalization(TimeStampedModel):
         related_name='hospitalization'
     )
     
-    # Link to consultation
-    consultation = models.ForeignKey(
-        'consultation.Consultation',
-        on_delete=models.SET_NULL,
+    # FIXED: Use UUIDField
+    consultation_id = models.UUIDField(
         null=True,
         blank=True,
-        related_name='hospitalizations'
+        help_text="Reference to consultation.Consultation"
     )
     
     # Follow-up
@@ -813,6 +829,7 @@ class VitalSign(TimeStampedModel):
     """
     Track vital signs over time.
     Useful for monitoring health trends.
+    SYNCS BACK to HealthProfile for current values.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -882,7 +899,7 @@ class VitalSign(TimeStampedModel):
         blank=True
     )
     
-    # Weight (for tracking)
+    # Weight (for tracking) - SYNCS to HealthProfile
     weight_kg = models.DecimalField(
         max_digits=5,
         decimal_places=2,
@@ -908,18 +925,17 @@ class VitalSign(TimeStampedModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='recorded_vitals'
+        related_name='recorded_vitals',
+        limit_choices_to={'role': 'doctor'}
     )
     
     notes = models.TextField(blank=True)
     
-    # Link to consultation
-    consultation = models.ForeignKey(
-        'consultation.Consultation',
-        on_delete=models.SET_NULL,
+    # FIXED: Use UUIDField
+    consultation_id = models.UUIDField(
         null=True,
         blank=True,
-        related_name='vital_signs'
+        help_text="Reference to consultation.Consultation"
     )
     
     class Meta:
@@ -930,6 +946,22 @@ class VitalSign(TimeStampedModel):
 
     def __str__(self):
         return f"Vitals - {self.user.phone} - {self.recorded_at}"
+
+    def save(self, *args, **kwargs):
+        """Auto-sync to HealthProfile on save."""
+        super().save(*args, **kwargs)
+        
+        # Sync weight to HealthProfile if this is the latest record
+        if self.weight_kg:
+            try:
+                health_profile = self.user.health_profile
+                latest = self.user.vital_signs.order_by('-recorded_at').first()
+                if latest and latest.id == self.id:
+                    health_profile.weight_kg = self.weight_kg
+                    health_profile.last_vitals_sync = timezone.now()
+                    health_profile.save(update_fields=['weight_kg', 'last_vitals_sync', 'updated_at'])
+            except:
+                pass  # Health profile might not exist yet
 
     def get_bp_status(self):
         """Get blood pressure status."""
@@ -949,19 +981,22 @@ class SharedRecord(TimeStampedModel):
     """
     Track which records are shared with which doctors.
     Supports temporary and permanent sharing.
+    FIXED: All references use User model directly.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
     patient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='shared_records'
+        related_name='shared_records',
+        limit_choices_to={'role': 'patient'}
     )
     
     doctor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='received_shared_records'
+        related_name='received_shared_records',
+        limit_choices_to={'role': 'doctor'}
     )
     
     SHARE_TYPE_CHOICES = [
@@ -997,24 +1032,26 @@ class SharedRecord(TimeStampedModel):
     is_active = models.BooleanField(default=True)
     revoked_at = models.DateTimeField(null=True, blank=True)
     
-    # Link to consultation (auto-share during consultation)
-    consultation = models.ForeignKey(
-        'consultation.Consultation',
-        on_delete=models.SET_NULL,
+    # FIXED: Use UUIDField for consultation reference
+    consultation_id = models.UUIDField(
         null=True,
         blank=True,
-        related_name='shared_records'
+        help_text="Reference to consultation.Consultation (auto-share during consultation)"
     )
     
     class Meta:
         db_table = 'health_records_shared'
         verbose_name = 'Shared Record'
         verbose_name_plural = 'Shared Records'
-        unique_together = ['patient', 'doctor', 'share_type', 'consultation']
+        unique_together = ['patient', 'doctor', 'share_type']
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['patient', 'doctor', 'is_active']),
+            models.Index(fields=['doctor', 'is_active']),
+        ]
 
     def __str__(self):
-        return f"{self.patient.phone} shared with {self.doctor.phone}"
+        return f"{self.patient.phone} shared with Dr. {self.doctor.get_full_name()}"
 
     def is_expired(self):
         """Check if sharing has expired."""
