@@ -1,5 +1,5 @@
 // src/components/consultation/WaitingRoom.jsx
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
 import {
@@ -52,25 +52,27 @@ const WaitingRoom = memo(({
   const [devicesReady, setDevicesReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  //Use ref for stream cleanup to avoid stale closures
+  const streamRef = useRef(null);
+
   /**
    * Test camera
    */
   const testCamera = useCallback(async () => {
     setCameraStatus(DEVICE_STATUS.TESTING);
     setErrorMessage('');
-
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 640, height: 480 }
+        video: { facingMode: 'user', width: 640, height: 480 },
       });
-      
+      streamRef.current = stream;
       setVideoStream(stream);
       setCameraStatus(DEVICE_STATUS.SUCCESS);
       return true;
     } catch (err) {
       console.error('Camera error:', err);
       setCameraStatus(DEVICE_STATUS.ERROR);
-      setErrorMessage(t('consultation.cameraError'));
+      setErrorMessage(t('consultation.cameraError', 'Camera access denied or unavailable'));
       return false;
     }
   }, [t]);
@@ -81,19 +83,15 @@ const WaitingRoom = memo(({
   const testMicrophone = useCallback(async () => {
     setMicStatus(DEVICE_STATUS.TESTING);
     setErrorMessage('');
-
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // Stop audio track after test
-      stream.getAudioTracks().forEach(track => track.stop());
-      
+      stream.getAudioTracks().forEach((track) => track.stop());
       setMicStatus(DEVICE_STATUS.SUCCESS);
       return true;
     } catch (err) {
       console.error('Microphone error:', err);
       setMicStatus(DEVICE_STATUS.ERROR);
-      setErrorMessage(t('consultation.microphoneError'));
+      setErrorMessage(t('consultation.microphoneError', 'Microphone access denied or unavailable'));
       return false;
     }
   }, [t]);
@@ -104,40 +102,43 @@ const WaitingRoom = memo(({
   const runDeviceTests = useCallback(async () => {
     const cameraOk = await testCamera();
     const micOk = await testMicrophone();
-    
     const ready = cameraOk && micOk;
     setDevicesReady(ready);
     onDeviceTestComplete?.(ready);
   }, [testCamera, testMicrophone, onDeviceTestComplete]);
 
   /**
+   * Cleanup video stream
+   */
+  // Fixed cleanup using ref
+  const cleanupStream = useCallback(() => {
+    const stream = streamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      setVideoStream(null);
+    }
+  }, []);
+
+  /**
    * Toggle camera
    */
   const toggleCamera = useCallback(() => {
-    if (videoStream) {
-      videoStream.getVideoTracks().forEach(track => {
+    if (streamRef.current) {
+      streamRef.current.getVideoTracks().forEach((track) => {
         track.enabled = !track.enabled;
       });
-      setIsCameraOn(prev => !prev);
+      setIsCameraOn((prev) => !prev);
     }
-  }, [videoStream]);
+  }, []);
 
   /**
    * Toggle microphone
    */
   const toggleMicrophone = useCallback(() => {
-    setIsMicOn(prev => !prev);
+    setIsMicOn((prev) => !prev);
   }, []);
 
-  /**
-   * Cleanup video stream
-   */
-  const cleanupStream = useCallback(() => {
-    if (videoStream) {
-      videoStream.getTracks().forEach(track => track.stop());
-      setVideoStream(null);
-    }
-  }, [videoStream]);
 
   /**
    * Handle join
@@ -158,13 +159,22 @@ const WaitingRoom = memo(({
   /**
    * Run tests on mount
    */
+  //Fixed: cleanup uses ref, no stale closure
   useEffect(() => {
     runDeviceTests();
-
     return () => {
-      cleanupStream();
+      const stream = streamRef.current;
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fixed join button disabled logic
+  const canJoin = devicesReady || 
+    cameraStatus === DEVICE_STATUS.ERROR || 
+    micStatus === DEVICE_STATUS.ERROR;
 
   /**
    * Format estimated wait time
@@ -411,16 +421,16 @@ const WaitingRoom = memo(({
             fullWidth
             disabled={isLoading}
           >
-            {t('common.cancel')}
+            {t('common.cancel', 'Cancel')}
           </Button>
           <Button
             onClick={handleJoin}
             fullWidth
             loading={isLoading}
-            disabled={!devicesReady && cameraStatus !== DEVICE_STATUS.ERROR && micStatus !== DEVICE_STATUS.ERROR}
+            disabled={!canJoin || isLoading}
             leftIcon={<Video size={18} />}
           >
-            {t('consultation.joinCall')}
+            {t('consultation.joinCall', 'Join Call')}
           </Button>
         </div>
       </div>

@@ -457,7 +457,7 @@ class ConsultationService:
         
         prescription = ConsultationPrescription.objects.create(
             consultation=consultation,
-            medicine=medicine,
+            medicine_id=medicine.id if medicine else None,
             medicine_name=medicine_name,
             dosage=dosage,
             frequency=frequency,

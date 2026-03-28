@@ -197,6 +197,22 @@ class ConsultationViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         
         try:
+            # CHECK: Return existing consultation if already created
+            existing = getattr(serializer, 'existing_consultation', None)
+            if existing:
+                response_data = ConsultationSerializer(existing).data
+                response_data['room_info'] = {
+                    'room_name': existing.room.room_name,
+                    'room_url': existing.room.full_room_url,
+                    'jitsi_domain': existing.room.jitsi_domain,
+                }
+                
+                return Response({
+                    'success': True,
+                    'message': 'Existing consultation found',
+                    'data': response_data
+                }, status=status.HTTP_200_OK)
+            
             appointment = serializer.appointment
             consultation_type = serializer.validated_data.get('consultation_type', 'video')
             
@@ -573,6 +589,41 @@ class ConsultationViewSet(viewsets.ModelViewSet):
             'data': data
         })
 
+    def list(self, request, *args, **kwargs):
+        """Override list to wrap response consistently."""
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Handle pagination if configured
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            paginated_response = self.get_paginated_response(serializer.data)
+            return Response({
+                'success': True,
+                'message': 'Consultations retrieved',
+                'data': paginated_response.data
+            })
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'success': True,
+            'message': 'Consultations retrieved',
+            'data': {
+                'results': serializer.data,
+                'count': len(serializer.data)
+            }
+        })
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Override retrieve to wrap response consistently."""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response({
+            'success': True,
+            'message': 'Consultation retrieved',
+            'data': serializer.data
+        })
+
 
 # =============================================================================
 # CONSULTATION NOTES VIEWSET
@@ -685,6 +736,29 @@ class ConsultationNoteViewSet(viewsets.ModelViewSet):
             'message': 'Note deleted',
             'data': None
         }, status=status.HTTP_204_NO_CONTENT)
+
+    def list(self, request, *args, **kwargs):
+        """Wrap list response consistently."""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'success': True,
+            'message': 'Notes retrieved',
+            'data': {
+                'results': serializer.data,
+                'count': len(serializer.data)
+            }
+        })
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Wrap retrieve response consistently."""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response({
+            'success': True,
+            'message': 'Note retrieved',
+            'data': serializer.data
+        })
 
 
 # =============================================================================
@@ -854,6 +928,29 @@ class ConsultationPrescriptionViewSet(viewsets.ModelViewSet):
                 'errors': errors
             }
         }, status=status.HTTP_201_CREATED if not errors else status.HTTP_207_MULTI_STATUS)
+    
+    def list(self, request, *args, **kwargs):
+        """Wrap list response consistently."""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'success': True,
+            'message': 'Prescriptions retrieved',
+            'data': {
+                'results': serializer.data,
+                'count': len(serializer.data)
+            }
+        })
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Wrap retrieve response consistently."""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response({
+            'success': True,
+            'message': 'Prescription retrieved',
+            'data': serializer.data
+        })
 
 
 # =============================================================================
@@ -937,6 +1034,19 @@ class ConsultationAttachmentViewSet(viewsets.ModelViewSet):
             'message': 'Attachment deleted',
             'data': None
         }, status=status.HTTP_204_NO_CONTENT)
+    
+    def list(self, request, *args, **kwargs):
+        """Wrap list response consistently."""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'success': True,
+            'message': 'Attachments retrieved',
+            'data': {
+                'results': serializer.data,
+                'count': len(serializer.data)
+            }
+        })
 
 
 # =============================================================================

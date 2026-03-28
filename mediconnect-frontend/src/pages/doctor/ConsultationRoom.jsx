@@ -49,6 +49,7 @@ import {
   Select
 } from '../../components/common';
 import { JitsiMeet } from '../../components/consultation';
+import { extractData, extractRoomInfo, extractResults } from '../../utils/apiHelpers';
 
 // ============================================================================
 // CONSTANTS
@@ -90,6 +91,7 @@ const NOTE_TYPES = [
 const CONSULTATION_STATES = {
   LOADING: 'loading',
   STARTING: 'starting',
+  FETCHING_ROOM: 'fetching_room',
   IN_CALL: 'in_call',
   ENDING: 'ending',
   ENDED: 'ended',
@@ -102,7 +104,8 @@ const CONSULTATION_STATES = {
 
 const logger = {
   log: (...args) => isDev && console.log('[DoctorConsultation]', ...args),
-  error: (...args) => isDev && console.error('[DoctorConsultation]', ...args),
+  error: (...args) => console.error('[DoctorConsultation]', ...args),
+  debug: (...args) => isDev && console.debug('[DoctorConsultation DEBUG]', ...args),
 };
 
 const getErrorMessage = (error, fallback = 'An error occurred') => {
@@ -123,7 +126,7 @@ const formatDuration = (minutes) => {
 };
 
 // ============================================================================
-// SUB-COMPONENTS
+// SUB-COMPONENTS (Same as before - ConsultationTimer, PatientInfoPanel, etc.)
 // ============================================================================
 
 /**
@@ -311,8 +314,8 @@ const NotesPanel = ({
     try {
       setIsSaving(true);
       const response = await consultationService.addNote(consultationId, newNote);
-      const addedNote = response?.data || response;
-      
+      const addedNote = extractData(response);
+
       onNotesChange(prev => [addedNote, ...prev]);
       setNewNote({ content: '', note_type: 'general', title: '' });
       toast.success('Note added');
@@ -520,7 +523,6 @@ const PrescriptionPanel = ({
   const [isSaving, setIsSaving] = useState(false);
   const [localPrescriptions, setLocalPrescriptions] = useState([]);
 
-  // Sync with props
   useEffect(() => {
     setLocalPrescriptions(prescriptions || []);
   }, [prescriptions]);
@@ -547,13 +549,11 @@ const PrescriptionPanel = ({
     try {
       setIsSaving(true);
       
-      // Save each new medicine
       for (const medicine of newMedicines) {
         const { _isNew, ...medicineData } = medicine;
         await consultationService.addPrescription(consultationId, medicineData);
       }
       
-      // Mark all as saved
       setLocalPrescriptions(prev => prev.map(m => ({ ...m, _isNew: false })));
       onPrescriptionsChange(localPrescriptions.map(m => ({ ...m, _isNew: false })));
       
@@ -688,7 +688,6 @@ const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
     quantity: ''
   });
 
-  // Search medicines with debounce
   useEffect(() => {
     if (!searchQuery || searchQuery.length < 2) {
       setSearchResults([]);
@@ -1127,6 +1126,7 @@ const DoctorConsultationRoom = () => {
 
   // State
   const [consultationState, setConsultationState] = useState(CONSULTATION_STATES.LOADING);
+  const [roomInfo, setRoomInfo] = useState(null);
   const [notes, setNotes] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
   const [diagnosis, setDiagnosis] = useState('');
@@ -1160,7 +1160,7 @@ const DoctorConsultationRoom = () => {
    * Fetch consultation details
    */
   const {
-    data: consultationResponse,
+    data: consultation,
     isLoading: consultationLoading,
     isError: consultationError,
     error: consultationErrorData,
@@ -1168,43 +1168,41 @@ const DoctorConsultationRoom = () => {
   } = useQuery({
     queryKey: ['consultation', consultationId],
     queryFn: async () => {
+      logger.log('Fetching consultation:', consultationId);
       const response = await consultationService.getById(consultationId);
-      return response?.data || response;
+      logger.debug('Raw getById response:', response);
+      return extractData(response);
     },
     enabled: !!consultationId,
     staleTime: 1000 * 60,
   });
 
-  const consultation = consultationResponse?.data || consultationResponse;
+  // const consultation = consultationResponse?.data || consultationResponse;
 
   /**
    * Fetch notes
    */
-  const { data: notesResponse, isLoading: notesLoading } = useQuery({
+  const { data: notesData, isLoading: notesLoading } = useQuery({
     queryKey: ['consultationNotes', consultationId],
     queryFn: async () => {
       const response = await consultationService.getNotes(consultationId);
-      return response?.data || response;
+      const data = extractData(response);
+      return extractResults(data);
     },
     enabled: !!consultationId && !!consultation,
-    onSuccess: (data) => {
-      setNotes(data?.results || data || []);
-    }
   });
 
   /**
    * Fetch prescriptions
    */
-  const { data: prescriptionsResponse, isLoading: prescriptionsLoading } = useQuery({
+  const { data: prescriptionsData, isLoading: prescriptionsLoading } = useQuery({
     queryKey: ['consultationPrescriptions', consultationId],
     queryFn: async () => {
       const response = await consultationService.getPrescriptions(consultationId);
-      return response?.data || response;
+      const data = extractData(response);
+      return extractResults(data);
     },
     enabled: !!consultationId && !!consultation,
-    onSuccess: (data) => {
-      setPrescriptions(data?.results || data || []);
-    }
   });
 
   // ============================================================================
@@ -1215,13 +1213,16 @@ const DoctorConsultationRoom = () => {
    * Start consultation
    */
   const startConsultationMutation = useMutation({
-    mutationFn: async () => {
-      logger.log('Starting consultation:', consultationId);
-      const response = await consultationService.start(consultationId);
-      return response?.data || response;
-    },
-    onSuccess: (data) => {
-      logger.log('Consultation started:', data);
+    mutationFn: () => consultationService.start(consultationId),
+    onSuccess: (response) => {
+      const data = extractData(response);
+      logger.log('Consultation started, join info:', data);
+
+      const roomData = extractRoomInfo(data);
+      if (roomData) {
+        setRoomInfo(prev => ({ ...prev, ...roomData }));
+      }
+
       setConsultationState(CONSULTATION_STATES.IN_CALL);
       refetchConsultation();
       toast.success('Consultation started');
@@ -1234,23 +1235,42 @@ const DoctorConsultationRoom = () => {
   });
 
   /**
+   * Get join info - Separate mutation to get room details
+   */
+  const getJoinInfoMutation = useMutation({
+    mutationFn: () => consultationService.getJoinInfo(consultationId),
+    onSuccess: (response) => {
+      const data = extractData(response);
+      logger.log('Got join info:', data);
+
+      const roomData = extractRoomInfo(data);
+
+      if (roomData?.room_name) {
+        setRoomInfo(prev => ({ ...prev, ...roomData }));
+        setConsultationState(CONSULTATION_STATES.IN_CALL);
+      } else {
+        logger.error('No room_name in join info. Raw data:', data);
+        toast.error('Could not get room information');
+        setConsultationState(CONSULTATION_STATES.ERROR);
+      }
+    },
+    onError: (error) => {
+      logger.error('Failed to get join info:', error);
+      toast.error(getErrorMessage(error, 'Failed to get room information'));
+      setConsultationState(CONSULTATION_STATES.ERROR);
+    }
+  });
+
+  /**
    * End consultation
    */
   const endConsultationMutation = useMutation({
-    mutationFn: async (data) => {
-      logger.log('Ending consultation:', consultationId, data);
-      const response = await consultationService.end(consultationId, data);
-      return response?.data || response;
-    },
-    onSuccess: () => {
-      logger.log('Consultation ended');
+    mutationFn: (data) => consultationService.end(consultationId, data),
+    onSuccess: (response) => {
+      logger.log('Consultation ended:', extractData(response));
       setConsultationState(CONSULTATION_STATES.ENDED);
       toast.success('Consultation ended');
-      
-      // Navigate after short delay
-      setTimeout(() => {
-        navigate('/doctor/queue');
-      }, 1500);
+      setTimeout(() => navigate('/doctor/queue'), 1500);
     },
     onError: (error) => {
       logger.error('Failed to end consultation:', error);
@@ -1266,31 +1286,50 @@ const DoctorConsultationRoom = () => {
    * Initialize consultation
    */
   useEffect(() => {
-    if (consultationLoading || !consultation || hasStartedRef.current) {
-      return;
-    }
+    if (consultationLoading || !consultation || hasStartedRef.current) return;
 
-    // Set initial diagnosis
+    logger.log('Consultation loaded:', consultation.id, 'Status:', consultation.status);
     setDiagnosis(consultation.diagnosis || '');
 
-    // Check status and start if needed
-    const status = consultation.status;
-    
-    if (status === 'in_progress') {
-      // Already in progress
-      setConsultationState(CONSULTATION_STATES.IN_CALL);
-    } else if (['scheduled', 'waiting_room'].includes(status)) {
-      // Need to start
+    // Extract room info from consultation object
+    const roomData = extractRoomInfo(consultation);
+    if (roomData) {
+      logger.debug('Room info from consultation:', roomData);
+      setRoomInfo(prev => ({ ...prev, ...roomData }));
+    }
+
+    const consultationStatus = consultation.status;
+
+    if (consultationStatus === 'in_progress') {
+      hasStartedRef.current = true;
+      if (roomData?.room_name) {
+        setConsultationState(CONSULTATION_STATES.IN_CALL);
+      } else {
+        logger.log('In progress but no room info, fetching...');
+        setConsultationState(CONSULTATION_STATES.FETCHING_ROOM);
+        getJoinInfoMutation.mutate();
+      }
+    } else if (['scheduled', 'waiting_room'].includes(consultationStatus)) {
       hasStartedRef.current = true;
       setConsultationState(CONSULTATION_STATES.STARTING);
       startConsultationMutation.mutate();
-    } else if (['completed', 'cancelled'].includes(status)) {
-      // Already ended
+    } else if (['completed', 'cancelled'].includes(consultationStatus)) {
       setConsultationState(CONSULTATION_STATES.ENDED);
     } else {
+      logger.error('Unknown consultation status:', consultationStatus);
       setConsultationState(CONSULTATION_STATES.ERROR);
     }
   }, [consultation, consultationLoading]);
+
+  // Notes & Prescriptions — simplified
+  useEffect(() => {
+    if (notesData) setNotes(Array.isArray(notesData) ? notesData : []);
+  }, [notesData]);
+
+  useEffect(() => {
+    if (prescriptionsData) setPrescriptions(Array.isArray(prescriptionsData) ? prescriptionsData : []);
+  }, [prescriptionsData]);
+
 
   /**
    * Fetch patient health data
@@ -1301,9 +1340,9 @@ const DoctorConsultationRoom = () => {
     const fetchPatientHealth = async () => {
       try {
         const [vitalsRes, allergiesRes, conditionsRes] = await Promise.allSettled([
-          healthRecordsService.getLatestVitals(),
-          healthRecordsService.getActiveAllergies?.() || healthRecordsService.getAllergies?.(),
-          healthRecordsService.getActiveConditions?.() || healthRecordsService.getConditions?.()
+          healthRecordsService.getLatestVitals?.() || Promise.resolve(null),
+          healthRecordsService.getActiveAllergies?.() || healthRecordsService.getAllergies?.() || Promise.resolve({ results: [] }),
+          healthRecordsService.getActiveConditions?.() || healthRecordsService.getConditions?.() || Promise.resolve({ results: [] })
         ]);
 
         setPatientHealth({
@@ -1319,23 +1358,6 @@ const DoctorConsultationRoom = () => {
     fetchPatientHealth();
   }, [consultation?.patient]);
 
-  /**
-   * Set notes from query
-   */
-  useEffect(() => {
-    if (notesResponse) {
-      setNotes(notesResponse?.results || notesResponse || []);
-    }
-  }, [notesResponse]);
-
-  /**
-   * Set prescriptions from query
-   */
-  useEffect(() => {
-    if (prescriptionsResponse) {
-      setPrescriptions(prescriptionsResponse?.results || prescriptionsResponse || []);
-    }
-  }, [prescriptionsResponse]);
 
   /**
    * Cleanup on unmount
@@ -1432,19 +1454,51 @@ const DoctorConsultationRoom = () => {
   const handleRetry = useCallback(() => {
     hasStartedRef.current = false;
     setConsultationState(CONSULTATION_STATES.LOADING);
+    setRoomInfo(null);
     refetchConsultation();
   }, [refetchConsultation]);
 
   // ============================================================================
-  // DERIVED VALUES
+  // DERIVED VALUES - Better extraction of room name
   // ============================================================================
 
-  const roomName = consultation?.room?.room_name || '';
-  const jitsiDomain = consultation?.room?.jitsi_domain || 'meet.jit.si';
-  const doctorName = `Dr. ${user?.first_name || ''} ${user?.last_name || ''}`.trim();
-  const isLoading = consultationState === CONSULTATION_STATES.LOADING || 
-                    consultationState === CONSULTATION_STATES.STARTING ||
-                    consultationLoading;
+  const roomName = 
+    roomInfo?.room_name || 
+    roomInfo?.roomName ||
+    consultation?.room?.room_name || 
+    consultation?.room_name ||
+    '';
+  
+  const jitsiDomain = 
+    roomInfo?.jitsi_domain || 
+    roomInfo?.domain ||
+    consultation?.room?.jitsi_domain || 
+    'meet.jit.si';
+  
+  const doctorName = `Dr. ${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Doctor';
+  
+  const isLoading = 
+    consultationState === CONSULTATION_STATES.LOADING || 
+    consultationState === CONSULTATION_STATES.STARTING ||
+    consultationState === CONSULTATION_STATES.FETCHING_ROOM ||
+    consultationLoading ||
+    startConsultationMutation.isPending ||
+    getJoinInfoMutation.isPending;
+
+  // Debug logging
+  useEffect(() => {
+    if (isDev) {
+      logger.debug('State:', {
+        consultationState,
+        consultationId,
+        roomName,
+        jitsiDomain,
+        roomInfo,
+        consultationRoom: consultation?.room,
+        isLoading,
+      });
+    }
+  }, [consultationState, consultationId, roomName, roomInfo, consultation?.room, isLoading]);
 
   // ============================================================================
   // RENDER: Loading State
@@ -1458,7 +1512,9 @@ const DoctorConsultationRoom = () => {
           <p className="text-white mt-4">
             {consultationState === CONSULTATION_STATES.STARTING 
               ? 'Starting consultation...' 
-              : 'Loading consultation...'}
+              : consultationState === CONSULTATION_STATES.FETCHING_ROOM
+                ? 'Connecting to room...'
+                : 'Loading consultation...'}
           </p>
         </div>
       </div>
@@ -1522,7 +1578,45 @@ const DoctorConsultationRoom = () => {
   }
 
   // ============================================================================
-  // RENDER: In-Call State
+  // RENDER: In-Call but no room - Handle missing room gracefully
+  // ============================================================================
+
+  if (consultationState === CONSULTATION_STATES.IN_CALL && !roomName) {
+    logger.error('IN_CALL state but no roomName. roomInfo:', roomInfo, 'consultation.room:', consultation?.room);
+    
+    return (
+      <div className="fixed inset-0 bg-gray-900 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full p-6">
+          <EmptyState
+            icon={AlertCircle}
+            title="Unable to connect to room"
+            description="Could not get video room information. Please try again."
+            action={
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => navigate('/doctor/queue')}>
+                  Go Back
+                </Button>
+                <Button 
+                  variant="primary" 
+                  onClick={() => {
+                    setConsultationState(CONSULTATION_STATES.FETCHING_ROOM);
+                    getJoinInfoMutation.mutate();
+                  }} 
+                  leftIcon={<RefreshCw className="w-4 h-4" />}
+                  disabled={getJoinInfoMutation.isPending}
+                >
+                  Retry
+                </Button>
+              </div>
+            }
+          />
+        </Card>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // RENDER: In-Call State with Video
   // ============================================================================
 
   return (
@@ -1591,6 +1685,7 @@ const DoctorConsultationRoom = () => {
               userEmail={user?.email}
               isDoctor={true}
               domain={jitsiDomain}
+              jwt={roomInfo?.jwt}
               onApiReady={handleJitsiApiReady}
               onVideoConferenceJoined={handleVideoConferenceJoined}
               onVideoConferenceLeft={handleVideoConferenceLeft}

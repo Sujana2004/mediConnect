@@ -79,25 +79,25 @@ const StatsHeader = ({ stats }) => {
 
   const statItems = [
     {
-      label: t('doctor.totalPatients'),
+      label: t('doctor.totalPatients', 'Total Patients'),
       value: stats?.total || 0,
       icon: Users,
       color: 'bg-primary-50 text-primary-600'
     },
     {
-      label: t('doctor.thisMonth'),
+      label: t('doctor.thisMonth', 'This Month'),
       value: stats?.thisMonth || 0,
       icon: CalendarPlus,
       color: 'bg-green-50 text-green-600'
     },
     {
-      label: t('doctor.activePatients'),
+      label: t('doctor.activePatients', 'Active Patients'),
       value: stats?.active || 0,
       icon: UserCheck,
       color: 'bg-blue-50 text-blue-600'
     },
     {
-      label: t('doctor.pendingFollowUps'),
+      label: t('doctor.pendingFollowUps', 'Pending Follow-ups'),
       value: stats?.pendingFollowUps || 0,
       icon: Clock,
       color: 'bg-amber-50 text-amber-600'
@@ -1041,10 +1041,10 @@ const PatientRecords = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {t('doctor.patientRecords')}
+            {t('doctor.patientRecords', 'Patient Records')}
           </h1>
           <p className="text-gray-500 mt-1">
-            {t('doctor.patientRecordsDesc')}
+            {t('doctor.patientRecordsDesc', 'Patient Records Desc')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1138,10 +1138,10 @@ const PatientRecords = () => {
         <Card>
           <EmptyState
             icon={Users}
-            title={t('doctor.noPatients')}
+            title={t('doctor.noPatients', 'No Patients Found')}
             description={searchQuery || filterBy
-              ? t('doctor.noPatientsMatchingFilters')
-              : t('doctor.noPatientsDesc')
+              ? t('doctor.noPatientsMatchingFilters', 'No patients found matching the selected filters.')
+              : t('doctor.noPatientsDesc', 'You have no patients in your records.')
             }
             action={
               (searchQuery || filterBy) && (

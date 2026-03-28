@@ -782,7 +782,7 @@ class ConsultationPrescriptionAdmin(admin.ModelAdmin):
     readonly_fields = ['id', 'created_at']
     ordering = ['-created_at']
     list_per_page = 25
-    list_select_related = ['consultation', 'medicine']
+    list_select_related = ['consultation']
     
     actions = ['mark_active', 'mark_inactive', 'export_prescriptions_csv']
     

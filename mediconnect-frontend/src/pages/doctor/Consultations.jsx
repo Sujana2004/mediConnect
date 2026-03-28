@@ -46,6 +46,7 @@ import {
 import toast from 'react-hot-toast';
 
 import { useAuth } from '../../hooks/useAuth';
+import { extractData, extractResults } from '../../utils/apiHelpers';
 import { consultationService } from '../../services/api';
 import {
   Card,
@@ -770,7 +771,7 @@ const Consultations = () => {
    * Fetch consultations
    */
   const {
-    data: consultationsResponse,
+    data: consultationsData,
     isLoading: consultationsLoading,
     isError: consultationsError,
     error: consultationsErrorData,
@@ -782,9 +783,8 @@ const Consultations = () => {
       const params = {};
       if (statusFilter) params.status = statusFilter;
       if (typeFilter) params.type = typeFilter;
-      
       const response = await consultationService.getConsultations(params);
-      return response;
+      return extractData(response);
     },
     staleTime: 1000 * 60 * 2,
   });
@@ -793,13 +793,13 @@ const Consultations = () => {
    * Fetch stats
    */
   const {
-    data: statsResponse,
+    data: statsData,
     isLoading: statsLoading
   } = useQuery({
     queryKey: ['consultationStats'],
     queryFn: async () => {
       const response = await consultationService.getStats(30);
-      return response;
+      return extractData(response);
     },
     staleTime: 1000 * 60 * 5,
   });
@@ -809,23 +809,17 @@ const Consultations = () => {
   // ============================================================================
 
   const consultations = useMemo(() => {
-    const data =
-      consultationsResponse?.results ||
-      consultationsResponse?.data?.results ||
-      consultationsResponse?.data ||
-      consultationsResponse ||
-      [];
-    return Array.isArray(data) ? data : [];
-  }, [consultationsResponse]);
+    return extractResults(consultationsData);
+  }, [consultationsData]);
 
   const stats = useMemo(() => {
-    return statsResponse?.data || statsResponse || {
+    return statsData || {
       total: consultations.length,
       completed: consultations.filter(c => c.status === 'completed').length,
       avg_duration: null,
       avg_rating: null
     };
-  }, [statsResponse, consultations]);
+  }, [statsData, consultations]);
 
   /**
    * Filter consultations client-side

@@ -859,6 +859,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         operation_description="Confirm an appointment (doctors only)",
         responses={200: AppointmentSerializer}
     )
+    
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsDoctor])
     def confirm(self, request, pk=None):
         """Confirm appointment."""
@@ -872,10 +873,26 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 'message': error
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        # ✅ ADD THIS BLOCK — Auto-create consultation when appointment is confirmed
+        consultation_id = None
+        try:
+            from apps.consultation.services import ConsultationService
+            consultation, room_info = ConsultationService.create_from_appointment(appointment)
+            consultation_id = str(consultation.id)
+            logger.info(f"Auto-created consultation {consultation.id} for appointment {appointment.id}")
+        except ValueError as e:
+            logger.warning(f"Could not auto-create consultation for appointment {appointment.id}: {e}")
+        except Exception as e:
+            logger.error(f"Error auto-creating consultation for appointment {appointment.id}: {e}")
+        
+        response_data = AppointmentSerializer(appointment).data
+        if consultation_id:
+            response_data['consultation_id'] = consultation_id
+        
         return Response({
             'success': True,
             'message': 'Appointment confirmed.',
-            'data': AppointmentSerializer(appointment).data
+            'data': response_data
         })
     
     @swagger_auto_schema(

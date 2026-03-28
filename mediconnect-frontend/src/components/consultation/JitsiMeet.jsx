@@ -4,19 +4,13 @@ import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
 import { Loader } from '../common';
 
-/**
- * Environment check for logging
- */
 const isDev = import.meta.env.DEV;
 
 const logger = {
-  log: (...args) => isDev && console.log(...args),
-  error: (...args) => isDev && console.error(...args),
+  log: (...args) => isDev && console.log('[JitsiMeet]', ...args),
+  error: (...args) => console.error('[JitsiMeet]', ...args),
 };
 
-/**
- * Jitsi Meet configuration defaults
- */
 const DEFAULT_CONFIG = {
   disableDeepLinking: true,
   prejoinPageEnabled: false,
@@ -30,7 +24,7 @@ const DEFAULT_CONFIG = {
   disableRemoteMute: true,
   remoteVideoMenu: {
     disableKick: true,
-    disableGrantModerator: true
+    disableGrantModerator: true,
   },
   disableProfile: true,
   hideConferenceSubject: false,
@@ -47,16 +41,13 @@ const DEFAULT_CONFIG = {
     'chat',
     'settings',
     'videoquality',
-    'tileview'
+    'tileview',
   ],
   notifications: [],
   disableModeratorIndicator: false,
-  enableLobbyChat: false
+  enableLobbyChat: false,
 };
 
-/**
- * Default interface configuration
- */
 const DEFAULT_INTERFACE_CONFIG = {
   SHOW_JITSI_WATERMARK: false,
   SHOW_WATERMARK_FOR_GUESTS: false,
@@ -77,195 +68,48 @@ const DEFAULT_INTERFACE_CONFIG = {
   CLOSE_PAGE_GUEST_HINT: false,
   RECENT_LIST_ENABLED: false,
   SETTINGS_SECTIONS: ['devices', 'language'],
-  VIDEO_QUALITY_LABEL_DISABLED: false
+  VIDEO_QUALITY_LABEL_DISABLED: false,
 };
 
 /**
- * JitsiMeet Component
- * Integrates Jitsi Meet for video consultations
+ * Load Jitsi external API script
  */
-const JitsiMeet = memo(({
-  roomName,
-  userName,
-  userEmail,
-  isDoctor = false,
-  onApiReady,
-  onReadyToClose,
-  onParticipantJoined,
-  onParticipantLeft,
-  onVideoConferenceJoined,
-  onVideoConferenceLeft,
-  onAudioMuteStatusChanged,
-  onVideoMuteStatusChanged,
-  onError,
-  config = {},
-  interfaceConfig = {},
-  domain = 'meet.jit.si',
-  jwt = null,
-  className = ''
-}) => {
-  const { t } = useTranslation();
-  const containerRef = useRef(null);
-  const apiRef = useRef(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const scriptLoadedRef = useRef(false);
+const loadJitsiScript = (domain) => {
+  return new Promise((resolve, reject) => {
+    if (window.JitsiMeetExternalAPI) {
+      resolve();
+      return;
+    }
 
-  /**
-   * Load Jitsi Meet External API script
-   */
-  const loadJitsiScript = useCallback(() => {
-    return new Promise((resolve, reject) => {
-      // Check if already loaded
+    const existingScript = document.querySelector(
+      'script[src*="external_api.js"]'
+    );
+    if (existingScript) {
       if (window.JitsiMeetExternalAPI) {
         resolve();
-        return;
-      }
-
-      // Check if script is already in DOM
-      const existingScript = document.querySelector('script[src*="external_api.js"]');
-      if (existingScript) {
+      } else {
         existingScript.addEventListener('load', resolve);
         existingScript.addEventListener('error', reject);
-        return;
       }
-
-      // Create and load script
-      const script = document.createElement('script');
-      script.src = `https://${domain}/external_api.js`;
-      script.async = true;
-      script.onload = resolve;
-      script.onerror = () => reject(new Error('Failed to load Jitsi Meet API'));
-      document.head.appendChild(script);
-    });
-  }, [domain]);
-
-  /**
-   * Initialize Jitsi Meet
-   */
-  const initializeJitsi = useCallback(async () => {
-    if (!containerRef.current || !roomName) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // Load Jitsi script if needed
-      if (!window.JitsiMeetExternalAPI) {
-        await loadJitsiScript();
-      }
-
-      // Destroy existing instance
-      if (apiRef.current) {
-        apiRef.current.dispose();
-        apiRef.current = null;
-      }
-
-      // Merge configurations
-      const mergedConfig = {
-        ...DEFAULT_CONFIG,
-        ...config,
-        subject: isDoctor ? t('consultation.doctorConsultation') : t('consultation.patientConsultation')
-      };
-
-      const mergedInterfaceConfig = {
-        ...DEFAULT_INTERFACE_CONFIG,
-        ...interfaceConfig,
-        APP_NAME: 'MediConnect',
-        NATIVE_APP_NAME: 'MediConnect'
-      };
-
-      // Create Jitsi Meet instance
-      const options = {
-        roomName: roomName,
-        parentNode: containerRef.current,
-        width: '100%',
-        height: '100%',
-        configOverwrite: mergedConfig,
-        interfaceConfigOverwrite: mergedInterfaceConfig,
-        userInfo: {
-          displayName: userName || (isDoctor ? t('consultation.doctor') : t('consultation.patient')),
-          email: userEmail || ''
-        }
-      };
-
-      // Add JWT if provided
-      if (jwt) {
-        options.jwt = jwt;
-      }
-
-      logger.log('Initializing Jitsi Meet with options:', {
-        roomName,
-        userName,
-        isDoctor
-      });
-
-      // Create API instance
-      const api = new window.JitsiMeetExternalAPI(domain, options);
-      apiRef.current = api;
-
-      // Set up event listeners
-      api.addListener('videoConferenceJoined', (data) => {
-        logger.log('Video conference joined:', data);
-        setIsLoading(false);
-        onVideoConferenceJoined?.(data);
-      });
-
-      api.addListener('videoConferenceLeft', (data) => {
-        logger.log('Video conference left:', data);
-        onVideoConferenceLeft?.(data);
-      });
-
-      api.addListener('readyToClose', () => {
-        logger.log('Ready to close');
-        onReadyToClose?.();
-      });
-
-      api.addListener('participantJoined', (data) => {
-        logger.log('Participant joined:', data);
-        onParticipantJoined?.(data);
-      });
-
-      api.addListener('participantLeft', (data) => {
-        logger.log('Participant left:', data);
-        onParticipantLeft?.(data);
-      });
-
-      api.addListener('audioMuteStatusChanged', (data) => {
-        logger.log('Audio mute status:', data);
-        onAudioMuteStatusChanged?.(data);
-      });
-
-      api.addListener('videoMuteStatusChanged', (data) => {
-        logger.log('Video mute status:', data);
-        onVideoMuteStatusChanged?.(data);
-      });
-
-      api.addListener('errorOccurred', (data) => {
-        logger.error('Jitsi error:', data);
-        setError(data.error || 'An error occurred');
-        onError?.(data);
-      });
-
-      // Notify parent that API is ready
-      onApiReady?.(api);
-
-    } catch (err) {
-      logger.error('Failed to initialize Jitsi:', err);
-      setError(err.message || 'Failed to initialize video call');
-      setIsLoading(false);
-      onError?.(err);
+      return;
     }
-  }, [
+
+    const script = document.createElement('script');
+    script.src = `https://${domain}/external_api.js`;
+    script.async = true;
+    script.onload = resolve;
+    script.onerror = () =>
+      reject(new Error('Failed to load Jitsi Meet API'));
+    document.head.appendChild(script);
+  });
+};
+
+const JitsiMeet = memo(
+  ({
     roomName,
     userName,
     userEmail,
-    isDoctor,
-    domain,
-    jwt,
-    config,
-    interfaceConfig,
-    loadJitsiScript,
+    isDoctor = false,
     onApiReady,
     onReadyToClose,
     onParticipantJoined,
@@ -275,69 +119,231 @@ const JitsiMeet = memo(({
     onAudioMuteStatusChanged,
     onVideoMuteStatusChanged,
     onError,
-    t
-  ]);
+    config = {},
+    interfaceConfig = {},
+    domain = 'meet.jit.si',
+    jwt = null,
+    className = '',
+  }) => {
+    const { t } = useTranslation();
+    const containerRef = useRef(null);
+    const apiRef = useRef(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-  /**
-   * Initialize on mount
-   */
-  useEffect(() => {
-    initializeJitsi();
+    // ✅ Store callbacks in refs to avoid re-initialization
+    const callbacksRef = useRef({});
+    useEffect(() => {
+      callbacksRef.current = {
+        onApiReady,
+        onReadyToClose,
+        onParticipantJoined,
+        onParticipantLeft,
+        onVideoConferenceJoined,
+        onVideoConferenceLeft,
+        onAudioMuteStatusChanged,
+        onVideoMuteStatusChanged,
+        onError,
+      };
+    });
 
-    return () => {
-      if (apiRef.current) {
-        logger.log('Disposing Jitsi API');
-        apiRef.current.dispose();
-        apiRef.current = null;
+    /**
+     * Initialize Jitsi — only depends on roomName, domain, 
+     * userName, jwt (things that actually change the meeting)
+     */
+    const initializeJitsi = useCallback(async () => {
+      if (!containerRef.current || !roomName) {
+        logger.log('Skipping init: no container or roomName');
+        return;
       }
-    };
-  }, [initializeJitsi]);
 
-  /**
-   * Expose API methods
-   */
-  useEffect(() => {
-    if (apiRef.current && onApiReady) {
-      onApiReady(apiRef.current);
-    }
-  }, [onApiReady]);
+      try {
+        setIsLoading(true);
+        setError(null);
 
-  // Error state
-  if (error) {
-    return (
-      <div className={`flex flex-col items-center justify-center h-full bg-gray-900 text-white p-6 ${className}`}>
-        <div className="text-red-400 text-6xl mb-4">⚠️</div>
-        <h3 className="text-xl font-semibold mb-2">{t('consultation.connectionError')}</h3>
-        <p className="text-gray-400 text-center mb-4">{error}</p>
-        <button
-          onClick={initializeJitsi}
-          className="px-6 py-2 bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors"
+        // Load script
+        await loadJitsiScript(domain);
+
+        // Dispose previous instance
+        if (apiRef.current) {
+          try {
+            apiRef.current.dispose();
+          } catch (e) {
+            logger.error('Error disposing previous Jitsi:', e);
+          }
+          apiRef.current = null;
+        }
+
+        // Clear container
+        if (containerRef.current) {
+          containerRef.current.innerHTML = '';
+        }
+
+        const mergedConfig = {
+          ...DEFAULT_CONFIG,
+          ...config,
+          subject: isDoctor
+            ? t('consultation.doctorConsultation', 'Doctor Consultation')
+            : t('consultation.patientConsultation', 'Patient Consultation'),
+        };
+
+        const mergedInterfaceConfig = {
+          ...DEFAULT_INTERFACE_CONFIG,
+          ...interfaceConfig,
+          APP_NAME: 'MediConnect',
+          NATIVE_APP_NAME: 'MediConnect',
+        };
+
+        const options = {
+          roomName,
+          parentNode: containerRef.current,
+          width: '100%',
+          height: '100%',
+          configOverwrite: mergedConfig,
+          interfaceConfigOverwrite: mergedInterfaceConfig,
+          userInfo: {
+            displayName:
+              userName ||
+              (isDoctor
+                ? t('consultation.doctor', 'Doctor')
+                : t('consultation.patient', 'Patient')),
+            email: userEmail || '',
+          },
+        };
+
+        if (jwt) {
+          options.jwt = jwt;
+        }
+
+        logger.log('Initializing Jitsi Meet:', {
+          roomName,
+          domain,
+          userName,
+          isDoctor,
+        });
+
+        const api = new window.JitsiMeetExternalAPI(domain, options);
+        apiRef.current = api;
+
+        // ✅ Use callbacksRef so listeners always call latest callbacks
+        api.addListener('videoConferenceJoined', (data) => {
+          logger.log('Conference joined:', data);
+          setIsLoading(false);
+          callbacksRef.current.onVideoConferenceJoined?.(data);
+        });
+
+        api.addListener('videoConferenceLeft', (data) => {
+          logger.log('Conference left:', data);
+          callbacksRef.current.onVideoConferenceLeft?.(data);
+        });
+
+        api.addListener('readyToClose', () => {
+          logger.log('Ready to close');
+          callbacksRef.current.onReadyToClose?.();
+        });
+
+        api.addListener('participantJoined', (data) => {
+          logger.log('Participant joined:', data);
+          callbacksRef.current.onParticipantJoined?.(data);
+        });
+
+        api.addListener('participantLeft', (data) => {
+          logger.log('Participant left:', data);
+          callbacksRef.current.onParticipantLeft?.(data);
+        });
+
+        api.addListener('audioMuteStatusChanged', (data) => {
+          callbacksRef.current.onAudioMuteStatusChanged?.(data);
+        });
+
+        api.addListener('videoMuteStatusChanged', (data) => {
+          callbacksRef.current.onVideoMuteStatusChanged?.(data);
+        });
+
+        api.addListener('errorOccurred', (data) => {
+          logger.error('Jitsi error:', data);
+          setError(data.error || 'An error occurred');
+          callbacksRef.current.onError?.(data);
+        });
+
+        // ✅ Single onApiReady call
+        callbacksRef.current.onApiReady?.(api);
+      } catch (err) {
+        logger.error('Failed to initialize Jitsi:', err);
+        setError(err.message || 'Failed to initialize video call');
+        setIsLoading(false);
+        callbacksRef.current.onError?.(err);
+      }
+      // ✅ Only re-init when these ACTUALLY change
+    }, [roomName, domain, userName, userEmail, isDoctor, jwt, t]);
+
+    // ✅ Initialize once when roomName/domain change — no infinite loop
+    useEffect(() => {
+      if (roomName) {
+        initializeJitsi();
+      }
+
+      return () => {
+        if (apiRef.current) {
+          logger.log('Disposing Jitsi API on cleanup');
+          try {
+            apiRef.current.dispose();
+          } catch (e) {
+            logger.error('Dispose error:', e);
+          }
+          apiRef.current = null;
+        }
+      };
+    }, [initializeJitsi]);
+
+    /**
+     * Retry handler
+     */
+    const handleRetry = useCallback(() => {
+      setError(null);
+      initializeJitsi();
+    }, [initializeJitsi]);
+
+    // Error state
+    if (error) {
+      return (
+        <div
+          className={`flex flex-col items-center justify-center h-full bg-gray-900 text-white p-6 ${className}`}
         >
-          {t('common.retry')}
-        </button>
+          <div className="text-red-400 text-6xl mb-4">⚠️</div>
+          <h3 className="text-xl font-semibold mb-2">
+            {t('consultation.connectionError', 'Connection Error')}
+          </h3>
+          <p className="text-gray-400 text-center mb-4">{error}</p>
+          <button
+            onClick={handleRetry}
+            className="px-6 py-2 bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors"
+          >
+            {t('common.retry', 'Retry')}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className={`relative w-full h-full ${className}`}>
+        {isLoading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 z-10">
+            <Loader size="lg" className="text-white" />
+            <p className="text-white mt-4">
+              {t('consultation.connecting', 'Connecting...')}
+            </p>
+          </div>
+        )}
+        <div
+          ref={containerRef}
+          className="w-full h-full"
+          style={{ minHeight: '400px' }}
+        />
       </div>
     );
   }
-
-  return (
-    <div className={`relative w-full h-full ${className}`}>
-      {/* Loading overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 z-10">
-          <Loader size="lg" className="text-white" />
-          <p className="text-white mt-4">{t('consultation.connecting')}</p>
-        </div>
-      )}
-
-      {/* Jitsi container */}
-      <div
-        ref={containerRef}
-        className="w-full h-full"
-        style={{ minHeight: '400px' }}
-      />
-    </div>
-  );
-});
+);
 
 JitsiMeet.displayName = 'JitsiMeet';
 
@@ -359,7 +365,7 @@ JitsiMeet.propTypes = {
   interfaceConfig: PropTypes.object,
   domain: PropTypes.string,
   jwt: PropTypes.string,
-  className: PropTypes.string
+  className: PropTypes.string,
 };
 
 export default JitsiMeet;

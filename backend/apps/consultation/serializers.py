@@ -25,6 +25,8 @@ from apps.consultation.models import (
     ConsultationFeedback,
 )
 
+from datetime import datetime, timedelta 
+
 User = get_user_model()
 
 
@@ -430,13 +432,16 @@ class ConsultationListSerializer(serializers.ModelSerializer):
     doctor_name = serializers.SerializerMethodField()
     patient_name = serializers.SerializerMethodField()
     can_join = serializers.ReadOnlyField()
+    room_name = serializers.SerializerMethodField()
+    jitsi_domain = serializers.SerializerMethodField()
     
     class Meta:
         model = Consultation
         fields = [
             'id', 'doctor', 'doctor_name', 'patient', 'patient_name',
             'consultation_type', 'status', 'scheduled_start', 'scheduled_end',
-            'can_join', 'language'
+            'can_join', 'language',
+            'room_name', 'jitsi_domain',
         ]
         read_only_fields = fields
     
@@ -445,6 +450,16 @@ class ConsultationListSerializer(serializers.ModelSerializer):
     
     def get_patient_name(self, obj):
         return f"{obj.patient.first_name} {obj.patient.last_name}"
+    
+    def get_room_name(self, obj):
+        if obj.room:
+            return obj.room.room_name
+        return None
+    
+    def get_jitsi_domain(self, obj):
+        if obj.room:
+            return obj.room.jitsi_domain
+        return 'meet.jit.si'
 
 
 class ConsultationCreateSerializer(serializers.Serializer):
@@ -597,10 +612,14 @@ class ConsultationFromAppointmentSerializer(serializers.Serializer):
             appointment = Appointment.objects.get(id=value)
         except Appointment.DoesNotExist:
             raise serializers.ValidationError("Appointment not found")
-            
-        # Check if already has consultation
+        
+        # ✅ CHANGED: Instead of raising error, store existing consultation
         if hasattr(appointment, 'consultation') and appointment.consultation:
-            raise serializers.ValidationError("Appointment already has a consultation")
+            self.existing_consultation = appointment.consultation
+            self.appointment = appointment
+            return value
+        
+        self.existing_consultation = None
 
         # Check appointment status
         if appointment.status not in ['confirmed', 'checked_in', 'in_progress']:
