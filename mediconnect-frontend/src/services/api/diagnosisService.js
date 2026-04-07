@@ -192,6 +192,8 @@ export const submitDiagnosisFeedback = async (feedbackData) => {
   return response.data;
 };
 
+export const getHistory = getDiagnosisHistory; // Alias for compatibility
+
 /**
  * Diagnosis service default export
  * Groups all diagnosis-related API methods
@@ -208,7 +210,10 @@ export default {
   getDiseases,
   // History & Sessions
   getDiagnosisHistory,
+  getHistory,
   getSessionDetails,
+  getSession: getSessionDetails, // Add alias
   // Feedback
   submitDiagnosisFeedback,
+  submitFeedback: submitDiagnosisFeedback, // Add alias
 };

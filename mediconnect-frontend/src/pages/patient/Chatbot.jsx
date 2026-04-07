@@ -1017,6 +1017,7 @@ const Chatbot = () => {
     } else {
       setInputValue('');
       inputValueRef.current = '';
+      clearTranscript();
       startListening();
     }
   };

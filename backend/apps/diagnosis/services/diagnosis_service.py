@@ -373,6 +373,25 @@ class DiagnosisService:
                 'details': symptom_details,
                 'extraction_confidence': round(extraction_confidence, 4),
             },
+
+            'conditions': [
+                {
+                    'name': top_prediction['disease_name'] if top_prediction else 'Unknown',
+                    'probability': (top_prediction['confidence'] * 100) if top_prediction else 0,
+                    'description': disease_info.get('description', ''),
+                    'matching_symptoms': [s['name'] for s in symptom_details[:3]],
+                    'common_treatments': disease_info.get('precautions', [])[:4]
+                }
+            ] + [
+                {
+                    'name': pred['disease_name'],
+                    'probability': pred['confidence'] * 100,
+                    'description': '',
+                    'matching_symptoms': [],
+                    'common_treatments': []
+                }
+                for pred in predictions[1:4]  # Next 3 predictions
+            ],
             
             # Disease predictions
             'predictions': {

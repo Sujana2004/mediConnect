@@ -1392,6 +1392,7 @@ const SymptomChecker = () => {
     } else {
       setDescription('');
       descriptionRef.current = '';
+      clearTranscript();
       startListening();
     }
   }, [isListening, startListening, stopListening]);
@@ -1456,11 +1457,17 @@ const SymptomChecker = () => {
 
     saveMutation.mutate({
       session_id: results.session_id,
-      symptoms: selectedSymptoms.map(s => s.name),
-      results: results,
-      is_helpful: true
+      feedback: 'helpful',  // Backend expects: 'helpful' | 'not_helpful' | 'incorrect'
+      comment: `Saved results for symptoms: ${selectedSymptoms.map(s => s.name).join(', ')}`
+      // symptoms: selectedSymptoms.map(s => s.name),
+      // results: results,
+      // is_helpful: true
     });
-  }, [results, selectedSymptoms, saveMutation]);
+    console.log('Saving feedback:', feedbackPayload); // Debug
+
+    saveMutation.mutate(feedbackPayload);
+
+  }, [results, selectedSymptoms, saveMutation, t]);
 
   const handleStartOver = useCallback(() => {
     setCurrentStep('input');

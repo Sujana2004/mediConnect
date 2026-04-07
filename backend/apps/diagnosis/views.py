@@ -256,6 +256,7 @@ class SessionHistoryView(APIView):
         return Response({
             'success': True,
             'count': len(serializer.data),
+            'data': serializer.data,
             'sessions': serializer.data
         })
 
