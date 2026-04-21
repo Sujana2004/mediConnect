@@ -248,6 +248,18 @@ export const getTodayReminders = async () => {
   return response.data;
 };
 
+/**
+ * Get adherence statistics
+ * @param {number} [days] - Number of days for adherence window
+ * @returns {Promise<Object>} Adherence stats
+ */
+export const getAdherenceStats = async (days = 7) => {
+  const endpoint = buildEndpoint(MEDICINE_ENDPOINTS.REMINDERS, null, 'adherence');
+  const queryString = buildQueryString({ days });
+  const response = await api.get(`${endpoint}${queryString}`);
+  return response.data;
+};
+
 // ========== Reminder Logs ==========
 
 /**
@@ -303,6 +315,7 @@ export default {
   updateReminder,
   deleteReminder,
   getTodayReminders,
+  getAdherenceStats,
   // Reminder Logs
   getReminderLogs,
   respondToReminder,

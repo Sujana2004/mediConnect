@@ -56,7 +56,8 @@ import {
   Loader,
   EmptyState,
   Modal,
-  Select
+  Select,
+  SearchInput
 } from '../../components/common';
 
 // ============================================================================
@@ -289,49 +290,37 @@ const FiltersBar = ({
     <Card padding="md">
       <div className="flex flex-col lg:flex-row gap-4">
         {/* Date Range */}
-        <select
+        <Select
           value={dateRange}
           onChange={(e) => onDateRangeChange(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
-        >
-          {DATE_RANGE_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+          options={DATE_RANGE_OPTIONS}
+          placeholder=""
+        />
 
         {/* Search */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
+        <div className="flex-1">
+          <SearchInput
             value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={onSearchChange}
             placeholder="Search by patient name..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
 
         {/* Status Filter */}
-        <select
+        <Select
           value={statusFilter}
           onChange={(e) => onStatusChange(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
-        >
-          {STATUS_FILTER_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+          options={STATUS_FILTER_OPTIONS}
+          placeholder=""
+        />
 
         {/* Type Filter */}
-        <select
+        <Select
           value={typeFilter}
           onChange={(e) => onTypeChange(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
-        >
-          {TYPE_FILTER_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+          options={TYPE_FILTER_OPTIONS}
+          placeholder=""
+        />
 
         {/* Clear Filters */}
         {hasFilters && (

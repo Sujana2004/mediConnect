@@ -153,6 +153,7 @@ export {
   updateReminder,
   deleteReminder,
   getTodayReminders,
+  getAdherenceStats,
   getReminderLogs,
   respondToReminder,
 } from './medicineService';

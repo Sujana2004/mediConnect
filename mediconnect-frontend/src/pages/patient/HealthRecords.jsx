@@ -824,77 +824,6 @@ const DocumentsSection = ({
   );
 };
 
-const LabReportsSection = ({ reports, onView, onUpload }) => {
-  const { t } = useTranslation();
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5">
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">
-            <TestTube className="w-[18px] h-[18px] text-purple-600" />
-          </div>
-          {t('healthRecords.labReports', 'Lab Reports')}
-        </h3>
-        <Button
-          variant="outline"
-          size="sm"
-          leftIcon={<Plus className="w-4 h-4" />}
-          onClick={onUpload}
-          className="!rounded-xl !text-xs !border-violet-200 !text-violet-600 hover:!bg-violet-50"
-        >
-          {t('common.add', 'Add')}
-        </Button>
-      </div>
-
-      {reports?.length > 0 ? (
-        <div className="space-y-2.5">
-          {reports.map((report) => (
-            <button
-              key={report.id}
-              onClick={() => onView(report)}
-              className="w-full flex items-center justify-between p-3.5 bg-gray-50 rounded-2xl hover:bg-violet-50/30 transition-all duration-200 text-left group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-purple-50 rounded-xl group-hover:bg-purple-100 transition-colors">
-                  <Microscope className="w-5 h-5 text-purple-600" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900 text-sm">{report.name}</h4>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {report.lab_name} · {formatDate(report.date, 'MMM d, yyyy')}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {report.has_abnormal && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200/50">
-                    <AlertCircle className="w-3 h-3" />
-                    {t('healthRecords.review', 'Review')}
-                  </span>
-                )}
-                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-violet-500 transition-colors" />
-              </div>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-8">
-          <div className="w-12 h-12 bg-violet-50 rounded-2xl flex items-center justify-center mx-auto mb-2.5">
-            <TestTube className="w-5 h-5 text-violet-400" />
-          </div>
-          <p className="text-sm text-gray-500 font-medium">
-            {t('healthRecords.noLabReports', 'No lab reports')}
-          </p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {t('healthRecords.noLabReportsDesc', 'Upload your lab reports to track results')}
-          </p>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const VaccinationsSection = ({ vaccinations, onAdd }) => {
   const { t } = useTranslation();
 
@@ -1627,13 +1556,6 @@ const HealthRecords = () => {
     enabled: isOnline
   });
 
-  const { data: labReportsData } = useQuery({
-    queryKey: ['labReports'],
-    queryFn: () => healthRecordsService.getLabReports(),
-    staleTime: 1000 * 60 * 5,
-    enabled: isOnline
-  });
-
   const { data: vaccinationsData } = useQuery({
     queryKey: ['vaccinations'],
     queryFn: () => healthRecordsService.getVaccinations(),
@@ -1724,7 +1646,6 @@ const HealthRecords = () => {
   const conditions = normalizeArrayData(conditionsData);
   const allergies = normalizeArrayData(allergiesData);
   const documents = normalizeArrayData(documentsData);
-  const labReports = normalizeArrayData(labReportsData);
   const vaccinations = normalizeArrayData(vaccinationsData);
   const familyHistory = normalizeArrayData(familyHistoryData);
   const sharedWith = normalizeArrayData(sharingData);
@@ -2019,21 +1940,12 @@ const HealthRecords = () => {
     revokeMutation.mutate(shareId);
   }, [revokeMutation]);
 
-  const handleViewLabReport = useCallback((report) => {
-    if (report.url) {
-      window.open(report.url, '_blank');
-    } else {
-      toast(t('healthRecords.labReportDetail', 'Lab report details coming soon'), { icon: '🔬' });
-    }
-  }, [t]);
-
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['healthProfile'] });
     queryClient.invalidateQueries({ queryKey: ['vitals'] });
     queryClient.invalidateQueries({ queryKey: ['conditions'] });
     queryClient.invalidateQueries({ queryKey: ['allergies'] });
     queryClient.invalidateQueries({ queryKey: ['documents'] });
-    queryClient.invalidateQueries({ queryKey: ['labReports'] });
     queryClient.invalidateQueries({ queryKey: ['vaccinations'] });
     queryClient.invalidateQueries({ queryKey: ['familyHistory'] });
     queryClient.invalidateQueries({ queryKey: ['healthSharing'] });
@@ -2188,11 +2100,6 @@ const HealthRecords = () => {
             onDownload={handleDownloadDocument}
             onDelete={(doc) => handleDeleteItem('document', doc)}
             onShare={() => setShowShareModal(true)}
-          />
-          <LabReportsSection
-            reports={labReports}
-            onView={handleViewLabReport}
-            onUpload={() => setShowUploadModal(true)}
           />
         </div>
       )}

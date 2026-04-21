@@ -1072,9 +1072,24 @@ class SharedRecordCreateSerializer(serializers.ModelSerializer):
         doctor_id = validated_data.pop('doctor_id', None)
         doctor = self.doctor
         
-        validated_data['doctor'] = doctor
-        validated_data['patient'] = self.context['request'].user
-        return super().create(validated_data)
+        share_type = validated_data.get('share_type', 'all')
+        documents = validated_data.pop('documents', [])
+        
+        # Ensure record is active if it's being updated
+        validated_data['is_active'] = True
+        validated_data['revoked_at'] = None
+        
+        record, created = SharedRecord.objects.update_or_create(
+            patient=self.context['request'].user,
+            doctor=doctor,
+            share_type=share_type,
+            defaults=validated_data
+        )
+        
+        if documents:
+            record.documents.set(documents)
+            
+        return record
 
 
 class SharedRecordListSerializer(serializers.ModelSerializer):

@@ -43,8 +43,7 @@ import {
   Avatar,
   Loader,
   EmptyState,
-  Modal,
-  Tabs
+  Modal
 } from '../../components/common';
 
 // ============================================================================

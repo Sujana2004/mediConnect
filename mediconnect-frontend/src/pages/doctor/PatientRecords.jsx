@@ -1,6 +1,6 @@
 // src/pages/doctor/PatientRecords.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Users,
@@ -68,6 +68,39 @@ const FILTER_OPTIONS = [
   { value: 'follow_up', label: 'Pending Follow-ups' },
   { value: 'chronic', label: 'Chronic Conditions' }
 ];
+
+const getSafeTranslation = (t, key, fallback) => {
+  const translated = t(key);
+  return translated === key ? fallback : translated;
+};
+
+const getGenderLabel = (t, gender) => {
+  if (!gender) return getSafeTranslation(t, 'common.other', 'Other');
+  return getSafeTranslation(t, `common.${gender}`, gender);
+};
+
+const formatPatientAgeWithUnit = (t, age, unitKey = 'common.yrs', unitFallback = 'yrs') => {
+  if (age === null || age === undefined || age === '') return '-';
+  return `${age} ${getSafeTranslation(t, unitKey, unitFallback)}`;
+};
+
+const normalizeAccessiblePatient = (entry) => {
+  const patient = entry?.patient || entry;
+
+  return {
+    ...entry,
+    ...patient,
+    id: patient?.id,
+    name: patient?.full_name || [patient?.first_name, patient?.last_name].filter(Boolean).join(' ') || patient?.phone || 'Patient',
+    phone: patient?.phone || '-',
+    gender: patient?.gender,
+    age: patient?.age,
+    avatar: patient?.avatar || patient?.profile_picture || null,
+    share_types: entry?.share_types || [],
+    is_permanent: entry?.is_permanent ?? false,
+    latest_share: entry?.latest_share || null,
+  };
+};
 
 // ============================================================================
 // SUB-COMPONENTS
@@ -138,6 +171,16 @@ const SearchFilterBar = ({
   const { t } = useTranslation();
   const hasFilters = searchQuery || filterBy;
 
+  const filterOptions = FILTER_OPTIONS.map((opt) => ({
+    ...opt,
+    label: getSafeTranslation(t, `doctor.filter.${opt.value}`, opt.label)
+  }));
+
+  const sortOptions = SORT_OPTIONS.map((opt) => ({
+    ...opt,
+    label: getSafeTranslation(t, `doctor.sort.${opt.value}`, opt.label)
+  }));
+
   return (
     <Card>
       <div className="flex flex-col lg:flex-row gap-4">
@@ -146,7 +189,7 @@ const SearchFilterBar = ({
           <SearchInput
             value={searchQuery}
             onChange={onSearchChange}
-            placeholder={t('doctor.searchPatientsByName')}
+            placeholder={getSafeTranslation(t, 'doctor.searchPatientsByName', 'Search patients by name')}
             className="w-full"
           />
         </div>
@@ -156,20 +199,14 @@ const SearchFilterBar = ({
           <Select
             value={filterBy}
             onChange={(e) => onFilterChange(e.target.value)}
-            options={FILTER_OPTIONS.map(opt => ({
-              ...opt,
-              label: t(`doctor.filter.${opt.value}`) || opt.label
-            }))}
+            options={filterOptions}
             className="w-40"
           />
 
           <Select
             value={sortBy}
             onChange={(e) => onSortChange(e.target.value)}
-            options={SORT_OPTIONS.map(opt => ({
-              ...opt,
-              label: t(`doctor.sort.${opt.value}`) || opt.label
-            }))}
+            options={sortOptions}
             className="w-44"
           />
 
@@ -204,7 +241,7 @@ const SearchFilterBar = ({
               onClick={onClearFilters}
               leftIcon={<X className="w-4 h-4" />}
             >
-              {t('common.clear')}
+              {getSafeTranslation(t, 'common.clear', 'Clear')}
             </Button>
           )}
         </div>
@@ -216,9 +253,10 @@ const SearchFilterBar = ({
 // Patient Card (Grid View)
 const PatientCardGrid = ({ patient, onView, onSchedule, onMessage }) => {
   const { t } = useTranslation();
+  const genderLabel = getGenderLabel(t, patient.gender);
 
   return (
-    <Card hover className="cursor-pointer" onClick={() => onView(patient.id)}>
+    <Card hover className="cursor-pointer" onClick={() => onView(patient)}>
       <div className="text-center">
         {/* Avatar */}
         <Avatar
@@ -233,7 +271,7 @@ const PatientCardGrid = ({ patient, onView, onSchedule, onMessage }) => {
           {patient.name}
         </h3>
         <p className="text-sm text-gray-500">
-          {patient.age} {t('common.yrs')} • {t(`common.${patient.gender}`)}
+          {formatPatientAgeWithUnit(t, patient.age)}{patient.gender ? ` • ${genderLabel}` : ''}
         </p>
 
         {/* Phone */}
@@ -247,14 +285,14 @@ const PatientCardGrid = ({ patient, onView, onSchedule, onMessage }) => {
             <p className="text-lg font-semibold text-gray-900">
               {patient.total_consultations || 0}
             </p>
-            <p className="text-xs text-gray-500">{t('doctor.visits')}</p>
+            <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.visits', 'Visits')}</p>
           </div>
           <div className="w-px h-8 bg-gray-200" />
           <div className="text-center">
             <p className="text-sm font-medium text-gray-700">
-              {patient.last_visit ? getRelativeTime(patient.last_visit) : t('common.never')}
+              {patient.last_visit ? getRelativeTime(patient.last_visit) : getSafeTranslation(t, 'common.never', 'Never')}
             </p>
-            <p className="text-xs text-gray-500">{t('doctor.lastVisit')}</p>
+            <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.lastVisit', 'Last Visit')}</p>
           </div>
         </div>
 
@@ -279,7 +317,7 @@ const PatientCardGrid = ({ patient, onView, onSchedule, onMessage }) => {
           <div className="mt-3 p-2 bg-primary-50 rounded-lg">
             <p className="text-xs text-primary-600 flex items-center justify-center gap-1">
               <Calendar className="w-3 h-3" />
-              {formatDate(patient.next_appointment, 'MMM d')} at {formatTime(patient.next_appointment_time)}
+              {formatDate(patient.next_appointment, 'MMM d')} at {patient.next_appointment_time ? formatTime(patient.next_appointment_time) : '-'}
             </p>
           </div>
         )}
@@ -296,7 +334,7 @@ const PatientCardGrid = ({ patient, onView, onSchedule, onMessage }) => {
               onSchedule(patient);
             }}
           >
-            {t('doctor.schedule')}
+            {getSafeTranslation(t, 'doctor.schedule', 'Schedule')}
           </Button>
           <Button
             variant="ghost"
@@ -315,9 +353,10 @@ const PatientCardGrid = ({ patient, onView, onSchedule, onMessage }) => {
 };
 
 // Patient Card (List View)
-const PatientCardList = ({ patient, onView, onSchedule, onViewHistory }) => {
+const PatientCardList = ({ patient, onView, onSchedule, onViewHistory, onViewRecords }) => {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
+  const genderLabel = getGenderLabel(t, patient.gender);
 
   const handleCloseActions = useCallback(() => {
     setShowActions(false);
@@ -326,7 +365,7 @@ const PatientCardList = ({ patient, onView, onSchedule, onViewHistory }) => {
   return (
     <div
       className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
-      onClick={() => onView(patient.id)}
+      onClick={() => onView(patient)}
     >
       <div className="flex items-center gap-4">
         {/* Avatar */}
@@ -344,15 +383,15 @@ const PatientCardList = ({ patient, onView, onSchedule, onViewHistory }) => {
             </h3>
             {patient.is_new && (
               <Badge variant="success" size="sm">
-                {t('common.new')}
+                {getSafeTranslation(t, 'common.new', 'New')}
               </Badge>
             )}
           </div>
 
           <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-            <span>{patient.age} {t('common.yrs')}</span>
-            <span>•</span>
-            <span>{t(`common.${patient.gender}`)}</span>
+            <span>{formatPatientAgeWithUnit(t, patient.age)}</span>
+            {patient.gender && <span>•</span>}
+            {patient.gender && <span>{genderLabel}</span>}
             {patient.phone && (
               <>
                 <span>•</span>
@@ -371,7 +410,7 @@ const PatientCardList = ({ patient, onView, onSchedule, onViewHistory }) => {
               ))}
               {patient.conditions.length > 3 && (
                 <span className="text-xs text-gray-400">
-                  +{patient.conditions.length - 3} {t('common.more')}
+                  +{patient.conditions.length - 3} {getSafeTranslation(t, 'common.more', 'more')}
                 </span>
               )}
             </div>
@@ -384,14 +423,14 @@ const PatientCardList = ({ patient, onView, onSchedule, onViewHistory }) => {
             <p className="text-lg font-semibold text-gray-900">
               {patient.total_consultations || 0}
             </p>
-            <p className="text-xs text-gray-500">{t('doctor.consultations')}</p>
+            <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.consultations', 'Consultations')}</p>
           </div>
 
           <div className="text-center">
             <p className="text-sm font-medium text-gray-700">
               {patient.last_visit ? formatDate(patient.last_visit, 'MMM d, yyyy') : '-'}
             </p>
-            <p className="text-xs text-gray-500">{t('doctor.lastVisit')}</p>
+            <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.lastVisit', 'Last Visit')}</p>
           </div>
         </div>
 
@@ -400,10 +439,10 @@ const PatientCardList = ({ patient, onView, onSchedule, onViewHistory }) => {
           <div className="hidden lg:block">
             <div className="px-3 py-2 bg-primary-50 rounded-lg">
               <p className="text-xs text-primary-700 font-medium">
-                {t('doctor.nextAppointment')}
+                {getSafeTranslation(t, 'doctor.nextAppointment', 'Next Appointment')}
               </p>
               <p className="text-sm text-primary-600">
-                {formatDate(patient.next_appointment, 'MMM d')} • {formatTime(patient.next_appointment_time)}
+                {formatDate(patient.next_appointment, 'MMM d')}{patient.next_appointment_time ? ` • ${formatTime(patient.next_appointment_time)}` : ''}
               </p>
             </div>
           </div>
@@ -417,10 +456,10 @@ const PatientCardList = ({ patient, onView, onSchedule, onViewHistory }) => {
             leftIcon={<Eye className="w-4 h-4" />}
             onClick={(e) => {
               e.stopPropagation();
-              onView(patient.id);
+              onView(patient);
             }}
           >
-            {t('common.view')}
+            {getSafeTranslation(t, 'common.view', 'View')}
           </Button>
 
           <div className="relative">
@@ -454,7 +493,7 @@ const PatientCardList = ({ patient, onView, onSchedule, onViewHistory }) => {
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
                     <CalendarPlus className="w-4 h-4" />
-                    {t('doctor.scheduleAppointment')}
+                    {getSafeTranslation(t, 'doctor.scheduleAppointment', 'Schedule Appointment')}
                   </button>
                   <button
                     onClick={(e) => {
@@ -465,17 +504,18 @@ const PatientCardList = ({ patient, onView, onSchedule, onViewHistory }) => {
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
                     <History className="w-4 h-4" />
-                    {t('doctor.viewHistory')}
+                    {getSafeTranslation(t, 'doctor.viewHistory', 'View History')}
                   </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      onViewRecords(patient);
                       handleCloseActions();
                     }}
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
                     <FileText className="w-4 h-4" />
-                    {t('doctor.viewRecords')}
+                    {getSafeTranslation(t, 'doctor.viewRecords', 'View Records')}
                   </button>
                   <button
                     onClick={(e) => {
@@ -485,7 +525,7 @@ const PatientCardList = ({ patient, onView, onSchedule, onViewHistory }) => {
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
                     <Pill className="w-4 h-4" />
-                    {t('doctor.viewPrescriptions')}
+                    {getSafeTranslation(t, 'doctor.viewPrescriptions', 'View Prescriptions')}
                   </button>
                 </div>
               </>
@@ -498,12 +538,57 @@ const PatientCardList = ({ patient, onView, onSchedule, onViewHistory }) => {
 };
 
 // Patient Details Modal (Quick View)
-const PatientQuickViewModal = ({ isOpen, onClose, patient, onViewFull, onSchedule }) => {
+const PatientQuickViewModal = ({ isOpen, onClose, patient, onViewFull, onSchedule, isFullProfile = false }) => {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [patientDetails, setPatientDetails] = useState(null);
   const [recentConsultations, setRecentConsultations] = useState([]);
+  const patientRecords = patientDetails?.data || patientDetails || {};
+  const detailPatient = patientRecords?.patient;
+  const conditionsList = Array.isArray(patientRecords?.medical_conditions)
+    ? patientRecords.medical_conditions
+    : Array.isArray(patientRecords?.conditions)
+      ? patientRecords.conditions
+      : [];
+  const allergiesList = Array.isArray(patientRecords?.allergies)
+    ? patientRecords.allergies
+    : [];
+  const normalizedConditions = conditionsList
+    .map((item) => item?.condition_name || item?.name || item?.condition || null)
+    .filter(Boolean);
+  const normalizedAllergies = allergiesList
+    .map((item) => item?.allergen || item?.name || item?.allergy || null)
+    .filter(Boolean);
+  const vitalSigns = Array.isArray(patientRecords?.vital_signs)
+    ? patientRecords.vital_signs
+    : [];
+  const latestVital = vitalSigns.length > 0 ? vitalSigns[0] : null;
+  const labReports = Array.isArray(patientRecords?.lab_reports)
+    ? patientRecords.lab_reports
+    : [];
+  const documents = Array.isArray(patientRecords?.documents)
+    ? patientRecords.documents
+    : [];
+  const healthProfile = patientRecords?.health_profile || {};
+  const profileMedications = Array.isArray(healthProfile?.current_medications)
+    ? healthProfile.current_medications
+    : [];
+  const profileChronicConditions = Array.isArray(healthProfile?.chronic_conditions)
+    ? healthProfile.chronic_conditions
+    : [];
+  const profileAllergies = Array.isArray(healthProfile?.allergies)
+    ? healthProfile.allergies
+    : [];
+
+  const displayPatient = {
+    ...patient,
+    ...(detailPatient || {}),
+    name: detailPatient?.full_name || patient?.name,
+    phone: detailPatient?.phone || patient?.phone,
+    gender: detailPatient?.gender || patient?.gender,
+    age: detailPatient?.age ?? patient?.age,
+  };
 
   useEffect(() => {
     const fetchPatientDetails = async () => {
@@ -520,7 +605,7 @@ const PatientQuickViewModal = ({ isOpen, onClose, patient, onViewFull, onSchedul
         ]);
 
         if (recordsRes.status === 'fulfilled') {
-          setPatientDetails(recordsRes.value.data);
+          setPatientDetails(recordsRes.value);
         }
 
         if (consultationsRes.status === 'fulfilled') {
@@ -552,7 +637,9 @@ const PatientQuickViewModal = ({ isOpen, onClose, patient, onViewFull, onSchedul
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={t('doctor.patientQuickView')}
+      title={isFullProfile
+        ? getSafeTranslation(t, 'doctor.patientFullProfile', 'Patient Full Profile')
+        : getSafeTranslation(t, 'doctor.patientQuickView', 'Patient Quick View')}
       size="lg"
     >
       {isLoading ? (
@@ -577,33 +664,33 @@ const PatientQuickViewModal = ({ isOpen, onClose, patient, onViewFull, onSchedul
           {/* Patient Header */}
           <div className="flex items-start gap-4">
             <Avatar
-              name={patient.name}
-              src={patient.avatar}
+              name={displayPatient.name}
+              src={displayPatient.avatar}
               size="xl"
             />
             <div className="flex-1">
               <h3 className="text-xl font-semibold text-gray-900">
-                {patient.name}
+                {displayPatient.name}
               </h3>
               <div className="flex items-center gap-3 mt-1 text-gray-600">
-                <span>{patient.age} {t('common.years')}</span>
-                <span>•</span>
-                <span>{t(`common.${patient.gender}`)}</span>
+                <span>{formatPatientAgeWithUnit(t, displayPatient.age, 'common.years', 'years')}</span>
+                {displayPatient.gender && <span>•</span>}
+                {displayPatient.gender && <span>{getGenderLabel(t, displayPatient.gender)}</span>}
               </div>
-              {patient.phone && (
-                <p className="text-gray-500 mt-1">{patient.phone}</p>
+              {displayPatient.phone && (
+                <p className="text-gray-500 mt-1">{displayPatient.phone}</p>
               )}
-              {patient.email && (
+              {displayPatient.email && (
                 <p className="text-gray-500 flex items-center gap-1">
                   <Mail className="w-4 h-4" />
-                  {patient.email}
+                  {displayPatient.email}
                 </p>
               )}
             </div>
             <div className="text-right">
-              <p className="text-sm text-gray-500">{t('doctor.totalVisits')}</p>
+              <p className="text-sm text-gray-500">{getSafeTranslation(t, 'doctor.totalVisits', 'Total Visits')}</p>
               <p className="text-2xl font-bold text-primary-600">
-                {patient.total_consultations || 0}
+                {displayPatient.total_consultations || 0}
               </p>
             </div>
           </div>
@@ -612,34 +699,130 @@ const PatientQuickViewModal = ({ isOpen, onClose, patient, onViewFull, onSchedul
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-gray-50 rounded-xl p-4 text-center">
               <Calendar className="w-5 h-5 text-primary-600 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">{t('doctor.firstVisit')}</p>
+              <p className="text-sm text-gray-500">{getSafeTranslation(t, 'doctor.firstVisit', 'First Visit')}</p>
               <p className="font-medium">
-                {patient.first_visit ? formatDate(patient.first_visit, 'MMM d, yyyy') : '-'}
+                {displayPatient.first_visit ? formatDate(displayPatient.first_visit, 'MMM d, yyyy') : '-'}
               </p>
             </div>
             <div className="bg-gray-50 rounded-xl p-4 text-center">
               <Clock className="w-5 h-5 text-blue-600 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">{t('doctor.lastVisit')}</p>
+              <p className="text-sm text-gray-500">{getSafeTranslation(t, 'doctor.lastVisit', 'Last Visit')}</p>
               <p className="font-medium">
-                {patient.last_visit ? formatDate(patient.last_visit, 'MMM d, yyyy') : '-'}
+                {displayPatient.last_visit ? formatDate(displayPatient.last_visit, 'MMM d, yyyy') : '-'}
               </p>
             </div>
             <div className="bg-gray-50 rounded-xl p-4 text-center">
               <Stethoscope className="w-5 h-5 text-green-600 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">{t('doctor.avgDuration')}</p>
-              <p className="font-medium">{patient.avg_consultation_duration || 15} {t('common.min')}</p>
+              <p className="text-sm text-gray-500">{getSafeTranslation(t, 'doctor.avgDuration', 'Avg Duration')}</p>
+              <p className="font-medium">{displayPatient.avg_consultation_duration || 15} {getSafeTranslation(t, 'common.min', 'min')}</p>
             </div>
           </div>
 
+          {/* Full Health Profile */}
+          {(isFullProfile || healthProfile?.blood_group || healthProfile?.height_cm || healthProfile?.weight_kg || profileMedications.length > 0) && (
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3">
+                {getSafeTranslation(t, 'doctor.healthProfile', 'Health Profile')}
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.bloodGroup', 'Blood Group')}</p>
+                  <p className="text-sm font-semibold text-gray-900">{healthProfile?.blood_group || '-'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.height', 'Height')}</p>
+                  <p className="text-sm font-semibold text-gray-900">{healthProfile?.height_cm ? `${healthProfile.height_cm} cm` : '-'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.weight', 'Weight')}</p>
+                  <p className="text-sm font-semibold text-gray-900">{healthProfile?.weight_kg ? `${healthProfile.weight_kg} kg` : '-'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.bmi', 'BMI')}</p>
+                  <p className="text-sm font-semibold text-gray-900">{healthProfile?.bmi || '-'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.smokingStatus', 'Smoking Status')}</p>
+                  <p className="text-sm font-semibold text-gray-900">{healthProfile?.smoking_status || '-'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.alcoholConsumption', 'Alcohol Consumption')}</p>
+                  <p className="text-sm font-semibold text-gray-900">{healthProfile?.alcohol_consumption || '-'}</p>
+                </div>
+              </div>
+
+              {(healthProfile?.emergency_contact_name || healthProfile?.emergency_contact_phone) && (
+                <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-lg">
+                  <p className="text-xs text-amber-700 font-medium">
+                    {getSafeTranslation(t, 'doctor.emergencyContact', 'Emergency Contact')}
+                  </p>
+                  <p className="text-sm text-amber-900 mt-1">
+                    {healthProfile?.emergency_contact_name || '-'}
+                    {healthProfile?.emergency_contact_relation ? ` • ${healthProfile.emergency_contact_relation}` : ''}
+                    {healthProfile?.emergency_contact_phone ? ` • ${healthProfile.emergency_contact_phone}` : ''}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Current Medications */}
+          {profileMedications.length > 0 && (
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">
+                {getSafeTranslation(t, 'doctor.currentMedications', 'Current Medications')}
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {profileMedications.map((medication, index) => (
+                  <Badge key={index} variant="secondary">
+                    {typeof medication === 'string' ? medication : (medication?.name || medication?.medicine_name || getSafeTranslation(t, 'doctor.medication', 'Medication'))}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Chronic Conditions from Health Profile */}
+          {profileChronicConditions.length > 0 && (
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">
+                {getSafeTranslation(t, 'doctor.chronicConditions', 'Chronic Conditions')}
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {profileChronicConditions.map((condition, index) => (
+                  <Badge key={index} variant="secondary">
+                    {typeof condition === 'string' ? condition : (condition?.name || condition?.condition_name || getSafeTranslation(t, 'doctor.condition', 'Condition'))}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Allergies from Health Profile */}
+          {profileAllergies.length > 0 && (
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">
+                {getSafeTranslation(t, 'common.allergies', 'Allergies')}
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {profileAllergies.map((allergy, index) => (
+                  <Badge key={index} variant="danger">
+                    {typeof allergy === 'string' ? allergy : (allergy?.name || allergy?.allergen || getSafeTranslation(t, 'doctor.allergy', 'Allergy'))}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Allergies Alert */}
-          {patient.allergies && patient.allergies.length > 0 && (
+          {normalizedAllergies.length > 0 && (
             <div className="bg-red-50 border border-red-100 rounded-xl p-4">
               <div className="flex items-center gap-2 text-red-700 mb-2">
                 <AlertCircle className="w-5 h-5" />
                 <span className="font-medium">{t('common.allergies')}</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                {patient.allergies.map((allergy, index) => (
+                {normalizedAllergies.map((allergy, index) => (
                   <Badge key={index} variant="danger">
                     {allergy}
                   </Badge>
@@ -649,13 +832,13 @@ const PatientQuickViewModal = ({ isOpen, onClose, patient, onViewFull, onSchedul
           )}
 
           {/* Conditions */}
-          {patient.conditions && patient.conditions.length > 0 && (
+          {normalizedConditions.length > 0 && (
             <div>
               <h4 className="font-medium text-gray-900 mb-2">
                 {t('common.existingConditions')}
               </h4>
               <div className="flex flex-wrap gap-2">
-                {patient.conditions.map((condition, index) => (
+                {normalizedConditions.map((condition, index) => (
                   <Badge key={index} variant="secondary">
                     {condition}
                   </Badge>
@@ -664,10 +847,123 @@ const PatientQuickViewModal = ({ isOpen, onClose, patient, onViewFull, onSchedul
             </div>
           )}
 
+          {/* Latest Vitals */}
+          {latestVital && (
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3">
+                {getSafeTranslation(t, 'doctor.latestVitals', 'Latest Vitals')}
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {latestVital.bp_display && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.bloodPressure', 'Blood Pressure')}</p>
+                    <p className="text-sm font-semibold text-gray-900">{latestVital.bp_display}</p>
+                  </div>
+                )}
+                {latestVital.heart_rate && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.heartRate', 'Heart Rate')}</p>
+                    <p className="text-sm font-semibold text-gray-900">{latestVital.heart_rate} bpm</p>
+                  </div>
+                )}
+                {latestVital.oxygen_saturation && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.oxygenSaturation', 'Oxygen Saturation')}</p>
+                    <p className="text-sm font-semibold text-gray-900">{latestVital.oxygen_saturation}%</p>
+                  </div>
+                )}
+                {latestVital.temperature && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.temperature', 'Temperature')}</p>
+                    <p className="text-sm font-semibold text-gray-900">{latestVital.temperature} C</p>
+                  </div>
+                )}
+                {latestVital.blood_sugar && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.bloodSugar', 'Blood Sugar')}</p>
+                    <p className="text-sm font-semibold text-gray-900">{latestVital.blood_sugar} mg/dL</p>
+                  </div>
+                )}
+                {latestVital.weight_kg && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.weight', 'Weight')}</p>
+                    <p className="text-sm font-semibold text-gray-900">{latestVital.weight_kg} kg</p>
+                  </div>
+                )}
+              </div>
+              {latestVital.recorded_at && (
+                <p className="text-xs text-gray-500 mt-2">
+                  {getSafeTranslation(t, 'doctor.recordedOn', 'Recorded on')} {formatDate(latestVital.recorded_at, 'MMM d, yyyy')}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Vitals History */}
+          {isFullProfile && vitalSigns.length > 0 && (
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3">
+                {getSafeTranslation(t, 'doctor.vitalsHistory', 'Vitals History')}
+              </h4>
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {vitalSigns.map((vital) => (
+                  <div key={vital.id} className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-gray-50 rounded-lg text-sm">
+                    <div>
+                      <p className="text-xs text-gray-500">{getSafeTranslation(t, 'common.date', 'Date')}</p>
+                      <p className="font-medium text-gray-900">{vital.recorded_at ? formatDate(vital.recorded_at, 'MMM d, yyyy') : '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.bloodPressure', 'Blood Pressure')}</p>
+                      <p className="font-medium text-gray-900">{vital.bp_display || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.heartRate', 'Heart Rate')}</p>
+                      <p className="font-medium text-gray-900">{vital.heart_rate ? `${vital.heart_rate} bpm` : '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">{getSafeTranslation(t, 'doctor.oxygenSaturation', 'SpO2')}</p>
+                      <p className="font-medium text-gray-900">{vital.oxygen_saturation ? `${vital.oxygen_saturation}%` : '-'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Medical Documents */}
+          {documents.length > 0 && (
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3">
+                {getSafeTranslation(t, 'doctor.medicalDocuments', 'Medical Documents')}
+              </h4>
+              <div className="space-y-2">
+                {documents.slice(0, 3).map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{doc.title || getSafeTranslation(t, 'doctor.document', 'Document')}</p>
+                        <p className="text-xs text-gray-500">
+                          {doc.document_type || '-'}
+                          {doc.document_date ? ` • ${formatDate(doc.document_date, 'MMM d, yyyy')}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    {doc.file_type && (
+                      <Badge variant="secondary" size="sm">
+                        {String(doc.file_type).toUpperCase()}
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Recent Consultations */}
           <div>
             <h4 className="font-medium text-gray-900 mb-3">
-              {t('doctor.recentConsultations')}
+              {getSafeTranslation(t, 'doctor.recentConsultations', 'Recent Consultations')}
             </h4>
             {recentConsultations.length > 0 ? (
               <div className="space-y-2">
@@ -689,10 +985,10 @@ const PatientQuickViewModal = ({ isOpen, onClose, patient, onViewFull, onSchedul
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
-                        {consultation.reason || t('doctor.generalConsultation')}
+                        {consultation.reason || getSafeTranslation(t, 'doctor.generalConsultation', 'General Consultation')}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {formatDate(consultation.scheduled_start, 'MMM d, yyyy')} • {consultation.actual_duration || consultation.estimated_duration} {t('common.min')}
+                        {formatDate(consultation.scheduled_start, 'MMM d, yyyy')} • {consultation.actual_duration || consultation.estimated_duration} {getSafeTranslation(t, 'common.min', 'min')}
                       </p>
                     </div>
                     {consultation.diagnosis && (
@@ -704,24 +1000,24 @@ const PatientQuickViewModal = ({ isOpen, onClose, patient, onViewFull, onSchedul
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">{t('doctor.noRecentConsultations')}</p>
+              <p className="text-gray-500 text-sm">{getSafeTranslation(t, 'doctor.noRecentConsultations', 'No recent consultations')}</p>
             )}
           </div>
 
           {/* Next Appointment */}
-          {patient.next_appointment && (
+          {displayPatient.next_appointment && (
             <div className="bg-primary-50 border border-primary-100 rounded-xl p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-primary-700 font-medium">
-                    {t('doctor.upcomingAppointment')}
+                    {getSafeTranslation(t, 'doctor.upcomingAppointment', 'Upcoming Appointment')}
                   </p>
                   <p className="text-lg font-semibold text-primary-900">
-                    {formatDate(patient.next_appointment, 'EEEE, MMMM d')} at {formatTime(patient.next_appointment_time)}
+                    {formatDate(displayPatient.next_appointment, 'EEEE, MMMM d')} at {displayPatient.next_appointment_time ? formatTime(displayPatient.next_appointment_time) : '-'}
                   </p>
                 </div>
                 <Badge variant="primary">
-                  {patient.next_appointment_type === 'video' ? (
+                  {displayPatient.next_appointment_type === 'video' ? (
                     <><Video className="w-3 h-3 mr-1" /> Video</>
                   ) : (
                     <><Phone className="w-3 h-3 mr-1" /> Audio</>
@@ -743,18 +1039,19 @@ const PatientQuickViewModal = ({ isOpen, onClose, patient, onViewFull, onSchedul
             onClose();
           }}
         >
-          {t('doctor.scheduleAppointment')}
+          {getSafeTranslation(t, 'doctor.scheduleAppointment', 'Schedule Appointment')}
         </Button>
-        <Button
-          variant="primary"
-          rightIcon={<ChevronRight className="w-4 h-4" />}
-          onClick={() => {
-            onViewFull(patient.id);
-            onClose();
-          }}
-        >
-          {t('doctor.viewFullProfile')}
-        </Button>
+        {!isFullProfile && (
+          <Button
+            variant="primary"
+            rightIcon={<ChevronRight className="w-4 h-4" />}
+            onClick={() => {
+              onViewFull(patient.id);
+            }}
+          >
+            {getSafeTranslation(t, 'doctor.viewFullProfile', 'View Full Profile')}
+          </Button>
+        )}
       </div>
     </Modal>
   );
@@ -771,7 +1068,7 @@ const ScheduleAppointmentModal = ({ isOpen, onClose, patient }) => {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={t('doctor.scheduleAppointment')}
+      title={getSafeTranslation(t, 'doctor.scheduleAppointment', 'Schedule Appointment')}
       size="md"
     >
       <div className="space-y-4">
@@ -785,7 +1082,7 @@ const ScheduleAppointmentModal = ({ isOpen, onClose, patient }) => {
           <div>
             <p className="font-medium text-gray-900">{patient.name}</p>
             <p className="text-sm text-gray-500">
-              {patient.age} {t('common.yrs')} • {t(`common.${patient.gender}`)}
+              {formatPatientAgeWithUnit(t, patient.age)}{patient.gender ? ` • ${getGenderLabel(t, patient.gender)}` : ''}
             </p>
           </div>
         </div>
@@ -793,14 +1090,14 @@ const ScheduleAppointmentModal = ({ isOpen, onClose, patient }) => {
         {/* Info Message */}
         <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-center">
           <p className="text-blue-700">
-            {t('doctor.scheduleAppointmentInfo')}
+            {getSafeTranslation(t, 'doctor.scheduleAppointmentInfo', 'You will be redirected to create a new appointment for this patient.')}
           </p>
         </div>
       </div>
 
       <div className="flex justify-end gap-3 mt-6">
         <Button variant="outline" onClick={onClose}>
-          {t('common.cancel')}
+          {getSafeTranslation(t, 'common.cancel', 'Cancel')}
         </Button>
         <Button
           variant="primary"
@@ -810,7 +1107,7 @@ const ScheduleAppointmentModal = ({ isOpen, onClose, patient }) => {
             onClose();
           }}
         >
-          {t('doctor.continue')}
+          {getSafeTranslation(t, 'doctor.continue', 'Continue')}
         </Button>
       </div>
     </Modal>
@@ -824,6 +1121,7 @@ const ScheduleAppointmentModal = ({ isOpen, onClose, patient }) => {
 const PatientRecords = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { patientId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // State
@@ -864,18 +1162,25 @@ const PatientRecords = () => {
       };
 
       // Using accessible patients endpoint (shared health records)
-      const response = await healthRecordsService.getAccessiblePatients(params);
-      const data = response.data;
+      const data = await healthRecordsService.getAccessiblePatients(params);
+      const rawPatients = Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.results)
+          ? data.results
+          : Array.isArray(data)
+            ? data
+            : [];
+      const normalizedPatients = rawPatients.map(normalizeAccessiblePatient).filter((patient) => patient.id);
 
       if (append) {
-        setPatients(prev => [...prev, ...(data.results || data || [])]);
+        setPatients(prev => [...prev, ...normalizedPatients]);
       } else {
-        setPatients(data.results || data || []);
+        setPatients(normalizedPatients);
       }
 
-      setHasMore(data.next !== null);
-      setStats(data.stats || {
-        total: data.count || 0,
+      setHasMore(Boolean(data?.next));
+      setStats(data?.stats || {
+        total: data?.count || normalizedPatients.length || 0,
         thisMonth: 12,
         active: 45,
         pendingFollowUps: 8
@@ -884,80 +1189,13 @@ const PatientRecords = () => {
     } catch (err) {
       console.error('Error fetching patients:', err);
       setError(t('errors.failedToLoadPatients'));
-
-      // Mock data for demo
-      setPatients([
-        {
-          id: 1,
-          name: 'Rajesh Kumar',
-          age: 45,
-          gender: 'male',
-          phone: '+91 98765 43210',
-          email: 'rajesh@email.com',
-          avatar: null,
-          total_consultations: 12,
-          last_visit: '2024-01-15',
-          first_visit: '2023-06-20',
-          conditions: ['Diabetes', 'Hypertension'],
-          allergies: ['Penicillin'],
-          is_new: false,
-          next_appointment: '2024-01-25',
-          next_appointment_time: '10:00'
-        },
-        {
-          id: 2,
-          name: 'Priya Sharma',
-          age: 32,
-          gender: 'female',
-          phone: '+91 87654 32109',
-          email: 'priya@email.com',
-          avatar: null,
-          total_consultations: 5,
-          last_visit: '2024-01-10',
-          first_visit: '2023-11-15',
-          conditions: ['Asthma'],
-          allergies: [],
-          is_new: false,
-          next_appointment: null
-        },
-        {
-          id: 3,
-          name: 'Amit Patel',
-          age: 58,
-          gender: 'male',
-          phone: '+91 76543 21098',
-          avatar: null,
-          total_consultations: 1,
-          last_visit: '2024-01-18',
-          first_visit: '2024-01-18',
-          conditions: [],
-          allergies: ['Sulfa'],
-          is_new: true,
-          next_appointment: '2024-01-28',
-          next_appointment_time: '14:30'
-        },
-        {
-          id: 4,
-          name: 'Sunita Devi',
-          age: 67,
-          gender: 'female',
-          phone: '+91 65432 10987',
-          avatar: null,
-          total_consultations: 24,
-          last_visit: '2024-01-12',
-          first_visit: '2022-03-10',
-          conditions: ['Arthritis', 'Thyroid', 'Heart Disease'],
-          allergies: ['Aspirin', 'Ibuprofen'],
-          is_new: false,
-          next_appointment: '2024-01-22',
-          next_appointment_time: '11:00'
-        }
-      ]);
+      setPatients([]);
+      setHasMore(false);
       setStats({
-        total: 156,
-        thisMonth: 12,
-        active: 45,
-        pendingFollowUps: 8
+        total: 0,
+        thisMonth: 0,
+        active: 0,
+        pendingFollowUps: 0
       });
     } finally {
       setIsLoading(false);
@@ -984,6 +1222,49 @@ const PatientRecords = () => {
     setSearchParams(params, { replace: true });
   }, [searchQuery, sortBy, filterBy, setSearchParams]);
 
+  // When route is /doctor/patients/:patientId, open that patient in full profile modal.
+  useEffect(() => {
+    if (!patientId) return;
+
+    const currentSelectedId = selectedPatient?.id ? String(selectedPatient.id) : null;
+    if (showQuickViewModal && currentSelectedId === String(patientId)) return;
+
+    const patientFromList = patients.find((entry) => String(entry.id) === String(patientId));
+    if (patientFromList) {
+      setSelectedPatient(patientFromList);
+      setShowQuickViewModal(true);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const fetchPatientFromRecords = async () => {
+      try {
+        const response = await healthRecordsService.getPatientRecords(patientId);
+        const patientPayload = response?.data?.patient || response?.patient;
+
+        if (!patientPayload || isCancelled) return;
+
+        const normalizedPatient = normalizeAccessiblePatient({ patient: patientPayload });
+        if (normalizedPatient?.id) {
+          setSelectedPatient(normalizedPatient);
+          setShowQuickViewModal(true);
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          console.error('Error loading patient full profile:', err);
+          setError(getSafeTranslation(t, 'errors.failedToLoadPatientDetails', 'Failed to load patient details'));
+        }
+      }
+    };
+
+    fetchPatientFromRecords();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [patientId, patients, selectedPatient?.id, showQuickViewModal, t]);
+
   // Handlers
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -997,14 +1278,14 @@ const PatientRecords = () => {
     fetchPatients(nextPage, true);
   }, [page, fetchPatients]);
 
-  const handleViewPatient = useCallback((patientId) => {
-    navigate(`/doctor/patients/${patientId}`);
-  }, [navigate]);
-
-  const handleQuickView = useCallback((patient) => {
+  const handleViewPatient = useCallback((patient) => {
     setSelectedPatient(patient);
     setShowQuickViewModal(true);
   }, []);
+
+  const handleViewPatientRoute = useCallback((patientId) => {
+    navigate(`/doctor/patients/${patientId}`);
+  }, [navigate]);
 
   const handleScheduleAppointment = useCallback((patient) => {
     setPatientToSchedule(patient);
@@ -1012,8 +1293,9 @@ const PatientRecords = () => {
   }, []);
 
   const handleViewHistory = useCallback((patient) => {
-    navigate(`/doctor/patients/${patient.id}/history`);
-  }, [navigate]);
+    setSelectedPatient(patient);
+    setShowQuickViewModal(true);
+  }, []);
 
   const handleMessagePatient = useCallback((patient) => {
     // Open messaging or notification
@@ -1116,6 +1398,7 @@ const PatientRecords = () => {
                   onView={handleViewPatient}
                   onSchedule={handleScheduleAppointment}
                   onViewHistory={handleViewHistory}
+                  onViewRecords={handleViewPatient}
                 />
               ))}
             </div>
@@ -1160,10 +1443,14 @@ const PatientRecords = () => {
         onClose={() => {
           setShowQuickViewModal(false);
           setSelectedPatient(null);
+          if (patientId) {
+            navigate('/doctor/patients', { replace: true });
+          }
         }}
         patient={selectedPatient}
-        onViewFull={handleViewPatient}
+        onViewFull={handleViewPatientRoute}
         onSchedule={handleScheduleAppointment}
+        isFullProfile={Boolean(patientId)}
       />
 
       <ScheduleAppointmentModal

@@ -187,31 +187,36 @@ const StatCard = ({ icon: Icon, label, value, subValue, trend, color = 'primary'
       bg: 'bg-gradient-to-br from-violet-500 to-purple-600',
       iconBg: 'bg-white/20',
       light: 'bg-violet-50',
-      ring: 'ring-violet-200'
+      ring: 'ring-violet-200',
+      shadow: 'hover:shadow-violet-500/25'
     },
     success: {
       bg: 'bg-gradient-to-br from-emerald-500 to-green-600',
       iconBg: 'bg-white/20',
       light: 'bg-emerald-50',
-      ring: 'ring-emerald-200'
+      ring: 'ring-emerald-200',
+      shadow: 'hover:shadow-emerald-500/25'
     },
     warning: {
       bg: 'bg-gradient-to-br from-amber-500 to-orange-600',
       iconBg: 'bg-white/20',
       light: 'bg-amber-50',
-      ring: 'ring-amber-200'
+      ring: 'ring-amber-200',
+      shadow: 'hover:shadow-amber-500/25'
     },
     danger: {
       bg: 'bg-gradient-to-br from-rose-500 to-red-600',
       iconBg: 'bg-white/20',
       light: 'bg-rose-50',
-      ring: 'ring-rose-200'
+      ring: 'ring-rose-200',
+      shadow: 'hover:shadow-rose-500/25'
     },
     info: {
       bg: 'bg-gradient-to-br from-blue-500 to-cyan-600',
       iconBg: 'bg-white/20',
       light: 'bg-blue-50',
-      ring: 'ring-blue-200'
+      ring: 'ring-blue-200',
+      shadow: 'hover:shadow-blue-500/25'
     }
   };
 
@@ -222,7 +227,7 @@ const StatCard = ({ icon: Icon, label, value, subValue, trend, color = 'primary'
       className={`
         relative overflow-hidden rounded-2xl ${config.bg} text-white
         ${onClick ? 'cursor-pointer' : ''}
-        transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-${color}-500/25
+        transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl ${config.shadow}
         group
       `}
       onClick={onClick}

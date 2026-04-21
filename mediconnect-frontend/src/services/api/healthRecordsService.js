@@ -443,10 +443,12 @@ export const revokeSharing = async (sharingId) => {
 
 /**
  * Get accessible patients (for doctors)
+ * @param {Object} [filters] - Optional filter/query params
  * @returns {Promise<Array>} List of patients who shared records
  */
-export const getAccessiblePatients = async () => {
-  const endpoint = buildEndpoint(HEALTH_RECORDS_ENDPOINTS.SHARING, null, 'accessible-patients');
+export const getAccessiblePatients = async (filters = {}) => {
+  const queryString = buildQueryString(filters);
+  const endpoint = `${buildEndpoint(HEALTH_RECORDS_ENDPOINTS.SHARING, null, 'accessible-patients')}${queryString}`;
   const response = await api.get(endpoint);
   return response.data;
 };

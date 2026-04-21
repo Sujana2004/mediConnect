@@ -107,6 +107,135 @@ const REMINDER_STATUS = {
   skipped: { color: 'bg-gray-100 text-gray-700', label: 'Skipped' }
 };
 
+const normalizeApiArray = (payload, keys = []) => {
+  if (Array.isArray(payload)) return payload;
+  for (const key of keys) {
+    if (Array.isArray(payload?.[key])) return payload[key];
+  }
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+};
+
+const getReminderStatus = (item) => String(item?.status || item?.response || 'pending').toLowerCase();
+const getReminderDate = (item) => item?.scheduled_date || item?.date || null;
+
+const calculateDayStreak = (logs = []) => {
+  if (!Array.isArray(logs) || logs.length === 0) return 0;
+
+  const daily = new Map();
+  logs.forEach((log) => {
+    const dateKey = getReminderDate(log);
+    if (!dateKey) return;
+
+    if (!daily.has(dateKey)) {
+      daily.set(dateKey, { total: 0, taken: 0, hasNonTaken: false });
+    }
+
+    const status = getReminderStatus(log);
+    const day = daily.get(dateKey);
+    day.total += 1;
+
+    if (status === 'taken') {
+      day.taken += 1;
+    } else {
+      day.hasNonTaken = true;
+    }
+  });
+
+  const sortedDates = [...daily.keys()].sort((a, b) => new Date(b) - new Date(a));
+  if (sortedDates.length === 0) return 0;
+
+  let streak = 0;
+  let current = new Date(sortedDates[0]);
+
+  while (true) {
+    const key = format(current, 'yyyy-MM-dd');
+    const day = daily.get(key);
+
+    if (!day || day.total === 0 || day.taken === 0 || day.hasNonTaken) {
+      break;
+    }
+
+    streak += 1;
+    current = subDays(current, 1);
+  }
+
+  return streak;
+};
+
+const to24HourTime = (timeValue) => {
+  if (!timeValue || typeof timeValue !== 'string') return null;
+
+  const trimmed = timeValue.trim();
+
+  // Already in 24-hour format HH:MM
+  if (/^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const parts = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!parts) return null;
+
+  let hour = Number(parts[1]);
+  const minute = parts[2];
+  const meridiem = parts[3].toUpperCase();
+
+  if (meridiem === 'AM') {
+    hour = hour === 12 ? 0 : hour;
+  } else {
+    hour = hour === 12 ? 12 : hour + 12;
+  }
+
+  return `${String(hour).padStart(2, '0')}:${minute}`;
+};
+
+const parseDurationDays = (durationValue = '') => {
+  const duration = String(durationValue).trim();
+  if (!duration) return null;
+
+  const numberMatch = duration.match(/\d+/);
+  if (!numberMatch) return null;
+
+  const count = Number(numberMatch[0]);
+  if (!Number.isFinite(count) || count <= 0) return null;
+
+  if (/month/i.test(duration)) return count * 30;
+  if (/week/i.test(duration)) return count * 7;
+  return count;
+};
+
+const normalizeHistoryItem = (item) => ({
+  ...item,
+  date: item?.date || item?.scheduled_date || null,
+  time: item?.time || item?.scheduled_time || '',
+  status: getReminderStatus(item),
+  medicine_name: item?.medicine_name || item?.name || '-',
+  dosage: item?.dosage || '-',
+});
+
+const buildReminderPayload = (medicineData) => {
+  const startDate = medicineData.start_date || format(new Date(), 'yyyy-MM-dd');
+  const normalizedTimes = (medicineData.reminder_times || [])
+    .map((value) => TIME_SLOTS[value]?.time || value)
+    .map(to24HourTime)
+    .filter(Boolean);
+
+  const payload = {
+    medicine_name: medicineData.name,
+    dosage: medicineData.dosage,
+    reminder_times: [...new Set(normalizedTimes)],
+    start_date: startDate,
+    instructions: medicineData.instructions || '',
+  };
+
+  const durationDays = parseDurationDays(medicineData.duration);
+  if (durationDays && durationDays > 0) {
+    payload.end_date = format(addDays(new Date(startDate), durationDays), 'yyyy-MM-dd');
+  }
+
+  return payload;
+};
+
 // ============================================================================
 // SUB-COMPONENTS
 // ============================================================================
@@ -678,7 +807,13 @@ const MedicineHistorySection = ({ history, onLoadMore, hasMore }) => {
   const groupedByDate = useMemo(() => {
     const groups = {};
     history?.forEach(item => {
-      const date = format(parseISO(item.date), 'yyyy-MM-dd');
+      const rawDate = item?.date || item?.scheduled_date;
+      if (!rawDate) return;
+
+      const parsedDate = parseISO(rawDate);
+      if (Number.isNaN(parsedDate.getTime())) return;
+
+      const date = format(parsedDate, 'yyyy-MM-dd');
       if (!groups[date]) groups[date] = [];
       groups[date].push(item);
     });
@@ -710,7 +845,7 @@ const MedicineHistorySection = ({ history, onLoadMore, hasMore }) => {
                 </h4>
                 <div className="space-y-2">
                   {items.map((item, index) => {
-                    const statusConfig = REMINDER_STATUS[item.status];
+                    const statusConfig = REMINDER_STATUS[item.status] || REMINDER_STATUS.pending;
                     return (
                       <div
                         key={index}
@@ -743,7 +878,7 @@ const MedicineHistorySection = ({ history, onLoadMore, hasMore }) => {
                             <p className="text-sm text-gray-400">
                               {item.dosage}
                               <span className="mx-1">•</span>
-                              {formatTime(item.time)}
+                              {item.time ? formatTime(item.time) : '--:--'}
                             </p>
                           </div>
                         </div>
@@ -1146,132 +1281,71 @@ const Medicines = () => {
         remindersRes,
         prescriptionsRes,
         medicinesRes,
-        historyRes
+        historyRes,
+        adherenceRes
       ] = await Promise.allSettled([
         medicineService.getTodayReminders(),
         medicineService.getActivePrescriptions(),
         medicineService.getReminders(),
-        medicineService.getReminderLogs()
+        medicineService.getReminderLogs(),
+        medicineService.getAdherenceStats(7)
       ]);
 
-      if (remindersRes.status === 'fulfilled') {
-        setTodayReminders(remindersRes.value.data || []);
-      }
-      if (prescriptionsRes.status === 'fulfilled') {
-        setPrescriptions(prescriptionsRes.value.data || []);
-      }
-      if (medicinesRes.status === 'fulfilled') {
-        setMedicines(medicinesRes.value.data || []);
-      }
-      if (historyRes.status === 'fulfilled') {
-        setHistory(historyRes.value.data || []);
-      }
+      const remindersData = remindersRes.status === 'fulfilled'
+        ? normalizeApiArray(remindersRes.value, ['reminders', 'results'])
+        : [];
+      const prescriptionsData = prescriptionsRes.status === 'fulfilled'
+        ? normalizeApiArray(prescriptionsRes.value, ['prescriptions', 'results'])
+        : [];
+      const medicinesData = medicinesRes.status === 'fulfilled'
+        ? normalizeApiArray(medicinesRes.value, ['reminders', 'medicines', 'results'])
+        : [];
+      const historyData = historyRes.status === 'fulfilled'
+        ? normalizeApiArray(historyRes.value, ['logs', 'history', 'results'])
+        : [];
 
-      const taken = remindersRes.value?.data?.filter(r => r.status === 'taken').length || 0;
-      const missed = remindersRes.value?.data?.filter(r => r.status === 'missed').length || 0;
-      const total = remindersRes.value?.data?.length || 0;
+      setTodayReminders(remindersData);
+      setPrescriptions(prescriptionsData);
+      setMedicines(medicinesData);
+      setHistory(historyData.map(normalizeHistoryItem));
+
+      const adherenceStats = adherenceRes.status === 'fulfilled'
+        ? (adherenceRes.value?.statistics || adherenceRes.value?.data?.statistics || null)
+        : null;
+
+      const taken = adherenceStats?.taken
+        ?? remindersData.filter(r => getReminderStatus(r) === 'taken').length;
+      const missed = adherenceStats?.missed
+        ?? remindersData.filter(r => getReminderStatus(r) === 'missed').length;
+      const total = adherenceStats?.total_scheduled
+        ?? remindersData.length;
+      const adherence = adherenceStats?.adherence_percentage
+        ?? (total > 0 ? Math.round((taken / total) * 100) : 0);
+      const streak = calculateDayStreak(historyData);
 
       setStats({
-        adherence: total > 0 ? Math.round((taken / total) * 100) : 100,
+        adherence,
         taken,
         missed,
         total,
-        streak: 5
+        streak
       });
 
     } catch (err) {
       console.error('Error fetching medicine data:', err);
       setError(t('errors.failedToLoadMedicines'));
-
-      setTodayReminders([
-        { id: 1, medicine_name: 'Metformin', dosage: '500mg', form: 'tablet', time_slot: 'morning', meal_timing: 'after_meal', status: 'taken' },
-        { id: 2, medicine_name: 'Amlodipine', dosage: '5mg', form: 'tablet', time_slot: 'morning', meal_timing: 'before_meal', status: 'taken' },
-        { id: 3, medicine_name: 'Metformin', dosage: '500mg', form: 'tablet', time_slot: 'evening', meal_timing: 'after_meal', status: 'pending' },
-        { id: 4, medicine_name: 'Vitamin D3', dosage: '60000 IU', form: 'capsule', time_slot: 'afternoon', meal_timing: 'with_meal', status: 'pending' },
-        { id: 5, medicine_name: 'Omeprazole', dosage: '20mg', form: 'capsule', time_slot: 'night', meal_timing: 'empty_stomach', status: 'pending' }
-      ]);
-
-      setPrescriptions([
-        {
-          id: 1,
-          doctor_name: 'Sharma',
-          doctor_specialization: 'General Physician',
-          date: '2024-01-18',
-          valid_until: '2024-02-18',
-          diagnosis: 'Type 2 Diabetes, Hypertension',
-          medicines: [
-            { name: 'Metformin', dosage: '500mg', frequency: 'Twice Daily', duration: '30 days', form: 'tablet' },
-            { name: 'Amlodipine', dosage: '5mg', frequency: 'Once Daily', duration: '30 days', form: 'tablet' }
-          ],
-          general_instructions: 'Regular exercise and low-carb diet recommended.'
-        },
-        {
-          id: 2,
-          doctor_name: 'Patel',
-          doctor_specialization: 'Orthopedic',
-          date: '2024-01-10',
-          valid_until: '2024-01-25',
-          diagnosis: 'Vitamin D Deficiency',
-          medicines: [
-            { name: 'Vitamin D3', dosage: '60000 IU', frequency: 'Weekly', duration: '8 weeks', form: 'capsule' },
-            { name: 'Calcium', dosage: '500mg', frequency: 'Once Daily', duration: '30 days', form: 'tablet' }
-          ]
-        }
-      ]);
-
-      setMedicines([
-        {
-          id: 1,
-          name: 'Metformin',
-          dosage: '500mg',
-          form: 'tablet',
-          frequency: 'Twice Daily',
-          duration: '30 days',
-          meal_timing: 'after_meal',
-          reminder_enabled: true,
-          reminder_times: ['morning', 'evening'],
-          start_date: '2024-01-18',
-          instructions: 'Take with or after meals to reduce stomach upset.'
-        },
-        {
-          id: 2,
-          name: 'Amlodipine',
-          dosage: '5mg',
-          form: 'tablet',
-          frequency: 'Once Daily',
-          duration: '30 days',
-          meal_timing: 'any_time',
-          reminder_enabled: true,
-          reminder_times: ['morning'],
-          start_date: '2024-01-18'
-        },
-        {
-          id: 3,
-          name: 'Vitamin D3',
-          dosage: '60000 IU',
-          form: 'capsule',
-          frequency: 'Weekly',
-          duration: '8 weeks',
-          meal_timing: 'with_meal',
-          reminder_enabled: false,
-          reminder_times: ['afternoon'],
-          start_date: '2024-01-10'
-        }
-      ]);
-
-      setHistory([
-        { medicine_name: 'Metformin', dosage: '500mg', status: 'taken', date: new Date().toISOString(), time: '08:00' },
-        { medicine_name: 'Amlodipine', dosage: '5mg', status: 'taken', date: new Date().toISOString(), time: '08:00' },
-        { medicine_name: 'Metformin', dosage: '500mg', status: 'taken', date: subDays(new Date(), 1).toISOString(), time: '20:00' },
-        { medicine_name: 'Omeprazole', dosage: '20mg', status: 'missed', date: subDays(new Date(), 1).toISOString(), time: '22:00' }
-      ]);
-
+      
+      // Set empty data instead of hardcoded fallback
+      setTodayReminders([]);
+      setPrescriptions([]);
+      setMedicines([]);
+      setHistory([]);
       setStats({
-        adherence: 85,
-        taken: 12,
-        missed: 2,
-        total: 14,
-        streak: 5
+        adherence: 0,
+        taken: 0,
+        missed: 0,
+        total: 0,
+        streak: 0
       });
     } finally {
       setIsLoading(false);
@@ -1320,13 +1394,22 @@ const Medicines = () => {
   const handleAddMedicine = async (medicineData) => {
     try {
       setIsActionLoading(true);
-      await medicineService.createReminder(medicineData);
+      const reminderPayload = buildReminderPayload(medicineData);
+      await medicineService.createReminder(reminderPayload);
       setShowAddModal(false);
       fetchMedicineData();
       speak(t('medicines.voiceMedicineAdded', { medicine: medicineData.name }));
     } catch (err) {
       console.error('Error adding medicine:', err);
-      setError(t('errors.failedToAddMedicine'));
+      const fieldErrors = err?.response?.data?.errors;
+      const firstFieldError = fieldErrors
+        ? Object.values(fieldErrors).find((value) => Array.isArray(value) ? value.length > 0 : Boolean(value))
+        : null;
+      const errorMessage = Array.isArray(firstFieldError)
+        ? firstFieldError[0]
+        : firstFieldError;
+
+      setError(errorMessage || t('errors.failedToAddMedicine'));
     } finally {
       setIsActionLoading(false);
     }

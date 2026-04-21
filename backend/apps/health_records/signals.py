@@ -226,17 +226,18 @@ def notify_doctor_on_share(sender, instance, created, **kwargs):
         
         # TODO: Send notification to doctor
         try:
-            from apps.notifications.services import NotificationService
+            from apps.notifications.services import get_notification_service
             
             patient_name = f"{instance.patient.first_name} {instance.patient.last_name}".strip()
             if not patient_name:
                 patient_name = instance.patient.phone
             
-            NotificationService.send_notification(
+            notification_service = get_notification_service()
+            notification_service.send_notification(
                 user=instance.doctor,
                 notification_type='record_shared',
                 title='Health Records Shared',
-                message=f"{patient_name} has shared their health records with you.",
+                body=f"{patient_name} has shared their health records with you.",
                 data={
                     'share_id': str(instance.id),
                     'patient_id': str(instance.patient.id),

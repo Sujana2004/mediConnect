@@ -1365,7 +1365,7 @@ class SharedRecordViewSet(viewsets.ModelViewSet):
             return SharedRecord.objects.none()
         
         if user.role == 'patient':
-            return SharedRecord.objects.filter(patient=user).order_by('-created_at')
+            return SharedRecord.objects.filter(patient=user, is_active=True).order_by('-created_at')
         else:
             return SharedRecord.objects.filter(doctor=user, is_active=True).order_by('-created_at')
     

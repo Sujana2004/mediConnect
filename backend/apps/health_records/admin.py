@@ -1753,7 +1753,7 @@ class SharedRecordAdmin(admin.ModelAdmin):
         'revoked_at', 'created_at', 'updated_at', 'sharing_summary'
     ]
     filter_horizontal = ['documents']
-    list_select_related = ['patient', 'doctor', 'consultation']
+    list_select_related = ['patient', 'doctor']
     list_per_page = 25
     
     actions = ['activate_sharing', 'revoke_sharing', 'extend_expiry', 'export_shared_records_csv']
@@ -1773,7 +1773,7 @@ class SharedRecordAdmin(admin.ModelAdmin):
             'fields': ('last_accessed_at', 'access_count')
         }),
         ('🔗 Links', {
-            'fields': ('consultation',),
+            'fields': ('consultation_id',),
             'classes': ('collapse',)
         }),
         ('⏰ Timestamps', {

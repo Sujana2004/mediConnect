@@ -142,10 +142,21 @@ class SharingService:
             Updated SharedRecord instance
         """
         shared = SharedRecord.objects.get(id=share_id, patient=patient)
-        shared.is_active = False
-        shared.revoked_at = timezone.now()
-        shared.save(update_fields=['is_active', 'revoked_at', 'updated_at'])
-        logger.info(f"Revoked share {share_id}")
+        
+        # Bulk revoke all shares for this doctor and patient to completely remove access
+        doctor = shared.doctor
+        SharedRecord.objects.filter(
+            patient=patient,
+            doctor=doctor,
+            is_active=True
+        ).update(
+            is_active=False,
+            revoked_at=timezone.now()
+        )
+        
+        # Reload the target instance
+        shared.refresh_from_db()
+        logger.info(f"Revoked all shares for patient {patient.phone} with doctor {doctor.phone}")
         return shared
 
     @staticmethod
