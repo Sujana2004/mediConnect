@@ -87,7 +87,6 @@ import {
 import { formatDate } from '../../utils/helpers';
 
 const isDev = import.meta.env.DEV;
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // ============================================================================
 // CONSTANTS
@@ -144,6 +143,23 @@ const VITAL_TYPES = {
     normalRange: '-'
   }
 };
+
+const BLOOD_GROUP_OPTIONS = [
+  { value: 'A+', label: 'A+' },
+  { value: 'A-', label: 'A-' },
+  { value: 'B+', label: 'B+' },
+  { value: 'B-', label: 'B-' },
+  { value: 'AB+', label: 'AB+' },
+  { value: 'AB-', label: 'AB-' },
+  { value: 'O+', label: 'O+' },
+  { value: 'O-', label: 'O-' },
+  { value: 'unknown', label: 'Unknown' },
+];
+
+const ADD_VITAL_TYPE_OPTIONS = [
+  ...Object.entries(VITAL_TYPES).map(([key, config]) => ({ value: key, label: config.label })),
+  { value: 'blood_group', label: 'Blood Group' },
+];
 
 const DOCUMENT_CATEGORIES = [
   { value: 'prescription', label: 'Prescriptions', icon: FileText },
@@ -261,9 +277,18 @@ const HealthSummaryCard = ({ profile, latestVitals }) => {
   );
 };
 
-const VitalsSection = ({ vitals, latestVitals, onAddVital, onViewHistory }) => {
+const VitalsSection = ({ vitals = [], latestVitals, onAddVital, onViewHistory }) => {
   const { t } = useTranslation();
   const [expandedVital, setExpandedVital] = useState(null);
+
+  const getBpDisplay = useCallback((record) => {
+    if (!record) return null;
+    if (record.bp_display) return record.bp_display;
+    if (record.systolic_bp != null && record.diastolic_bp != null) {
+      return `${record.systolic_bp}/${record.diastolic_bp}`;
+    }
+    return null;
+  }, []);
 
   const getVitalStatus = useCallback((type, value) => {
     if (!value) return 'normal';
@@ -396,6 +421,83 @@ const VitalsSection = ({ vitals, latestVitals, onAddVital, onViewHistory }) => {
           </div>
         </div>
       )}
+
+      <div className="mt-5 border-t border-gray-100 pt-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+            {t('healthRecords.recentVitals', 'Recent Entries')}
+          </h4>
+          <span className="text-[11px] font-medium text-gray-400">
+            {vitals.length} {t('healthRecords.records', 'records')}
+          </span>
+        </div>
+
+        {vitals.length > 0 ? (
+          <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+            {vitals.slice(0, 10).map((record) => {
+              const bpDisplay = getBpDisplay(record);
+              const hasBp = Boolean(bpDisplay);
+
+              return (
+                <div
+                  key={record.id}
+                  className="p-3 rounded-xl border border-gray-100 bg-gray-50/70"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-gray-700">
+                      {formatDate(record.recorded_at, 'MMM d, yyyy h:mm a')}
+                    </p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold capitalize">
+                      {record.source || 'self'}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {hasBp && (
+                      <span className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-red-50 text-red-700">
+                        BP: {bpDisplay}
+                      </span>
+                    )}
+                    {record.heart_rate != null && (
+                      <span className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-pink-50 text-pink-700">
+                        HR: {record.heart_rate} bpm
+                      </span>
+                    )}
+                    {record.temperature != null && (
+                      <span className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-orange-50 text-orange-700">
+                        Temp: {record.temperature} °F
+                      </span>
+                    )}
+                    {record.oxygen_saturation != null && (
+                      <span className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-blue-50 text-blue-700">
+                        SpO2: {record.oxygen_saturation}%
+                      </span>
+                    )}
+                    {record.blood_sugar != null && (
+                      <span className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-purple-50 text-purple-700">
+                        Sugar: {record.blood_sugar} mg/dL
+                      </span>
+                    )}
+                    {record.weight_kg != null && (
+                      <span className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700">
+                        Weight: {record.weight_kg} kg
+                      </span>
+                    )}
+                  </div>
+
+                  {record.notes && (
+                    <p className="text-[11px] text-gray-500 mt-2">{record.notes}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 text-center py-6">
+            {t('healthRecords.noVitalsHistory', 'No vital history yet')}
+          </p>
+        )}
+      </div>
     </div>
   );
 };
@@ -949,7 +1051,7 @@ const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
         break;
       case 'temperature':
         if (!formData.value) return;
-        vitalData.temperature = String(formData.value);
+        vitalData.temperature = parseFloat(formData.value);
         break;
       case 'oxygen_saturation':
         if (!formData.value) return;
@@ -961,10 +1063,22 @@ const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
         break;
       case 'weight':
         if (!formData.value) return;
-        vitalData.weight_kg = String(formData.value);
+        vitalData.weight_kg = parseFloat(formData.value);
+        break;
+      case 'height':
+        if (!formData.value) return;
+        vitalData.height_cm = parseFloat(formData.value);
+        break;
+      case 'blood_group':
+        if (!formData.value) return;
+        vitalData.blood_group = formData.value;
         break;
       default:
         return;
+    }
+
+    if (formData.notes?.trim()) {
+      vitalData.notes = formData.notes.trim();
     }
 
     onSave(vitalData);
@@ -988,10 +1102,7 @@ const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
           label={t('healthRecords.vitalType', 'Vital Type')}
           value={formData.type}
           onChange={(e) => setFormData({ ...formData, type: e.target.value, value: '', systolic: '', diastolic: '' })}
-          options={Object.entries(VITAL_TYPES).map(([key, config]) => ({
-            value: key,
-            label: config.label
-          }))}
+          options={ADD_VITAL_TYPE_OPTIONS}
         />
 
         {formData.type === 'blood_pressure' ? (
@@ -1011,6 +1122,14 @@ const AddVitalModal = ({ isOpen, onClose, onSave, isLoading }) => {
               placeholder="80"
             />
           </div>
+        ) : formData.type === 'blood_group' ? (
+          <Select
+            label={t('profile.bloodGroup', 'Blood Group')}
+            value={formData.value}
+            onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+            options={BLOOD_GROUP_OPTIONS}
+            placeholder={t('profile.bloodGroup', 'Blood Group')}
+          />
         ) : (
           <Input
             label={`${selectedVitalConfig?.label} (${selectedVitalConfig?.unit})`}
@@ -1410,7 +1529,20 @@ const AddAllergyModal = ({ isOpen, onClose, onSave, isLoading }) => {
       </div>
       <div className="flex justify-end gap-3 mt-6">
         <Button variant="outline" onClick={onClose} className="!rounded-xl">{t('common.cancel', 'Cancel')}</Button>
-        <Button variant="primary" onClick={() => onSave({ name })} loading={isLoading} disabled={!name.trim()} className="!rounded-xl !bg-violet-600 hover:!bg-violet-700">
+        <Button
+          variant="primary"
+          onClick={() => {
+            const normalizedName = name.trim();
+            onSave({
+              name: normalizedName,
+              allergen: normalizedName,
+              allergy_type: 'other',
+            });
+          }}
+          loading={isLoading}
+          disabled={!name.trim()}
+          className="!rounded-xl !bg-violet-600 hover:!bg-violet-700"
+        >
           {t('common.add', 'Add')}
         </Button>
       </div>
@@ -1468,8 +1600,8 @@ const HealthRecords = () => {
   });
 
   const { data: vitalsData, isLoading: vitalsLoading } = useQuery({
-    queryKey: ['latestVitals'],
-    queryFn: () => healthRecordsService.getLatestVitals(),
+    queryKey: ['vitals', { limit: 100 }],
+    queryFn: () => healthRecordsService.getVitals({ limit: 100 }),
     staleTime: 1000 * 60 * 5,
     enabled: isOnline
   });
@@ -1540,31 +1672,50 @@ const HealthRecords = () => {
 
     return [];
   };
-  const vitalsPayload = vitalsData?.data || vitalsData;
-  const vitalRecords = Array.isArray(vitalsPayload?.results)
-    ? vitalsPayload.results
-    : Array.isArray(vitalsPayload)
-      ? vitalsPayload
-      : vitalsPayload && typeof vitalsPayload === 'object'
-        ? [vitalsPayload]
-        : [];
+  const vitalRecords = normalizeArrayData(vitalsData);
+
+  const latestByField = vitalRecords.reduce((acc, record) => {
+    if (!acc.blood_pressure && (
+      record.bp_display ||
+      (record.systolic_bp != null && record.diastolic_bp != null)
+    )) {
+      acc.blood_pressure = record;
+    }
+    if (!acc.heart_rate && record.heart_rate != null) acc.heart_rate = record;
+    if (!acc.temperature && record.temperature != null) acc.temperature = record;
+    if (!acc.oxygen_saturation && record.oxygen_saturation != null) acc.oxygen_saturation = record;
+    if (!acc.blood_sugar && record.blood_sugar != null) acc.blood_sugar = record;
+    if (!acc.weight && record.weight_kg != null) acc.weight = record;
+    if (!acc.height && record.height_cm != null) acc.height = record;
+    return acc;
+  }, {
+    blood_pressure: null,
+    heart_rate: null,
+    temperature: null,
+    oxygen_saturation: null,
+    blood_sugar: null,
+    weight: null,
+    height: null,
+  });
+
   const latestVitalRecord = vitalRecords.length > 0 ? vitalRecords[0] : null;
   const latestVitals = latestVitalRecord ? {
-    blood_pressure: latestVitalRecord.bp_display || (latestVitalRecord.systolic_bp && latestVitalRecord.diastolic_bp
-      ? `${latestVitalRecord.systolic_bp}/${latestVitalRecord.diastolic_bp}`
+    blood_pressure: latestByField.blood_pressure?.bp_display || (
+      latestByField.blood_pressure?.systolic_bp != null && latestByField.blood_pressure?.diastolic_bp != null
+      ? `${latestByField.blood_pressure.systolic_bp}/${latestByField.blood_pressure.diastolic_bp}`
       : null),
-    heart_rate: latestVitalRecord.heart_rate,
-    temperature: latestVitalRecord.temperature,
-    oxygen_saturation: latestVitalRecord.oxygen_saturation,
-    blood_sugar: latestVitalRecord.blood_sugar,
-    weight: latestVitalRecord.weight_kg || profile?.weight_kg,
+    heart_rate: latestByField.heart_rate?.heart_rate,
+    temperature: latestByField.temperature?.temperature,
+    oxygen_saturation: latestByField.oxygen_saturation?.oxygen_saturation,
+    blood_sugar: latestByField.blood_sugar?.blood_sugar,
+    weight: latestByField.weight?.weight_kg || profile?.weight_kg,
     height: latestVitalRecord.height_cm || profile?.height_cm,
-    blood_pressure_date: latestVitalRecord.recorded_at,
-    heart_rate_date: latestVitalRecord.recorded_at,
-    temperature_date: latestVitalRecord.recorded_at,
-    oxygen_saturation_date: latestVitalRecord.recorded_at,
-    blood_sugar_date: latestVitalRecord.recorded_at,
-    weight_date: latestVitalRecord.recorded_at || profile?.updated_at,
+    blood_pressure_date: latestByField.blood_pressure?.recorded_at,
+    heart_rate_date: latestByField.heart_rate?.recorded_at,
+    temperature_date: latestByField.temperature?.recorded_at,
+    oxygen_saturation_date: latestByField.oxygen_saturation?.recorded_at,
+    blood_sugar_date: latestByField.blood_sugar?.recorded_at,
+    weight_date: latestByField.weight?.recorded_at || profile?.updated_at,
   } : {
     height: profile?.height_cm,
     weight: profile?.weight_kg,
@@ -1613,11 +1764,31 @@ const HealthRecords = () => {
     onSuccess: () => {
       toast.success(t('healthRecords.vitalAdded', 'Vital recorded successfully'));
       setShowVitalModal(false);
-      queryClient.invalidateQueries({ queryKey: ['latestVitals'] });
+      // Invalidate with exact key structure to ensure refetch
+      queryClient.invalidateQueries({ queryKey: ['vitals', { limit: 100 }] });
+      queryClient.invalidateQueries({ queryKey: ['vitals'] });
+      queryClient.invalidateQueries({ queryKey: ['healthProfile'] });
     },
     onError: (err) => {
       if (isDev) console.error('Error adding vital:', err);
-      toast.error(t('healthRecords.vitalError', 'Failed to record vital'));
+      const errorMsg = err?.response?.data?.message || err?.message || t('healthRecords.vitalError', 'Failed to record vital');
+      toast.error(errorMsg);
+    }
+  });
+
+  const updateProfileVitalsMutation = useMutation({
+    mutationFn: (data) => healthRecordsService.updateHealthProfile(data),
+    onSuccess: () => {
+      toast.success(t('healthRecords.profileVitalsUpdated', 'Height/weight updated successfully'));
+      setShowVitalModal(false);
+      queryClient.invalidateQueries({ queryKey: ['healthProfile'] });
+      queryClient.invalidateQueries({ queryKey: ['vitals', { limit: 100 }] });
+      queryClient.invalidateQueries({ queryKey: ['vitals'] });
+    },
+    onError: (err) => {
+      if (isDev) console.error('Error updating profile vitals:', err);
+      const message = err?.response?.data?.message || t('healthRecords.vitalError', 'Failed to record vital');
+      toast.error(message);
     }
   });
 
@@ -1643,8 +1814,27 @@ const HealthRecords = () => {
       queryClient.invalidateQueries({ queryKey: ['conditions'] });
     },
     onError: (err) => {
-      if (isDev) console.error('Error saving condition:', err);
-      toast.error(t('healthRecords.conditionError', 'Failed to save condition'));
+      if (isDev) console.error('Full error response:', err.response?.data);
+      const backendData = err?.response?.data;
+      let message = t('healthRecords.conditionError', 'Failed to save condition');
+      
+      if (backendData?.message) {
+        message = backendData.message;
+      } else if (backendData?.detail) {
+        message = backendData.detail;
+      } else if (typeof backendData === 'object') {
+        const errorLines = Object.entries(backendData)
+          .map(([key, val]) => {
+            const vals = Array.isArray(val) ? val : [val];
+            return vals.map(v => `${key}: ${v}`).join('; ');
+          })
+          .filter(line => line.trim());
+        if (errorLines.length > 0) {
+          message = errorLines.join(' | ');
+        }
+      }
+      
+      toast.error(message);
     }
   });
 
@@ -1658,7 +1848,15 @@ const HealthRecords = () => {
     },
     onError: (err) => {
       if (isDev) console.error('Error adding allergy:', err);
-      toast.error(t('healthRecords.allergyError', 'Failed to add allergy'));
+      const backendData = err?.response?.data;
+      const message =
+        backendData?.message ||
+        backendData?.detail ||
+        (typeof backendData === 'object'
+          ? Object.values(backendData).flat().join(', ')
+          : null) ||
+        t('healthRecords.allergyError', 'Failed to add allergy');
+      toast.error(message);
     }
   });
 
@@ -1726,8 +1924,16 @@ const HealthRecords = () => {
   });
 
   const handleAddVital = useCallback((data) => {
+    if (data?.height_cm != null || data?.blood_group) {
+      updateProfileVitalsMutation.mutate({
+        ...(data?.height_cm != null ? { height_cm: data.height_cm } : {}),
+        ...(data?.blood_group ? { blood_group: data.blood_group } : {}),
+      });
+      return;
+    }
+
     addVitalMutation.mutate(data);
-  }, [addVitalMutation]);
+  }, [addVitalMutation, updateProfileVitalsMutation]);
 
   const handleUploadDocument = useCallback((formData) => {
     uploadDocMutation.mutate(formData);
@@ -1768,7 +1974,30 @@ const HealthRecords = () => {
   }, []);
 
   const handleSaveCondition = useCallback((data) => {
-    addConditionMutation.mutate(data);
+    const trimmedName = data?.name?.trim();
+    const payload = {
+      // Send both name (alias) and condition_name (direct field) for compatibility
+      name: trimmedName,
+      condition_name: trimmedName,
+      severity: data?.severity || 'mild',
+      is_active: data?.is_active ?? true,
+      status: data?.is_active ? 'active' : 'managed',
+    };
+
+    if (data?.diagnosed_date) {
+      payload.diagnosed_date = data.diagnosed_date;
+    }
+
+    if (data?.notes?.trim()) {
+      payload.notes = data.notes.trim();
+      payload.treatment_notes = data.notes.trim();
+    }
+
+    if (isDev) {
+      console.log('Sending condition payload:', payload);
+    }
+
+    addConditionMutation.mutate(payload);
   }, [addConditionMutation]);
 
   const handleAddAllergy = useCallback((data) => {
@@ -1778,11 +2007,6 @@ const HealthRecords = () => {
   const handleShareWithDoctor = useCallback(() => {
     if (!selectedDoctorId) {
       toast.error(t('healthRecords.selectDoctorFirst', 'Please select a doctor'));
-      return;
-    }
-
-    if (!UUID_REGEX.test(String(selectedDoctorId))) {
-      toast.error(t('healthRecords.invalidDoctorSelection', 'Selected doctor is invalid. Please refresh and try again.'));
       return;
     }
 
@@ -1805,7 +2029,7 @@ const HealthRecords = () => {
 
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['healthProfile'] });
-    queryClient.invalidateQueries({ queryKey: ['latestVitals'] });
+    queryClient.invalidateQueries({ queryKey: ['vitals'] });
     queryClient.invalidateQueries({ queryKey: ['conditions'] });
     queryClient.invalidateQueries({ queryKey: ['allergies'] });
     queryClient.invalidateQueries({ queryKey: ['documents'] });
@@ -1923,6 +2147,7 @@ const HealthRecords = () => {
           <HealthSummaryCard profile={profile} latestVitals={latestVitals} />
 
           <VitalsSection
+            vitals={vitalRecords}
             latestVitals={latestVitals}
             onAddVital={() => setShowVitalModal(true)}
             onViewHistory={() => setActiveTab('vitals')}
@@ -1947,6 +2172,7 @@ const HealthRecords = () => {
       {activeTab === 'vitals' && (
         <div className="space-y-5">
           <VitalsSection
+            vitals={vitalRecords}
             latestVitals={latestVitals}
             onAddVital={() => setShowVitalModal(true)}
           />
@@ -1998,7 +2224,7 @@ const HealthRecords = () => {
         isOpen={showVitalModal}
         onClose={() => setShowVitalModal(false)}
         onSave={handleAddVital}
-        isLoading={addVitalMutation.isPending}
+        isLoading={addVitalMutation.isPending || updateProfileVitalsMutation.isPending}
       />
 
       <UploadDocumentModal

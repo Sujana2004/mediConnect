@@ -247,11 +247,14 @@ class MedicalCondition(TimeStampedModel):
         related_name='medical_conditions'
     )
     
-    # FIXED: Use UUIDField to avoid circular import, validate in serializer
-    consultation_id = models.UUIDField(
+    # Link to consultation that led to this diagnosis (no circular dependency)
+    consultation = models.ForeignKey(
+        'consultation.Consultation',
+        on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        help_text="Reference to consultation.Consultation"
+        related_name='medical_conditions_diagnosed',
+        help_text="Consultation during which this condition was diagnosed"
     )
     
     treatment_notes = models.TextField(blank=True)
@@ -369,6 +372,10 @@ class MedicalDocument(TimeStampedModel):
         verbose_name = 'Medical Document'
         verbose_name_plural = 'Medical Documents'
         ordering = ['-document_date', '-created_at']
+        indexes = [
+            models.Index(fields=['user', 'document_type', 'created_at']),
+            models.Index(fields=['user', 'document_date']),
+        ]
 
     def __str__(self):
         return f"{self.title} - {self.user.phone}"
@@ -493,6 +500,10 @@ class LabReport(TimeStampedModel):
         verbose_name = 'Lab Report'
         verbose_name_plural = 'Lab Reports'
         ordering = ['-test_date', '-created_at']
+        indexes = [
+            models.Index(fields=['user', 'test_date']),
+            models.Index(fields=['user', 'overall_status']),
+        ]
 
     def __str__(self):
         return f"{self.report_name} - {self.test_date}"
@@ -592,6 +603,10 @@ class VaccinationRecord(TimeStampedModel):
         verbose_name = 'Vaccination Record'
         verbose_name_plural = 'Vaccination Records'
         ordering = ['-vaccination_date']
+        indexes = [
+            models.Index(fields=['user', 'vaccination_date']),
+            models.Index(fields=['user', 'next_due_date']),
+        ]
 
     def __str__(self):
         return f"{self.vaccine_name} (Dose {self.dose_number}) - {self.user.phone}"
@@ -652,6 +667,7 @@ class Allergy(TimeStampedModel):
     )
     
     reaction = models.TextField(
+        blank=True,
         help_text="Description of allergic reaction"
     )
     

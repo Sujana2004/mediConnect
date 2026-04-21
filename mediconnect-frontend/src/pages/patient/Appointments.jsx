@@ -46,6 +46,8 @@ import {
   cancelAppointment,
   getUpcomingAppointments
 } from '../../services/api/appointmentService';
+import { consultationService } from '../../services/api';
+import { extractData } from '../../utils/apiHelpers';
 
 // ============================================================================
 // CONSTANTS
@@ -512,10 +514,26 @@ const Appointments = () => {
     navigate(`/patient/appointments/${appointmentId}`);
   }, [navigate]);
 
-  const handleJoin = useCallback((appointment) => {
+  const handleJoin = useCallback(async (appointment) => {
     const appointmentId = appointment?.id;
     if (!appointmentId) return;
-    navigate(`/patient/consultation/${appointmentId}`);
+
+    try {
+      const consultationResponse = await consultationService.createFromAppointment(
+        appointmentId,
+        appointment?.consultation_type || appointment?.booking_type || 'video'
+      );
+      const consultationData = extractData(consultationResponse);
+      const consultationId = consultationData?.id;
+
+      if (!consultationId) {
+        throw new Error('Consultation ID was not returned');
+      }
+
+      navigate(`/patient/consultation/${consultationId}`);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to open consultation');
+    }
   }, [navigate]);
 
   const handleCancel = useCallback((appointment) => {

@@ -739,11 +739,9 @@ const BookAppointment = () => {
       doctor?.user_id ||
       doctor?.user?.id;
     
-    // ✅ Only use effectiveDoctorId if it looks like a UUID (contains dashes)
+    // Use fallbackId directly without UUID check since IDs are now integers
     const fallbackId = effectiveDoctorId;
-    const isUUID = fallbackId && String(fallbackId).includes('-');
-    
-    return doctorUUID || (isUUID ? fallbackId : null);
+    return doctorUUID || fallbackId || null;
   }, [slotsResponse, availabilityData, doctor, effectiveDoctorId]);
 
   useEffect(() => {

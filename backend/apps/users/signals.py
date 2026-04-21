@@ -12,13 +12,17 @@ from .models import User, PatientProfile, DoctorProfile, AdminProfile
 def create_user_profile(sender, instance, created, **kwargs):
     """
     Create appropriate profile when a user is created.
+    Also creates HealthProfile for patients.
     """
     if created:
         if instance.role == User.Role.PATIENT:
             PatientProfile.objects.create(user=instance)
+            try:
+                from apps.health_records.models import HealthProfile
+                HealthProfile.objects.create(user=instance)
+            except ImportError:
+                pass
         elif instance.role == User.Role.DOCTOR:
-            # Doctor profile requires registration_number
-            # So we don't auto-create it here
             pass
         elif instance.role == User.Role.ADMIN:
             AdminProfile.objects.create(user=instance)

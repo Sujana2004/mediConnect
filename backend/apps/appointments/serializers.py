@@ -494,7 +494,7 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
         time_slot_id = attrs.get('time_slot_id')
 
         doctor = self.doctor
-        patient = self.context['request'].user
+        patient = self.context.get('acting_patient') or self.context['request'].user
         
         # Verify patient role
         if patient.role != 'patient':
@@ -604,7 +604,7 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
         time_slot = validated_data.pop('time_slot', None)
         doctor = validated_data.pop('doctor')
         
-        validated_data['patient'] = self.context['request'].user
+        validated_data['patient'] = self.context.get('acting_patient') or self.context['request'].user
         validated_data['doctor'] = doctor
         validated_data['status'] = 'pending'
         

@@ -66,7 +66,8 @@
     "enabled": "ప్రారంభించబడింది",
     "disabled": "నిలిపివేయబడింది",
     "on": "ఆన్",
-    "off": "ఆఫ్"
+    "off": "ఆఫ్",
+    "notifications": "నోటిఫికేషన్లు"
   },
 
   "auth": {
@@ -232,7 +233,8 @@
     "consultations": "సంప్రదింపులు",
     "prescriptions": "ప్రిస్క్రిప్షన్లు",
     "schedule": "షెడ్యూల్",
-    "profile": "ప్రొఫైల్"
+    "profile": "ప్రొఫైల్",
+    "bookAppointment": "యాపాయింట్‌మెంట్ బుక్ చేయండి"
   },
 
   "home": {
@@ -264,7 +266,24 @@
     "inConsultation": "సంప్రదింపులో ఉన్నారు",
     "nextPatient": "తదుపరి రోగి",
     "callNext": "తదుపరి రోగిని పిలవండి",
-    "noWaitingPatients": "వేచి ఉన్న రోగులు లేరు"
+    "noWaitingPatients": "వేచి ఉన్న రోగులు లేరు",
+    "goodafternoon": "శుభ మధ్యాహ్నం",
+    "welcomeMessage": "ఈరోజు మేము మీకు ఎలా సహాయం చేయగలము?",
+    "searchDoctors": "డాక్టర్లు, స్పెషాలిటీలను వెతకండి...",
+    "find-doctor": "డాక్టర్‌ను కనుగొనండి",
+    "book-appointment": "యాపాయింట్‌మెంట్ బుక్ చేయండి",
+    "appointments": "నా యాపాయింట్‌మెంట్లు",
+    "symptoms": "లక్షణాలను తనిఖీ చేయండి",
+    "medicines": "మందులు",
+    "emergency": "అత్యవసరం",
+    "noAppointments": "రాబోయే యాపాయింట్‌మెంట్లు లేవు",
+    "noAppointmentsDesc": "ప్రారంభించడానికి డాక్టర్‌తో యాపాయింట్‌మెంట్ బుక్ చేయండి",
+    "findDoctor": "డాక్టర్‌ను కనుగొనండి",
+    "healthSummary": "ఆరోగ్య సారాంశం",
+    "quickAccess": "త్వరిత యాక్సెస్",
+    "healthAssistant": "AI సహాయకుడు",
+    "askAnything": "ఆరోగ్య ప్రశ్నలు అడగండి",
+    "symptomChecker": "లక్షణాల తనిఖీ"
   },
 
   "symptoms": {
@@ -415,7 +434,8 @@
     "eveningSlots": "సాయంత్రం",
     "verified": "ధృవీకరించబడిన డాక్టర్",
     "consultNow": "ఇప్పుడే సంప్రదించండి",
-    "scheduleForLater": "తర్వాత కోసం షెడ్యూల్ చేయండి"
+    "scheduleForLater": "తర్వాత కోసం షెడ్యూల్ చేయండి",
+    "patientRecords": "రోగి రికార్డులు"
   },
 
   "appointments": {
@@ -673,6 +693,14 @@
     "breakTime": "విరామ సమయం",
     "leaves": "సెలవులు & సెలవు దినాలు",
     "addLeave": "సెలవు జోడించండి"
+  },
+
+  "profile": {
+    "title": "ప్రొఫైల్"
+  },
+
+  "doctor": {
+    "patientRecords": "రోగి రికార్డులు"
   },
 
   "emergency": {

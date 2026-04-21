@@ -17,8 +17,9 @@ from drf_yasg import openapi
 
 from .models import (
     PatientProfile, DoctorProfile, AdminProfile,
-    FamilyHelper, DoctorAvailability, DoctorLeave, UserActivity
+    FamilyHelper, UserActivity
 )
+from apps.appointments.models import DoctorSchedule, ScheduleException
 from .serializers import (
     # Token
     TokenSerializer, get_tokens_for_user,
@@ -320,14 +321,22 @@ class ProfileView(APIView):
     def get(self, request):
         user = request.user
         
-        # Get role-specific profile
-        profile_data = None
         if user.role == User.Role.PATIENT:
-            profile_data = PatientProfileSerializer(user.patient_profile).data
+            patient_profile = user.patient_profile
+            
+            try:
+                from apps.health_records.models import HealthProfile
+                HealthProfile.objects.get_or_create(user=user)
+            except:
+                pass
+            
+            profile_data = PatientProfileSerializer(patient_profile).data
         elif user.role == User.Role.DOCTOR:
             profile_data = DoctorProfileSerializer(user.doctor_profile).data
         elif user.role == User.Role.ADMIN:
             profile_data = AdminProfileSerializer(user.admin_profile).data
+        else:
+            profile_data = None
         
         return Response({
             'success': True,
@@ -380,8 +389,14 @@ class ProfileView(APIView):
             # Refresh user data
             user.refresh_from_db()
             
+            # Ensure HealthProfile exists for patients
             profile_data = None
             if user.role == User.Role.PATIENT:
+                try:
+                    from apps.health_records.models import HealthProfile
+                    HealthProfile.objects.get_or_create(user=user)
+                except:
+                    pass
                 profile_data = PatientProfileSerializer(user.patient_profile).data
             elif user.role == User.Role.DOCTOR:
                 profile_data = DoctorProfileSerializer(user.doctor_profile).data
@@ -423,7 +438,7 @@ class DoctorListView(generics.ListAPIView):
             verification_status='verified',
             is_available_online=True,
             user__is_active=True
-        ).select_related('user').prefetch_related('user__availabilities')
+        ).select_related('user').prefetch_related('user__schedules')
         
         # Filter by specialization
         specialization = self.request.query_params.get('specialization')
@@ -492,7 +507,7 @@ class DoctorDetailView(generics.RetrieveAPIView):
         return DoctorProfile.objects.filter(
             verification_status='verified',
             user__is_active=True
-        ).select_related('user').prefetch_related('user__availabilities')
+        ).select_related('user').prefetch_related('user__schedules')
     
     @swagger_auto_schema(
         operation_description="Get doctor details by User ID",
@@ -513,7 +528,7 @@ class DoctorAvailabilityView(APIView):
         tags=['Doctors']
     )
     def get(self, request):
-        availabilities = request.user.availabilities.all()
+        availabilities = request.user.schedules.all()
         
         return Response({
             'success': True,
@@ -530,10 +545,9 @@ class DoctorAvailabilityView(APIView):
         
         if serializer.is_valid():
             # Check if slot already exists
-            existing = DoctorAvailability.objects.filter(
+            existing = DoctorSchedule.objects.filter(
                 doctor=request.user,
-                day_of_week=serializer.validated_data['day_of_week'],
-                start_time=serializer.validated_data['start_time']
+                day_of_week=serializer.validated_data['day_of_week']
             ).first()
             
             if existing:
@@ -569,7 +583,7 @@ class DoctorAvailabilityView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            availability = DoctorAvailability.objects.get(
+            availability = DoctorSchedule.objects.get(
                 pk=pk,
                 doctor=request.user
             )
@@ -579,7 +593,7 @@ class DoctorAvailabilityView(APIView):
                 'success': True,
                 'message': 'Availability deleted'
             })
-        except DoctorAvailability.DoesNotExist:
+        except DoctorSchedule.DoesNotExist:
             return Response({
                 'success': False,
                 'message': 'Availability not found'
@@ -601,7 +615,10 @@ class DoctorLeaveListCreateView(APIView):
         tags=['Doctors']
     )
     def get(self, request):
-        leaves = DoctorLeave.objects.filter(doctor=request.user).order_by('date')
+        leaves = ScheduleException.objects.filter(
+            doctor=request.user,
+            exception_type__in=['leave', 'modified']
+        ).order_by('exception_date')
         
         return Response({
             'success': True,
@@ -618,9 +635,9 @@ class DoctorLeaveListCreateView(APIView):
         
         if serializer.is_valid():
             # Check if leave already exists for this date
-            existing = DoctorLeave.objects.filter(
+            existing = ScheduleException.objects.filter(
                 doctor=request.user,
-                date=serializer.validated_data['date']
+                exception_date=serializer.validated_data['exception_date']
             ).first()
             
             if existing:
@@ -655,14 +672,14 @@ class DoctorLeaveDetailView(APIView):
     )
     def delete(self, request, pk):
         try:
-            leave = DoctorLeave.objects.get(pk=pk, doctor=request.user)
+            leave = ScheduleException.objects.get(pk=pk, doctor=request.user)
             leave.delete()
             
             return Response({
                 'success': True,
                 'message': 'Leave deleted'
             })
-        except DoctorLeave.DoesNotExist:
+        except ScheduleException.DoesNotExist:
             return Response({
                 'success': False,
                 'message': 'Leave not found'

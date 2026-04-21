@@ -406,6 +406,7 @@ class ConsultationNote(models.Model):
         verbose_name_plural = 'Consultation Notes'
         indexes = [
             models.Index(fields=['consultation', 'note_type']),
+            models.Index(fields=['consultation', 'created_at']),
         ]
 
     def __str__(self):
@@ -495,6 +496,7 @@ class ConsultationPrescription(models.Model):
         verbose_name_plural = 'Consultation Prescriptions'
         indexes = [
             models.Index(fields=['consultation', 'is_active']),
+            models.Index(fields=['consultation', 'created_at']),
         ]
 
     def __str__(self):

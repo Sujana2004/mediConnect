@@ -789,7 +789,7 @@ class ConsultationPrescriptionViewSet(viewsets.ModelViewSet):
         
         return ConsultationPrescription.objects.filter(
             consultation=consultation
-        ).select_related('medicine').order_by('created_at')
+        ).order_by('created_at')
     
     def get_serializer_class(self):
         if self.action == 'create':

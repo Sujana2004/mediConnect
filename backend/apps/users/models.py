@@ -266,54 +266,12 @@ class PatientProfile(models.Model):
         related_name='patient_profile'
     )
     
-    # Medical History (stored as JSON for flexibility)
-    chronic_conditions = models.JSONField(
-        _('Chronic Conditions'),
-        default=list,
-        blank=True,
-        help_text=_('List of chronic conditions: ["diabetes", "hypertension"]')
-    )
-    allergies = models.JSONField(
-        _('Allergies'),
-        default=list,
-        blank=True,
-        help_text=_('List of allergies: ["penicillin", "peanuts"]')
-    )
-    current_medications = models.JSONField(
-        _('Current Medications'),
-        default=list,
-        blank=True,
-        help_text=_('List of current medications')
-    )
+    # Medical history is centralized in HealthProfile.
     past_surgeries = models.JSONField(
         _('Past Surgeries'),
         default=list,
         blank=True,
         help_text=_('List of past surgeries with dates')
-    )
-    family_history = models.JSONField(
-        _('Family Medical History'),
-        default=list,
-        blank=True,
-        help_text=_('Family medical history')
-    )
-    
-    # Emergency Contact
-    emergency_contact_name = models.CharField(
-        _('Emergency Contact Name'),
-        max_length=100,
-        blank=True
-    )
-    emergency_contact_phone = models.CharField(
-        _('Emergency Contact Phone'),
-        max_length=15,
-        blank=True,
-        validators=[phone_validator]
-    )
-    emergency_contact_relation = models.CharField(
-        _('Relation'),
-        max_length=50,
-        blank=True
     )
     
     # Insurance (optional)
@@ -612,96 +570,6 @@ class DoctorProfile(models.Model):
     @property
     def is_verified(self):
         return self.verification_status == self.VerificationStatus.VERIFIED
-
-
-# ============================================
-# DOCTOR AVAILABILITY
-# ============================================
-
-class DoctorAvailability(models.Model):
-    """
-    Doctor's weekly availability schedule.
-    FIXED: References DoctorProfile through user relationship
-    """
-    
-    class DayOfWeek(models.IntegerChoices):
-        MONDAY = 0, _('Monday')
-        TUESDAY = 1, _('Tuesday')
-        WEDNESDAY = 2, _('Wednesday')
-        THURSDAY = 3, _('Thursday')
-        FRIDAY = 4, _('Friday')
-        SATURDAY = 5, _('Saturday')
-        SUNDAY = 6, _('Sunday')
-    
-    # FIXED: Reference User directly, not DoctorProfile
-    doctor = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='availabilities',
-        limit_choices_to={'role': User.Role.DOCTOR}
-    )
-    
-    day_of_week = models.IntegerField(
-        _('Day of Week'),
-        choices=DayOfWeek.choices
-    )
-    start_time = models.TimeField(_('Start Time'))
-    end_time = models.TimeField(_('End Time'))
-    is_available = models.BooleanField(default=True)
-    
-    # Slot settings
-    slot_duration = models.PositiveIntegerField(
-        _('Slot Duration (minutes)'),
-        default=15
-    )
-    max_appointments = models.PositiveIntegerField(
-        _('Max Appointments'),
-        default=20,
-        help_text=_('Maximum appointments for this slot')
-    )
-    
-    class Meta:
-        verbose_name = _('Doctor Availability')
-        verbose_name_plural = _('Doctor Availabilities')
-        unique_together = ['doctor', 'day_of_week', 'start_time']
-        ordering = ['day_of_week', 'start_time']
-    
-    def __str__(self):
-        return f"{self.doctor.get_full_name()} - {self.get_day_of_week_display()}"
-
-
-# ============================================
-# DOCTOR LEAVE
-# ============================================
-
-class DoctorLeave(models.Model):
-    """
-    Doctor's leave/unavailable dates.
-    FIXED: References User directly
-    """
-    
-    doctor = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='leaves',
-        limit_choices_to={'role': User.Role.DOCTOR}
-    )
-    date = models.DateField(_('Leave Date'))
-    reason = models.CharField(_('Reason'), max_length=200, blank=True)
-    is_full_day = models.BooleanField(default=True)
-    start_time = models.TimeField(null=True, blank=True)
-    end_time = models.TimeField(null=True, blank=True)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        verbose_name = _('Doctor Leave')
-        verbose_name_plural = _('Doctor Leaves')
-        unique_together = ['doctor', 'date']
-        ordering = ['date']
-    
-    def __str__(self):
-        return f"{self.doctor.get_full_name()} - {self.date}"
 
 
 # ============================================

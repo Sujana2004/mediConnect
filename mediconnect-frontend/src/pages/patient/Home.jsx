@@ -55,11 +55,13 @@ import { useVoice } from '../../hooks/useVoice';
 import { useLanguage } from '../../hooks/useLanguage';
 import {
   appointmentService,
+  consultationService,
   notificationService,
   healthRecordsService,
   medicineService,
   chatbotService
 } from '../../services/api';
+import { extractData } from '../../utils/apiHelpers';
 import { format, parseISO, isToday, isTomorrow } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -706,13 +708,29 @@ const Home = () => {
     finally { setProcessingReminderId(null); }
   };
 
-  const handleJoinAppointment = (appointment) => {
+  const handleJoinAppointment = async (appointment) => {
     const appointmentId = appointment?.id || appointment?.appointment_id;
     if (!appointmentId) {
       toast.error(t('appointments.notFound', 'Appointment not found'));
       return;
     }
-    navigate(`/patient/consultation/${appointmentId}`);
+
+    try {
+      const consultationResponse = await consultationService.createFromAppointment(
+        appointmentId,
+        appointment?.consultation_type || appointment?.booking_type || 'video'
+      );
+      const consultationData = extractData(consultationResponse);
+      const consultationId = consultationData?.id;
+
+      if (!consultationId) {
+        throw new Error('Consultation ID was not returned');
+      }
+
+      navigate(`/patient/consultation/${consultationId}`);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.message || t('appointments.joinFailed', 'Failed to open consultation'));
+    }
   };
   const handleViewAppointment = (appointment) => {
     const appointmentId = appointment?.id || appointment?.appointment_id;

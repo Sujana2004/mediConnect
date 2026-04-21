@@ -66,7 +66,8 @@
     "enabled": "Enabled",
     "disabled": "Disabled",
     "on": "On",
-    "off": "Off"
+    "off": "Off",
+    "notifications": "Notifications"
   },
 
   "auth": {
@@ -232,7 +233,8 @@
     "consultations": "Consultations",
     "prescriptions": "Prescriptions",
     "schedule": "Schedule",
-    "profile": "Profile"
+    "profile": "Profile",
+    "bookAppointment": "Book Appointment"
   },
 
   "home": {
@@ -264,7 +266,24 @@
     "inConsultation": "In Consultation",
     "nextPatient": "Next Patient",
     "callNext": "Call Next Patient",
-    "noWaitingPatients": "No patients waiting"
+    "noWaitingPatients": "No patients waiting",
+    "goodafternoon": "Good Afternoon",
+    "welcomeMessage": "How can we help you today?",
+    "searchDoctors": "Search doctors, specialties...",
+    "find-doctor": "Find Doctor",
+    "book-appointment": "Book Appointment",
+    "appointments": "My Appointments",
+    "symptoms": "Check Symptoms",
+    "medicines": "Medicines",
+    "emergency": "Emergency",
+    "noAppointments": "No upcoming appointments",
+    "noAppointmentsDesc": "Book an appointment with a doctor to get started",
+    "findDoctor": "Find a Doctor",
+    "healthSummary": "Health Summary",
+    "quickAccess": "Quick Access",
+    "healthAssistant": "AI Assistant",
+    "askAnything": "Ask health questions",
+    "symptomChecker": "Symptom Check"
   },
 
   "symptoms": {
@@ -415,7 +434,8 @@
     "eveningSlots": "Evening",
     "verified": "Verified Doctor",
     "consultNow": "Consult Now",
-    "scheduleForLater": "Schedule for Later"
+    "scheduleForLater": "Schedule for Later",
+    "patientRecords": "Patient Records"
   },
 
   "appointments": {
@@ -673,6 +693,14 @@
     "breakTime": "Break Time",
     "leaves": "Leaves & Holidays",
     "addLeave": "Add Leave"
+  },
+
+  "profile": {
+    "title": "Profile"
+  },
+
+  "doctor": {
+    "patientRecords": "Patient Records"
   },
 
   "emergency": {

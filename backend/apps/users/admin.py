@@ -15,9 +15,10 @@ import csv
 
 from .models import (
     User, PatientProfile, DoctorProfile, AdminProfile,
-    FamilyHelper, DoctorAvailability, DoctorLeave,
+    FamilyHelper,
     OTP, UserActivity
 )
+from apps.appointments.models import DoctorSchedule
 
 
 # ============================================
@@ -81,14 +82,10 @@ class PatientProfileInline(admin.StackedInline):
     
     fieldsets = (
         ('Medical Info', {
-            'fields': ('allergies', 'chronic_conditions', 'current_medications', 'past_surgeries', 'family_history')
+            'fields': ('past_surgeries',)
         }),
         ('Accessibility', {
             'fields': ('is_literate', 'needs_voice_assistance', 'needs_large_text')
-        }),
-        ('Emergency Contact', {
-            'fields': ('emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relation'),
-            'classes': ('collapse',)
         }),
         ('Insurance', {
             'fields': ('has_insurance', 'insurance_provider', 'insurance_id'),
@@ -152,11 +149,11 @@ class FamilyHelperInline(admin.TabularInline):
     readonly_fields = ('is_verified',)
 
 
-class DoctorAvailabilityInline(admin.TabularInline):
-    model = DoctorAvailability
-    fk_name = 'doctor'  # ✅ References User, not DoctorProfile
+class DoctorScheduleInline(admin.TabularInline):
+    model = DoctorSchedule
+    fk_name = 'doctor'
     extra = 0
-    fields = ('day_of_week', 'start_time', 'end_time', 'is_available', 'max_appointments')
+    fields = ('day_of_week', 'start_time', 'end_time', 'is_active', 'max_patients_per_slot')
 
 
 # ============================================
@@ -330,7 +327,7 @@ class UserAdmin(BaseUserAdmin):
             if obj.role == User.Role.PATIENT:
                 return [PatientProfileInline, FamilyHelperInline]
             elif obj.role == User.Role.DOCTOR:
-                return [DoctorProfileInline, DoctorAvailabilityInline]  # ✅ This is correct - keep it here
+                return [DoctorProfileInline, DoctorScheduleInline]
             elif obj.role == User.Role.ADMIN:
                 return [AdminProfileInline]
         return []
@@ -561,58 +558,6 @@ class FamilyHelperAdmin(admin.ModelAdmin):
     @admin.display(description='Verified')
     def verified_badge(self, obj):
         return status_badge(obj.is_verified, '✓ Verified', 'Pending', '#27ae60', '#e67e22')
-
-
-@admin.register(DoctorAvailability)
-class DoctorAvailabilityAdmin(admin.ModelAdmin):
-    list_display = (
-        'doctor_link', 'day_display', 'time_display',
-        'available_badge', 'max_appointments'
-    )
-    list_filter = ('day_of_week', 'is_available')
-    search_fields = ('doctor__phone', 'doctor__first_name')
-    list_select_related = ('doctor',)
-    
-    @admin.display(description='Doctor')
-    def doctor_link(self, obj):
-        url = reverse('admin:users_user_change', args=[obj.doctor.pk])
-        return format_html('<a href="{}">{}</a>', url, obj.doctor.get_full_name() or obj.doctor.phone)
-    
-    @admin.display(description='Day')
-    def day_display(self, obj):
-        return obj.get_day_of_week_display()
-    
-    @admin.display(description='Time')
-    def time_display(self, obj):
-        return f'{obj.start_time.strftime("%H:%M")} - {obj.end_time.strftime("%H:%M")}'
-    
-    @admin.display(description='Available')
-    def available_badge(self, obj):
-        return status_badge(obj.is_available, '🟢 Available', '🔴 Unavailable')
-
-
-@admin.register(DoctorLeave)
-class DoctorLeaveAdmin(admin.ModelAdmin):
-    list_display = ('doctor_link', 'date', 'full_day_badge', 'time_display', 'reason')
-    list_filter = ('is_full_day', 'date')
-    search_fields = ('doctor__phone', 'doctor__first_name')
-    date_hierarchy = 'date'
-    list_select_related = ('doctor',)
-    
-    @admin.display(description='Doctor')
-    def doctor_link(self, obj):
-        url = reverse('admin:users_user_change', args=[obj.doctor.pk])
-        return format_html('<a href="{}">{}</a>', url, obj.doctor.get_full_name() or obj.doctor.phone)
-    
-    @admin.display(description='Full Day')
-    def full_day_badge(self, obj):
-        return status_badge(obj.is_full_day, 'Full Day', 'Partial')
-    
-    @admin.display(description='Time')
-    def time_display(self, obj):
-        if obj.is_full_day:
-            return 'All Day'
-        return f'{obj.start_time.strftime("%H:%M")} - {obj.end_time.strftime("%H:%M")}' if obj.start_time and obj.end_time else '-'
 
 
 @admin.register(OTP)

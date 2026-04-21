@@ -41,7 +41,7 @@ const PatientLayout = () => {
       '/patient/notifications': t('notifications.title'),
       '/patient/settings': t('settings.title'),
       '/patient/emergency': t('emergency.title'),
-      '/patient/profile': t('profile.title')
+      '/patient/profile': t('profile.title', 'Profile'),
     };
     const matchedPath = Object.keys(pathToTitle).find(path =>
       location.pathname === path || location.pathname.startsWith(path + '/')

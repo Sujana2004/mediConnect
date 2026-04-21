@@ -77,6 +77,7 @@ from .services import (
     ReminderService,
 )
 from apps.users.models import DoctorProfile
+from apps.users.permissions import require_acting_patient
 
 logger = logging.getLogger(__name__)
 
@@ -741,6 +742,15 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     """
     
     permission_classes = [permissions.IsAuthenticated]
+    required_helper_permission = 'can_book_appointments'
+
+    def _get_patient_actor(self):
+        """Resolve patient context for patient/helper requests."""
+        return require_acting_patient(
+            self.request,
+            required_permission=self.required_helper_permission,
+            message='Only patients or authorized helpers can manage appointments.',
+        )
     
     def get_queryset(self):
         """Get appointments based on user type."""
@@ -750,8 +760,9 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             # Doctors see appointments with them
             queryset = Appointment.objects.filter(doctor=user)
         else:
-            # Patients see their own appointments
-            queryset = Appointment.objects.filter(patient=user)
+            # Patients/helpers see appointments for the resolved patient account
+            patient = self._get_patient_actor()
+            queryset = Appointment.objects.filter(patient=patient)
         
         # Apply filters
         status_filter = self.request.query_params.get('status')
@@ -813,6 +824,8 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Create appointment."""
         serializer = self.get_serializer(data=request.data)
+        if not hasattr(request.user, 'doctor_profile'):
+            serializer.context['acting_patient'] = self._get_patient_actor()
         serializer.is_valid(raise_exception=True)
         appointment = serializer.save()
         
@@ -1126,8 +1139,9 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 appointment_date=today
             )
         else:
+            patient = self._get_patient_actor()
             appointments = Appointment.objects.filter(
-                patient=request.user,
+                patient=patient,
                 appointment_date=today
             )
         
@@ -1156,8 +1170,9 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 status=None
             )
         else:
+            patient = self._get_patient_actor()
             appointments = AppointmentService.get_patient_appointments(
-                patient=user,
+                patient=patient,
                 upcoming_only=True,
                 limit=10
             )
@@ -1206,6 +1221,14 @@ class QueueViewSet(viewsets.ReadOnlyModelViewSet):
     """
     
     permission_classes = [permissions.IsAuthenticated]
+    required_helper_permission = 'can_book_appointments'
+
+    def _get_patient_actor(self):
+        return require_acting_patient(
+            self.request,
+            required_permission=self.required_helper_permission,
+            message='Only patients or authorized helpers can access queue data.',
+        )
     
     def get_queryset(self):
         """Get queue entries."""
@@ -1220,8 +1243,9 @@ class QueueViewSet(viewsets.ReadOnlyModelViewSet):
             )
         else:
             # Patients see their own queue entries
+            patient = self._get_patient_actor()
             queryset = AppointmentQueue.objects.filter(
-                appointment__patient=user
+                appointment__patient=patient
             )
         
         return queryset.select_related(

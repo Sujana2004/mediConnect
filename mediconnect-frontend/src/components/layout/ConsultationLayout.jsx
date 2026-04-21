@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { Toast } from '../common';
 import useAuth from '../../hooks/useAuth';
 
@@ -7,10 +7,9 @@ import useAuth from '../../hooks/useAuth';
  * Layout wrapper for consultation/video call pages
  * Minimal layout without navigation for focused experience
  */
-const ConsultationLayout = () => {
+const ConsultationLayout = ({ children }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const { id } = useParams();
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -45,7 +44,7 @@ const ConsultationLayout = () => {
 
       {/* Full screen consultation content */}
       <main className="h-screen">
-        <Outlet />
+        {children || <Outlet />}
       </main>
     </div>
   );

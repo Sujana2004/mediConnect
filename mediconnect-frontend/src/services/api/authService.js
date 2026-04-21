@@ -18,6 +18,8 @@ const AUTH_ENDPOINTS = Object.freeze({
   PROFILE: '/auth/profile/',
   DOCTORS: '/auth/doctors/',
   HELPERS: '/auth/helpers/',
+  DOCTOR_AVAILABILITY: '/auth/doctor/availability/',
+  DOCTOR_LEAVES: '/auth/doctor/leaves/',
   CHANGE_LANGUAGE: '/auth/settings/language/',
   UPDATE_FCM_TOKEN: '/auth/settings/fcm-token/',
 });
@@ -59,6 +61,35 @@ const buildEndpoint = (baseEndpoint, id = null, action = null) => {
   }
 
   return endpoint;
+};
+
+const unwrapList = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.results)) return payload.results;
+  return [];
+};
+
+const normalizeAvailabilityPayload = (slotData = {}) => ({
+  day_of_week: Number(slotData.day_of_week),
+  start_time: slotData.start_time,
+  end_time: slotData.end_time,
+  is_available: slotData.is_available ?? slotData.is_active ?? true,
+  slot_duration: slotData.slot_duration ?? slotData.slot_duration_minutes ?? 30,
+  max_appointments: slotData.max_appointments ?? slotData.max_patients_per_slot ?? 1,
+});
+
+const normalizeLeavePayload = (leaveData = {}) => {
+  const isFullDay = leaveData.is_full_day ?? (leaveData.exception_type === 'leave');
+  return {
+    date: leaveData.date || leaveData.exception_date,
+    reason: leaveData.reason || '',
+    is_full_day: Boolean(isFullDay),
+    ...(isFullDay ? {} : {
+      start_time: leaveData.start_time,
+      end_time: leaveData.end_time,
+    }),
+  };
 };
 
 /**
@@ -259,6 +290,72 @@ export const updateHelper = async (helperId, helperData) => {
 };
 
 /**
+ * Get doctor's own availability slots from users app endpoints.
+ * @returns {Promise<Array>} Availability list
+ */
+export const getDoctorOwnAvailability = async () => {
+  const response = await api.get(AUTH_ENDPOINTS.DOCTOR_AVAILABILITY);
+  return unwrapList(response.data);
+};
+
+/**
+ * Create or update doctor's availability slot (upsert by day_of_week).
+ * @param {Object} slotData - Slot data in either users or appointments naming
+ * @returns {Promise<Object>} Updated slot payload
+ */
+export const saveDoctorOwnAvailability = async (slotData) => {
+  const response = await api.post(
+    AUTH_ENDPOINTS.DOCTOR_AVAILABILITY,
+    normalizeAvailabilityPayload(slotData)
+  );
+  return response.data;
+};
+
+/**
+ * Delete doctor's availability slot by UUID.
+ * @param {string} slotId - Availability UUID
+ * @returns {Promise<Object>} Deletion response
+ */
+export const deleteDoctorOwnAvailability = async (slotId) => {
+  const endpoint = buildEndpoint(AUTH_ENDPOINTS.DOCTOR_AVAILABILITY, slotId);
+  const response = await api.delete(endpoint);
+  return response.data;
+};
+
+/**
+ * Get doctor's own leaves from users app endpoints.
+ * @returns {Promise<Array>} Leave list
+ */
+export const getDoctorOwnLeaves = async () => {
+  const response = await api.get(AUTH_ENDPOINTS.DOCTOR_LEAVES);
+  return unwrapList(response.data);
+};
+
+/**
+ * Add doctor's leave (full-day or partial-day).
+ * @param {Object} leaveData - Leave payload
+ * @returns {Promise<Object>} Created leave
+ */
+export const addDoctorOwnLeave = async (leaveData) => {
+  const response = await api.post(
+    AUTH_ENDPOINTS.DOCTOR_LEAVES,
+    normalizeLeavePayload(leaveData)
+  );
+  return response.data;
+};
+
+/**
+ * Delete doctor's leave by UUID.
+ * @param {string} leaveId - Leave UUID
+ * @returns {Promise<Object>} Deletion response
+ */
+export const deleteDoctorOwnLeave = async (leaveId) => {
+  const endpoint = buildEndpoint(AUTH_ENDPOINTS.DOCTOR_LEAVES, leaveId);
+  const response = await api.delete(endpoint);
+  return response.data;
+};
+
+/**
  * Change user's preferred language
  * @param {string} language - Language code (en/hi/te)
  * @returns {Promise<Object>} Confirmation
@@ -299,6 +396,12 @@ export default {
   addHelper,
   removeHelper,
   updateHelper,
+  getDoctorOwnAvailability,
+  saveDoctorOwnAvailability,
+  deleteDoctorOwnAvailability,
+  getDoctorOwnLeaves,
+  addDoctorOwnLeave,
+  deleteDoctorOwnLeave,
   changeLanguage,
   updateFcmToken,
 };

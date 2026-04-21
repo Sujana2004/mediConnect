@@ -99,9 +99,9 @@ const Login = () => {
   // Validate phone number
   const validatePhone = useCallback((phoneNumber) => {
     const cleaned = phoneNumber.replace(/\D/g, '');
-    if (!cleaned) return t('auth.phoneRequired');
-    if (cleaned.length !== 10) return t('auth.invalidPhone');
-    if (!/^[6-9]/.test(cleaned)) return t('auth.invalidPhone');
+    if (!cleaned) return t('auth.phoneRequired', 'phone number is required');
+    if (cleaned.length !== 10) return t('auth.invalidPhone', 'invalid phone number');
+    if (!/^[6-9]/.test(cleaned)) return t('auth.invalidPhone', 'invalid phone number');
     return '';
   }, [t]);
 
@@ -597,7 +597,7 @@ const Login = () => {
                   </div>
                   <p className="font-bold text-gray-900 text-xs sm:text-sm">{t('auth.patient')}</p>
                   <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 sm:mt-1 leading-relaxed">
-                    {t('auth.registerAsPatient')}
+                    {t('auth.registerAsPatient', 'Register as Patient')}
                   </p>
                 </div>
               </Link>
@@ -609,7 +609,7 @@ const Login = () => {
                   </div>
                   <p className="font-bold text-gray-900 text-xs sm:text-sm">{t('auth.doctor')}</p>
                   <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 sm:mt-1 leading-relaxed">
-                    {t('auth.registerAsDoctor')}
+                    {t('auth.registerAsDoctor', 'Register as Doctor')}
                   </p>
                 </div>
               </Link>

@@ -56,14 +56,14 @@ urlpatterns = [
         name='doctor_availability'
     ),
     path(
-        'doctor/availability/<int:pk>/',
+        'doctor/availability/<uuid:pk>/',
         views.DoctorAvailabilityView.as_view(),
         name='doctor_availability_detail'
     ),
 
     # Doctor leaves
     path('doctor/leaves/', views.DoctorLeaveListCreateView.as_view(), name='doctor_leaves'),
-    path('doctor/leaves/<int:pk>/', views.DoctorLeaveDetailView.as_view(), name='doctor_leave_detail'),
+    path('doctor/leaves/<uuid:pk>/', views.DoctorLeaveDetailView.as_view(), name='doctor_leave_detail'),
     
     # ============================================
     # FAMILY HELPER

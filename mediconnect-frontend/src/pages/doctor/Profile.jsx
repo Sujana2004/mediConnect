@@ -12,7 +12,6 @@ import {
 
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/api';
-import api from '../../config/api';
 import {
   Card, Button, Badge, Avatar, Loader, EmptyState, Modal, Input, TextArea, Select
 } from '../../components/common';
@@ -1324,23 +1323,11 @@ const DoctorProfile = () => {
     }
   };
 
-  // In Profile.jsx - Update fetchAvailability
   const fetchAvailability = async () => {
     setIsLoadingAvailability(true);
     try {
-      const response = await api.get('/appointments/schedules/');
-      const apiResponse = response.data;
-      
-      // Backend ModelViewSet returns plain array or {results: []} for pagination
-      if (Array.isArray(apiResponse)) {
-        setAvailabilities(apiResponse);
-      } else if (apiResponse?.results) {
-        setAvailabilities(apiResponse.results);
-      } else if (apiResponse?.data) {
-        setAvailabilities(apiResponse.data);
-      } else {
-        setAvailabilities([]);
-      }
+      const data = await authService.getDoctorOwnAvailability();
+      setAvailabilities(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error fetching availability:', err);
       setAvailabilities([]);
@@ -1349,21 +1336,11 @@ const DoctorProfile = () => {
     }
   };
 
-  // Update fetchLeaves
   const fetchLeaves = async () => {
     setIsLoadingLeaves(true);
     try {
-      // Change from '/auth/doctor/leaves/' to appointments endpoint
-      const response = await api.get('/appointments/exceptions/');
-      const apiResponse = response.data;
-      
-      if (apiResponse?.success && Array.isArray(apiResponse.data)) {
-        setLeaves(apiResponse.data);
-      } else if (Array.isArray(apiResponse)) {
-        setLeaves(apiResponse);
-      } else {
-        setLeaves([]);
-      }
+      const data = await authService.getDoctorOwnLeaves();
+      setLeaves(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error fetching leaves:', err);
       setLeaves([]);
@@ -1453,17 +1430,11 @@ const DoctorProfile = () => {
     }
   };
 
-  // Availability handlers - use appointments endpoints
+  // Availability handlers - use users doctor availability endpoints
   const handleSaveAvailability = async (slotData) => {
     setIsSaving(true);
     try {
-      if (editingSlot?.id) {
-        // Update existing
-        await api.put(`/appointments/schedules/${editingSlot.id}/`, slotData);
-      } else {
-        // Create new
-        await api.post('/appointments/schedules/', slotData);
-      }
+      await authService.saveDoctorOwnAvailability(slotData);
       toast.success(editingSlot ? t('doctor.slotUpdated', 'Time slot updated') : t('doctor.slotAdded', 'Time slot added'));
       setShowAvailabilityModal(false);
       setEditingSlot(null);
@@ -1481,7 +1452,7 @@ const DoctorProfile = () => {
   const handleDeleteAvailability = async (slot) => {
     setIsSaving(true);
     try {
-      await api.delete(`/appointments/schedules/${slot.id}/`);
+      await authService.deleteDoctorOwnAvailability(slot.id);
       toast.success(t('doctor.slotDeleted', 'Time slot deleted'));
       setShowAvailabilityModal(false);
       setEditingSlot(null);
@@ -1493,17 +1464,17 @@ const DoctorProfile = () => {
     }
   };
 
-  // Leave handlers - use appointments endpoints
+  // Leave handlers - use users doctor leaves endpoints
   const handleSaveLeave = async (leaveData) => {
     setIsSaving(true);
     try {
-      await api.post('/appointments/exceptions/', leaveData);
+      await authService.addDoctorOwnLeave(leaveData);
       toast.success(t('doctor.leaveAdded', 'Leave added successfully'));
       setShowLeaveModal(false);
       fetchLeaves();
     } catch (err) {
       const errorMsg = err.response?.data?.message || 
-                      err.response?.data?.exception_date?.[0] ||
+                      err.response?.data?.date?.[0] ||
                       Object.values(err.response?.data || {}).flat().join(', ') ||
                       t('doctor.leaveError', 'Failed to add leave');
       toast.error(errorMsg);
@@ -1514,7 +1485,7 @@ const DoctorProfile = () => {
 
   const handleDeleteLeave = async (leave) => {
     try {
-      await api.delete(`/appointments/exceptions/${leave.id}/`);
+      await authService.deleteDoctorOwnLeave(leave.id);
       toast.success(t('doctor.leaveDeleted', 'Leave removed'));
       fetchLeaves();
     } catch (err) {

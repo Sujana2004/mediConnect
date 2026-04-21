@@ -235,30 +235,53 @@ class MedicalConditionSerializer(serializers.ModelSerializer):
 class MedicalConditionCreateSerializer(serializers.ModelSerializer):
     """
     Serializer for creating medical conditions.
+    Accepts BOTH the backend field names AND the frontend-friendly aliases:
+      name       → maps to condition_name
+      is_active  → derives status (true=active, false=managed)
+      notes      → maps to treatment_notes
     FIXED: consultation_id validation.
     """
+    # Frontend-friendly write fields (write_only so they don't conflict with model fields)
+    name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    is_active = serializers.BooleanField(write_only=True, required=False)
+    notes = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = MedicalCondition
         fields = [
+            # Backend field names (also accepted)
             'condition_name', 'condition_name_local', 'icd_code',
             'status', 'severity',
             'diagnosed_date', 'resolved_date',
             'diagnosed_by', 'diagnosis_session', 'consultation_id',
             'treatment_notes', 'is_chronic',
+            # Frontend-friendly aliases
+            'name', 'is_active', 'notes',
         ]
 
-    def validate_consultation_id(self, value):
-        """Validate consultation exists (optional check)."""
-        if value:
-            # Optional: Can verify consultation exists
-            # from apps.consultation.models import Consultation
-            # if not Consultation.objects.filter(id=value).exists():
-            #     raise serializers.ValidationError("Consultation not found")
-            pass
-        return value
-
     def validate(self, data):
+        # Map frontend-friendly fields → backend fields
+        if 'name' in data and not data.get('condition_name'):
+            data['condition_name'] = data.pop('name')
+        else:
+            data.pop('name', None)
+
+        if 'is_active' in data and 'status' not in data:
+            data['status'] = 'active' if data.pop('is_active') else 'managed'
+        else:
+            data.pop('is_active', None)
+
+        if 'notes' in data and not data.get('treatment_notes'):
+            data['treatment_notes'] = data.pop('notes')
+        else:
+            data.pop('notes', None)
+
+        # condition_name is required
+        if not data.get('condition_name'):
+            raise serializers.ValidationError({
+                'name': 'Condition name is required (use "name" or "condition_name")'
+            })
+
         if data.get('resolved_date') and data.get('diagnosed_date'):
             if data['resolved_date'] < data['diagnosed_date']:
                 raise serializers.ValidationError({
@@ -266,9 +289,25 @@ class MedicalConditionCreateSerializer(serializers.ModelSerializer):
                 })
         return data
 
+    def validate_consultation_id(self, value):
+        """Validate consultation exists (optional check)."""
+        if value:
+            pass
+        return value
+
 
 class MedicalConditionListSerializer(serializers.ModelSerializer):
-    """List view of medical conditions."""
+    """List view of medical conditions.
+    
+    Includes frontend-friendly aliases:
+      name       → condition_name
+      is_active  → status == 'active'
+      notes      → treatment_notes
+    """
+    # Frontend-friendly aliases
+    name = serializers.CharField(source='condition_name', read_only=True)
+    is_active = serializers.SerializerMethodField()
+    notes = serializers.CharField(source='treatment_notes', read_only=True, default='')
 
     class Meta:
         model = MedicalCondition
@@ -276,8 +315,13 @@ class MedicalConditionListSerializer(serializers.ModelSerializer):
             'id', 'condition_name', 'condition_name_local',
             'status', 'severity', 'is_chronic',
             'diagnosed_date',
+            # Frontend-friendly aliases
+            'name', 'is_active', 'notes',
         ]
         read_only_fields = fields
+
+    def get_is_active(self, obj):
+        return obj.status == 'active'
 
 
 # =============================================================================
@@ -447,19 +491,34 @@ class LabReportCreateSerializer(serializers.ModelSerializer):
 
 
 class LabReportListSerializer(serializers.ModelSerializer):
-    """List view of lab reports."""
+    """List view of lab reports.
+    
+    Includes frontend-friendly aliases:
+      name         → report_name
+      date         → test_date
+      has_abnormal → overall_status != 'normal'
+    """
     abnormal_count = serializers.SerializerMethodField()
+    has_abnormal = serializers.SerializerMethodField()
+    # Frontend-friendly aliases
+    name = serializers.CharField(source='report_name', read_only=True)
+    date = serializers.DateField(source='test_date', read_only=True)
 
     class Meta:
         model = LabReport
         fields = [
             'id', 'report_name', 'lab_type', 'test_date',
             'lab_name', 'overall_status', 'abnormal_count',
+            # Frontend-friendly aliases
+            'name', 'date', 'has_abnormal',
         ]
         read_only_fields = fields
 
     def get_abnormal_count(self, obj):
         return len(obj.get_abnormal_results())
+
+    def get_has_abnormal(self, obj):
+        return obj.overall_status in ['abnormal', 'critical']
 
 
 # =============================================================================
@@ -524,9 +583,21 @@ class VaccinationRecordCreateSerializer(serializers.ModelSerializer):
 
 
 class VaccinationRecordListSerializer(serializers.ModelSerializer):
-    """List view of vaccination records."""
+    """List view of vaccination records.
+    
+    Includes frontend-friendly aliases:
+      name     → vaccine_name
+      date     → vaccination_date
+      dose     → dose_number
+      next_due → next_due_date
+    """
     is_complete = serializers.ReadOnlyField()
     is_due = serializers.ReadOnlyField()
+    # Frontend-friendly aliases
+    name = serializers.CharField(source='vaccine_name', read_only=True)
+    date = serializers.DateField(source='vaccination_date', read_only=True)
+    dose = serializers.IntegerField(source='dose_number', read_only=True)
+    next_due = serializers.DateField(source='next_due_date', read_only=True, allow_null=True)
 
     class Meta:
         model = VaccinationRecord
@@ -536,6 +607,8 @@ class VaccinationRecordListSerializer(serializers.ModelSerializer):
             'is_complete', 'is_due',
             'vaccination_date', 'next_due_date',
             'is_verified',
+            # Frontend-friendly aliases
+            'name', 'date', 'dose', 'next_due',
         ]
         read_only_fields = fields
 
@@ -547,6 +620,7 @@ class VaccinationRecordListSerializer(serializers.ModelSerializer):
 class AllergySerializer(serializers.ModelSerializer):
     """Full allergy serializer."""
     user = UserMinimalSerializer(read_only=True)
+    name = serializers.CharField(source='allergen', read_only=True)
 
     class Meta:
         model = Allergy
@@ -557,12 +631,21 @@ class AllergySerializer(serializers.ModelSerializer):
             'first_observed', 'status',
             'diagnosed_by', 'notes',
             'created_at', 'updated_at',
+            # Frontend-friendly alias
+            'name',
         ]
-        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at', 'name']
 
 
 class AllergyCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating allergies."""
+    """
+    Serializer for creating allergies.
+    Accepts frontend-friendly alias:
+      name → allergen  (simple modal sends only {name})
+    Makes allergy_type and reaction optional with safe defaults.
+    """
+    # Frontend-friendly write alias
+    name = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = Allergy
@@ -571,17 +654,45 @@ class AllergyCreateSerializer(serializers.ModelSerializer):
             'severity', 'reaction',
             'first_observed', 'status',
             'diagnosed_by', 'notes',
+            # Frontend-friendly alias
+            'name',
         ]
+
+    def validate(self, data):
+        # Map name → allergen
+        if 'name' in data and not data.get('allergen'):
+            data['allergen'] = data.pop('name')
+        else:
+            data.pop('name', None)
+
+        # allergen is required
+        if not data.get('allergen'):
+            raise serializers.ValidationError({
+                'name': 'Allergy name is required (use "name" or "allergen")'
+            })
+
+        # Default allergy_type to 'other' if not provided
+        if not data.get('allergy_type'):
+            data['allergy_type'] = 'other'
+
+        return data
 
 
 class AllergyListSerializer(serializers.ModelSerializer):
-    """List view of allergies."""
+    """List view of allergies.
+    
+    Includes frontend-friendly alias:
+      name → allergen
+    """
+    name = serializers.CharField(source='allergen', read_only=True)
 
     class Meta:
         model = Allergy
         fields = [
             'id', 'allergen', 'allergy_type',
             'severity', 'status',
+            # Frontend-friendly alias
+            'name',
         ]
         read_only_fields = fields
 
@@ -821,6 +932,14 @@ class VitalSignCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
+        has_systolic = data.get('systolic_bp') is not None
+        has_diastolic = data.get('diastolic_bp') is not None
+
+        if has_systolic != has_diastolic:
+            raise serializers.ValidationError(
+                "Both systolic and diastolic blood pressure values are required together"
+            )
+
         # At least one vital must be provided
         vital_fields = [
             'systolic_bp', 'heart_rate', 'temperature',
@@ -914,7 +1033,7 @@ class SharedRecordCreateSerializer(serializers.ModelSerializer):
     Serializer for creating shared records.
     FIXED: doctor_id uses User.id only.
     """
-    doctor_id = serializers.UUIDField(write_only=True)
+    doctor_id = serializers.CharField(write_only=True)
 
     class Meta:
         model = SharedRecord
@@ -932,6 +1051,8 @@ class SharedRecordCreateSerializer(serializers.ModelSerializer):
             doctor = User.objects.get(id=value, role='doctor')
         except User.DoesNotExist:
             raise serializers.ValidationError("Doctor not found with this User ID")
+        except (ValueError, TypeError):
+            raise serializers.ValidationError("Invalid doctor_id")
         
         self.doctor = doctor
         return value

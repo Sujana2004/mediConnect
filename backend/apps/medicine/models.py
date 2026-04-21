@@ -413,6 +413,7 @@ class UserPrescription(models.Model):
         indexes = [
             models.Index(fields=['user', 'status']),
             models.Index(fields=['user', '-prescribed_date']),
+            models.Index(fields=['user', 'valid_until']),
         ]
     
     def __str__(self):
@@ -537,6 +538,10 @@ class PrescriptionMedicine(models.Model):
     class Meta:
         db_table = 'prescription_medicines'
         ordering = ['medicine_name']
+        indexes = [
+            models.Index(fields=['prescription', 'is_active']),
+            models.Index(fields=['medicine_name']),
+        ]
     
     def __str__(self):
         return f"{self.medicine_name} - {self.dosage} ({self.frequency})"

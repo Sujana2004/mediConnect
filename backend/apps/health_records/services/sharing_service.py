@@ -1,7 +1,8 @@
 """
 Sharing Service
-===============
-Manages sharing of health records between patients and doctors.
+ ==============
+ Manages sharing of health records between patients and doctors.
+ Includes PatientProfile data for complete patient view by doctors.
 """
 
 import logging
@@ -269,6 +270,12 @@ class SharingService:
                 records['health_profile'] = HealthProfile.objects.get(user=patient)
             except HealthProfile.DoesNotExist:
                 records['health_profile'] = None
+            
+            try:
+                from users.models import PatientProfile
+                records['patient_profile'] = PatientProfile.objects.get(user=patient)
+            except Exception:
+                records['patient_profile'] = None
         
         if 'all' in share_types or 'conditions' in share_types:
             records['medical_conditions'] = list(MedicalCondition.objects.filter(

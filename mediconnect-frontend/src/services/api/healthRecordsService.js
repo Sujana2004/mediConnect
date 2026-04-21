@@ -451,6 +451,17 @@ export const getAccessiblePatients = async () => {
   return response.data;
 };
 
+/**
+ * Get patient records accessible to doctor
+ * @param {string|number} patientId - Patient's user ID
+ * @returns {Promise<Object>} Patient's health records
+ */
+export const getPatientRecords = async (patientId) => {
+  const endpoint = buildEndpoint(HEALTH_RECORDS_ENDPOINTS.SHARING, null, `patient/${patientId}/records`);
+  const response = await api.get(endpoint);
+  return response.data;
+};
+
 // ========== Analytics ==========
 
 /**
@@ -517,6 +528,7 @@ export default {
   revokeAccess,
   revokeSharing,
   getAccessiblePatients,
+  getPatientRecords,
   // Analytics
   getHealthAnalytics,
 };

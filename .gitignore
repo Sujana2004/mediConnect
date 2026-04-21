@@ -111,3 +111,26 @@ Thumbs.db
 # ==================================================
 .env.docker
 docker-compose.override.yml
+
+/ml_training/*
+
+indexCSSlaterChange
+
+mediconnect-frontend-api-document.md
+mediconnect-frontend-api-socument.md
+mediconnect-frontend-progress
+mediconnect-frontend-prompt
+
+progress
+prompt
+promptAdmin
+PromptFront1
+PromptSyncUpdate
+promptUpdate1
+promptUpdate2
+promptUpdate3
+promptUpdate4
+promptUpdate5
+
+promptUpdate5InDetail
+requirements for backend in local development.md

@@ -71,6 +71,7 @@ import {
 } from '../../components/common';
 import { formatDate } from '../../utils/helpers';
 import i18n from '../../i18n';
+import { DATASET_SYMPTOMS } from './symptoms';
 
 const isDev = import.meta.env.DEV;
 
@@ -78,20 +79,27 @@ const isDev = import.meta.env.DEV;
 // CONSTANTS
 // ============================================================================
 
+/**
+ * BODY_PARTS / CATEGORIES
+ * Aligned to backend Symptom.CATEGORY_CHOICES:
+ * general | respiratory | digestive | cardiovascular | neurological |
+ * musculoskeletal | skin | mental | urinary | eye | ear | reproductive | other
+ */
 const BODY_PARTS = [
-  { id: 'head', label: 'Head & Face', icon: Brain, emoji: '🧠', gradient: 'from-purple-500 to-violet-600' },
-  { id: 'eyes', label: 'Eyes', icon: Eye, emoji: '👁️', gradient: 'from-blue-500 to-cyan-600' },
-  { id: 'ears', label: 'Ears', icon: Ear, emoji: '👂', gradient: 'from-amber-500 to-orange-600' },
-  { id: 'nose', label: 'Nose', icon: Wind, emoji: '👃', gradient: 'from-teal-500 to-emerald-600' },
-  { id: 'throat', label: 'Throat & Mouth', icon: Smile, emoji: '👄', gradient: 'from-pink-500 to-rose-600' },
-  { id: 'chest', label: 'Chest', icon: Wind, emoji: '🫁', gradient: 'from-sky-500 to-blue-600' },
-  { id: 'heart', label: 'Heart', icon: Heart, emoji: '❤️', gradient: 'from-red-500 to-rose-600' },
-  { id: 'stomach', label: 'Stomach', icon: CircleDot, emoji: '🤰', gradient: 'from-yellow-500 to-amber-600' },
-  { id: 'back', label: 'Back', icon: Activity, emoji: '🔙', gradient: 'from-indigo-500 to-purple-600' },
-  { id: 'arms', label: 'Arms & Hands', icon: Hand, emoji: '💪', gradient: 'from-emerald-500 to-green-600' },
-  { id: 'legs', label: 'Legs & Feet', icon: Footprints, emoji: '🦵', gradient: 'from-orange-500 to-red-600' },
-  { id: 'skin', label: 'Skin', icon: Fingerprint, emoji: '🖐️', gradient: 'from-fuchsia-500 to-pink-600' },
-  { id: 'general', label: 'General', icon: PersonStanding, emoji: '🧍', gradient: 'from-violet-500 to-purple-600' }
+  { id: 'all',            label: 'All',              icon: PersonStanding, emoji: '🧍', gradient: 'from-violet-500 to-purple-600',   category: null },
+  { id: 'general',        label: 'General',          icon: Activity,       emoji: '⚡', gradient: 'from-violet-500 to-purple-600',   category: 'general' },
+  { id: 'mental',         label: 'Mental Health',    icon: Brain,          emoji: '🧠', gradient: 'from-purple-500 to-violet-600',   category: 'mental' },
+  { id: 'respiratory',    label: 'Respiratory',      icon: Wind,           emoji: '🫁', gradient: 'from-sky-500 to-blue-600',        category: 'respiratory' },
+  { id: 'cardiovascular', label: 'Cardiovascular',   icon: Heart,          emoji: '❤️', gradient: 'from-red-500 to-rose-600',        category: 'cardiovascular' },
+  { id: 'digestive',      label: 'Digestive',        icon: CircleDot,      emoji: '🤰', gradient: 'from-yellow-500 to-amber-600',    category: 'digestive' },
+  { id: 'neurological',   label: 'Neurological',     icon: Zap,            emoji: '⚡', gradient: 'from-indigo-500 to-purple-600',  category: 'neurological' },
+  { id: 'musculoskeletal',label: 'Musculoskeletal',  icon: Footprints,     emoji: '🦴', gradient: 'from-orange-500 to-red-600',      category: 'musculoskeletal' },
+  { id: 'skin',           label: 'Skin',             icon: Fingerprint,    emoji: '🖐️', gradient: 'from-fuchsia-500 to-pink-600',   category: 'skin' },
+  { id: 'urinary',        label: 'Urinary',          icon: CircleDot,      emoji: '💧', gradient: 'from-cyan-500 to-teal-600',       category: 'urinary' },
+  { id: 'eye',            label: 'Eyes',             icon: Eye,            emoji: '👁️', gradient: 'from-blue-500 to-cyan-600',       category: 'eye' },
+  { id: 'ear',            label: 'Ears',             icon: Ear,            emoji: '👂', gradient: 'from-amber-500 to-orange-600',    category: 'ear' },
+  { id: 'reproductive',   label: 'Reproductive',     icon: Smile,          emoji: '🌸', gradient: 'from-pink-500 to-rose-600',       category: 'reproductive' },
+  { id: 'other',          label: 'Throat & Mouth',   icon: MessageSquare,  emoji: '👄', gradient: 'from-teal-500 to-emerald-600',   category: 'other' },
 ];
 
 const SEVERITY_LEVELS = [
@@ -377,21 +385,31 @@ const SymptomSelectStep = ({
   const { t } = useTranslation();
   const [showAddModal, setShowAddModal] = useState(false);
   const [customSymptom, setCustomSymptom] = useState('');
-  const [selectedBodyPart, setSelectedBodyPart] = useState('general');
+  const [selectedBodyPart, setSelectedBodyPart] = useState('all');
 
   const filteredSymptoms = useMemo(() => {
     let filtered = allSymptoms;
 
+    // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(s =>
         s.name?.toLowerCase().includes(query) ||
-        s.category?.toLowerCase().includes(query)
+        s.name_english?.toLowerCase().includes(query) ||
+        s.category?.toLowerCase().includes(query) ||
+        s.code?.toLowerCase().includes(query)
       );
     }
 
-    if (selectedBodyPart && selectedBodyPart !== 'general') {
-      filtered = filtered.filter(s => s.body_part === selectedBodyPart);
+    // Filter by category (matches backend CATEGORY_CHOICES)
+    if (selectedBodyPart && selectedBodyPart !== 'all') {
+      const part = BODY_PARTS.find(p => p.id === selectedBodyPart);
+      if (part?.category) {
+        filtered = filtered.filter(s =>
+          s.category === part.category ||
+          s.body_part === selectedBodyPart
+        );
+      }
     }
 
     return filtered;
@@ -1297,7 +1315,31 @@ const SymptomChecker = () => {
   });
 
   const allSymptoms = useMemo(() => {
-    return symptomsData?.symptoms || symptomsData?.results || symptomsData?.data || symptomsData || [];
+    // API SymptomListSerializer returns: { code, name, category, severity_weight }
+    const apiSymptoms = symptomsData?.symptoms || symptomsData?.results || symptomsData?.data || symptomsData || [];
+    const apiArray = Array.isArray(apiSymptoms) ? apiSymptoms : [];
+
+    // Build a map starting with dataset symptoms as the baseline
+    const symMap = new Map();
+    DATASET_SYMPTOMS.forEach(s => symMap.set(s.code, { ...s }));
+
+    // Merge API data on top (API `name` field is already the localized display name)
+    apiArray.forEach(s => {
+      const code = s.code || s.id;
+      if (!code) return;
+      const existing = symMap.get(code) || {};
+      symMap.set(code, {
+        ...existing,
+        ...s,
+        // Ensure `name` is always present (API may return name_english instead)
+        name: s.name || s.name_english || existing.name || code,
+        // Ensure `id` is always present
+        id: s.id || s.code || code,
+        code,
+      });
+    });
+
+    return Array.from(symMap.values());
   }, [symptomsData]);
 
   // ── TanStack Query: Fetch history ──
@@ -1455,19 +1497,14 @@ const SymptomChecker = () => {
   const handleSaveResults = useCallback(() => {
     if (!results) return;
 
-    saveMutation.mutate({
+    const feedbackPayload = {
       session_id: results.session_id,
-      feedback: 'helpful',  // Backend expects: 'helpful' | 'not_helpful' | 'incorrect'
+      feedback: 'helpful',
       comment: `Saved results for symptoms: ${selectedSymptoms.map(s => s.name).join(', ')}`
-      // symptoms: selectedSymptoms.map(s => s.name),
-      // results: results,
-      // is_helpful: true
-    });
-    console.log('Saving feedback:', feedbackPayload); // Debug
+    };
 
     saveMutation.mutate(feedbackPayload);
-
-  }, [results, selectedSymptoms, saveMutation, t]);
+  }, [results, selectedSymptoms, saveMutation]);
 
   const handleStartOver = useCallback(() => {
     setCurrentStep('input');

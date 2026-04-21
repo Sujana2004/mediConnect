@@ -670,14 +670,14 @@ const DoctorRegister = () => {
                 {t('registration.doctorRegistration')}
               </h1>
               <p className="text-gray-400 mt-1 text-sm">
-                {getStepSubtitle()} • {t('common.step')} {currentStep}/{TOTAL_STEPS}
+                {getStepSubtitle()} • {t('common.step', 'step')} {currentStep}/{TOTAL_STEPS}
               </p>
             </div>
 
             {/* Mobile step counter */}
             <div className="lg:hidden flex items-center justify-between mb-4">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                {t('common.step')} {currentStep} / {TOTAL_STEPS}
+                {t('common.step', 'step')} {currentStep} / {TOTAL_STEPS}
               </span>
             </div>
 

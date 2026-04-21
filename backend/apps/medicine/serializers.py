@@ -581,7 +581,7 @@ class UserPrescriptionCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """Create prescription with medicines."""
         medicines_data = validated_data.pop('medicines', [])
-        validated_data['user'] = self.context['request'].user
+        validated_data['user'] = self.context.get('acting_patient') or self.context['request'].user
         
         prescription = UserPrescription.objects.create(**validated_data)
         
@@ -790,7 +790,7 @@ class MedicineReminderCreateSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """Create reminder with user."""
-        validated_data['user'] = self.context['request'].user
+        validated_data['user'] = self.context.get('acting_patient') or self.context['request'].user
         return super().create(validated_data)
 
 

@@ -81,6 +81,7 @@ from .services import (
     SharingService,
     HealthAnalyticsService,
 )
+from apps.users.permissions import get_acting_patient, require_acting_patient
 from utils.viewset_helpers import get_safe_queryset, is_safe_request
 
 logger = logging.getLogger(__name__)
@@ -93,7 +94,13 @@ logger = logging.getLogger(__name__)
 class IsPatient(permissions.BasePermission):
     """Allow only patients."""
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == 'patient'
+        if not request.user.is_authenticated:
+            return False
+
+        if request.method in permissions.SAFE_METHODS:
+            return get_acting_patient(request, required_permission='can_view_records') is not None
+
+        return request.user.role == 'patient'
 
 
 class IsDoctor(permissions.BasePermission):
@@ -142,6 +149,14 @@ class HealthProfileViewSet(viewsets.ModelViewSet):
     - GET /profile/critical-info/ - Get critical health info
     """
     permission_classes = [permissions.IsAuthenticated, IsPatient]
+
+    def _get_read_patient(self):
+        """Resolve patient context for read-only patient/helper requests."""
+        return require_acting_patient(
+            self.request,
+            required_permission='can_view_records',
+            message='Only patients or authorized helpers can view health records.',
+        )
     
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -152,10 +167,16 @@ class HealthProfileViewSet(viewsets.ModelViewSet):
     
     def get_object(self):
         """Get or create profile for current user."""
-        return HealthProfileService.get_or_create_profile(self.request.user)
+        user = self.request.user
+        if self.request.method in permissions.SAFE_METHODS:
+            user = self._get_read_patient()
+        return HealthProfileService.get_or_create_profile(user)
     
     def get_queryset(self):
-        return HealthProfile.objects.filter(user=self.request.user)
+        user = self.request.user
+        if self.request.method in permissions.SAFE_METHODS:
+            user = self._get_read_patient()
+        return HealthProfile.objects.filter(user=user)
     
     def list(self, request, *args, **kwargs):
         """Get current user's profile."""
@@ -195,7 +216,7 @@ class HealthProfileViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def summary(self, request):
         """Get profile summary."""
-        profile = self.get_object()
+        profile = HealthProfileService.get_or_create_profile(self._get_read_patient())
         serializer = HealthProfileSummarySerializer(profile)
         return Response({
             'success': True,
@@ -205,7 +226,7 @@ class HealthProfileViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='critical-info')
     def critical_info(self, request):
         """Get critical health information."""
-        info = HealthProfileService.get_critical_info(request.user)
+        info = HealthProfileService.get_critical_info(self._get_read_patient())
         return Response({
             'success': True,
             'data': info
@@ -1152,7 +1173,7 @@ class VitalSignViewSet(viewsets.ModelViewSet):
             return VitalSign.objects.none()
         
         if user.role == 'patient':
-            return VitalSign.objects.filter(user=user).order_by('-recorded_at')
+            return VitalSign.objects.filter(user=user).select_related('recorded_by').order_by('-recorded_at')
         return VitalSign.objects.none()
     
     def perform_create(self, serializer):
@@ -1169,15 +1190,6 @@ class VitalSignViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self._vital_alerts = []
         self.perform_create(serializer)
-        
-        # Update weight in health profile if provided
-        if serializer.validated_data.get('weight_kg'):
-            try:
-                profile = HealthProfile.objects.get(user=request.user)
-                profile.weight_kg = serializer.validated_data['weight_kg']
-                profile.save(update_fields=['weight_kg', 'updated_at'])
-            except HealthProfile.DoesNotExist:
-                pass
         
         response_data = {
             'success': True,
@@ -1201,9 +1213,14 @@ class VitalSignViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(recorded_at__date__gte=from_date)
         if to_date:
             queryset = queryset.filter(recorded_at__date__lte=to_date)
-        
-        # Limit
-        limit = int(request.query_params.get('limit', 50))
+
+        # Limit with safe bounds
+        try:
+            limit = int(request.query_params.get('limit', 50))
+        except (TypeError, ValueError):
+            limit = 50
+        limit = max(1, min(limit, 500))
+
         queryset = queryset[:limit]
         
         serializer = self.get_serializer(queryset, many=True)
@@ -1215,13 +1232,72 @@ class VitalSignViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def latest(self, request):
-        """Get latest vital signs."""
-        vital = MedicalRecordsService.get_latest_vitals(request.user)
-        if vital:
-            serializer = VitalSignSerializer(vital)
+        """Get latest vitals aggregated across measurement types."""
+        queryset = self.get_queryset()[:200]
+
+        if queryset:
+            first_record = queryset[0]
+            latest = {
+                'id': str(first_record.id),
+                'recorded_at': first_record.recorded_at,
+                'systolic_bp': None,
+                'diastolic_bp': None,
+                'heart_rate': None,
+                'temperature': None,
+                'respiratory_rate': None,
+                'oxygen_saturation': None,
+                'blood_sugar': None,
+                'blood_sugar_type': '',
+                'weight_kg': None,
+                'source': first_record.source,
+                'notes': first_record.notes,
+                'consultation_id': first_record.consultation_id,
+                'measurement_dates': {},
+                'is_aggregated': True,
+            }
+
+            for vital in queryset:
+                if latest['systolic_bp'] is None and vital.systolic_bp is not None and vital.diastolic_bp is not None:
+                    latest['systolic_bp'] = vital.systolic_bp
+                    latest['diastolic_bp'] = vital.diastolic_bp
+                    latest['measurement_dates']['blood_pressure'] = vital.recorded_at
+
+                if latest['heart_rate'] is None and vital.heart_rate is not None:
+                    latest['heart_rate'] = vital.heart_rate
+                    latest['measurement_dates']['heart_rate'] = vital.recorded_at
+
+                if latest['temperature'] is None and vital.temperature is not None:
+                    latest['temperature'] = vital.temperature
+                    latest['measurement_dates']['temperature'] = vital.recorded_at
+
+                if latest['respiratory_rate'] is None and vital.respiratory_rate is not None:
+                    latest['respiratory_rate'] = vital.respiratory_rate
+                    latest['measurement_dates']['respiratory_rate'] = vital.recorded_at
+
+                if latest['oxygen_saturation'] is None and vital.oxygen_saturation is not None:
+                    latest['oxygen_saturation'] = vital.oxygen_saturation
+                    latest['measurement_dates']['oxygen_saturation'] = vital.recorded_at
+
+                if latest['blood_sugar'] is None and vital.blood_sugar is not None:
+                    latest['blood_sugar'] = vital.blood_sugar
+                    latest['blood_sugar_type'] = vital.blood_sugar_type
+                    latest['measurement_dates']['blood_sugar'] = vital.recorded_at
+
+                if latest['weight_kg'] is None and vital.weight_kg is not None:
+                    latest['weight_kg'] = vital.weight_kg
+                    latest['measurement_dates']['weight_kg'] = vital.recorded_at
+
+            if latest['systolic_bp'] is not None and latest['diastolic_bp'] is not None:
+                latest['bp_display'] = f"{latest['systolic_bp']}/{latest['diastolic_bp']} mmHg"
+                temp_vital = VitalSign(systolic_bp=latest['systolic_bp'], diastolic_bp=latest['diastolic_bp'])
+                latest['bp_status'] = temp_vital.get_bp_status()
+            else:
+                latest['bp_display'] = None
+                latest['bp_status'] = 'unknown'
+
             return Response({
                 'success': True,
-                'data': serializer.data
+                'data': latest
             })
         else:
             return Response({
@@ -1414,6 +1490,12 @@ class SharedRecordViewSet(viewsets.ModelViewSet):
             response_data['health_profile'] = HealthProfileSerializer(
                 records['health_profile']
             ).data if records['health_profile'] else None
+        
+        if 'patient_profile' in records and records['patient_profile']:
+            from users.serializers import PatientProfileSerializer
+            response_data['patient_profile'] = PatientProfileSerializer(
+                records['patient_profile']
+            ).data
         
         if 'medical_conditions' in records:
             response_data['medical_conditions'] = MedicalConditionListSerializer(

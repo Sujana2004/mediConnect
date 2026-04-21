@@ -515,7 +515,7 @@ const PatientQuickViewModal = ({ isOpen, onClose, patient, onViewFull, onSchedul
 
         // Fetch patient records and recent consultations
         const [recordsRes, consultationsRes] = await Promise.allSettled([
-          healthRecordsService.getSharedRecords({ patient_id: patient.id }),
+          healthRecordsService.getPatientRecords(patient.id),
           consultationService.getConsultations({ patient_id: patient.id, page_size: 5 })
         ]);
 

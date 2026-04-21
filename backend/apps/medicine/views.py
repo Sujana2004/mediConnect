@@ -59,8 +59,22 @@ from .serializers import (
     AdherenceStatsSerializer,
 )
 from .services import MedicineService, PrescriptionService, ReminderService
+from apps.users.permissions import require_acting_patient
 
 logger = logging.getLogger(__name__)
+
+
+class HelperMedicationAccessMixin:
+    """Resolve the target patient for medication operations."""
+
+    required_helper_permission = 'can_manage_medications'
+
+    def get_acting_patient(self):
+        return require_acting_patient(
+            self.request,
+            required_permission=self.required_helper_permission,
+            message='Only patients or authorized helpers can manage medications.',
+        )
 
 
 # =============================================================================
@@ -325,7 +339,7 @@ class MedicineViewSet(viewsets.ReadOnlyModelViewSet):
 # PRESCRIPTION VIEWS
 # =============================================================================
 
-class PrescriptionViewSet(viewsets.ModelViewSet):
+class PrescriptionViewSet(HelperMedicationAccessMixin, viewsets.ModelViewSet):
     """
     ViewSet for user prescriptions.
     
@@ -359,8 +373,9 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Return only current user's prescriptions."""
+        patient = self.get_acting_patient()
         return UserPrescription.objects.filter(
-            user=self.request.user
+            user=patient
         ).prefetch_related('medicines').order_by('-prescribed_date')
     
     def list(self, request, *args, **kwargs):
@@ -390,6 +405,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Create a new prescription."""
         serializer = self.get_serializer(data=request.data)
+        serializer.context['acting_patient'] = self.get_acting_patient()
         serializer.is_valid(raise_exception=True)
         prescription = serializer.save()
         
@@ -494,7 +510,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
     def active(self, request):
         """Get active prescriptions."""
         prescription_service = PrescriptionService()
-        prescriptions = prescription_service.get_active_prescriptions(request.user)
+        prescriptions = prescription_service.get_active_prescriptions(self.get_acting_patient())
         
         serializer = UserPrescriptionListSerializer(prescriptions, many=True)
         
@@ -508,7 +524,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
     def current_medicines(self, request):
         """Get all current active medicines."""
         prescription_service = PrescriptionService()
-        medicines = prescription_service.get_current_medicines(request.user)
+        medicines = prescription_service.get_current_medicines(self.get_acting_patient())
         
         return Response({
             'success': True,
@@ -520,7 +536,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
     def stats(self, request):
         """Get prescription statistics."""
         prescription_service = PrescriptionService()
-        stats = prescription_service.get_prescription_stats(request.user)
+        stats = prescription_service.get_prescription_stats(self.get_acting_patient())
         
         return Response({
             'success': True,
@@ -531,7 +547,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
     def check_interactions(self, request):
         """Check interactions between current medicines."""
         prescription_service = PrescriptionService()
-        interactions = prescription_service.check_medicine_interactions(request.user)
+        interactions = prescription_service.check_medicine_interactions(self.get_acting_patient())
         
         return Response({
             'success': True,
@@ -545,7 +561,7 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
 # PRESCRIPTION MEDICINE VIEWS
 # =============================================================================
 
-class PrescriptionMedicineViewSet(viewsets.ModelViewSet):
+class PrescriptionMedicineViewSet(HelperMedicationAccessMixin, viewsets.ModelViewSet):
     """
     ViewSet for prescription medicines.
     
@@ -566,8 +582,9 @@ class PrescriptionMedicineViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Return only current user's prescription medicines."""
+        patient = self.get_acting_patient()
         return PrescriptionMedicine.objects.filter(
-            prescription__user=self.request.user
+            prescription__user=patient
         ).select_related('prescription', 'medicine')
     
     def list(self, request, *args, **kwargs):
@@ -629,7 +646,7 @@ class PrescriptionMedicineViewSet(viewsets.ModelViewSet):
 # REMINDER VIEWS
 # =============================================================================
 
-class MedicineReminderViewSet(viewsets.ModelViewSet):
+class MedicineReminderViewSet(HelperMedicationAccessMixin, viewsets.ModelViewSet):
     """
     ViewSet for medicine reminders.
     
@@ -660,8 +677,9 @@ class MedicineReminderViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Return only current user's reminders."""
+        patient = self.get_acting_patient()
         return MedicineReminder.objects.filter(
-            user=self.request.user
+            user=patient
         ).order_by('-created_at')
     
     def list(self, request, *args, **kwargs):
@@ -686,6 +704,7 @@ class MedicineReminderViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """Create a new reminder."""
         serializer = self.get_serializer(data=request.data)
+        serializer.context['acting_patient'] = self.get_acting_patient()
         serializer.is_valid(raise_exception=True)
         reminder = serializer.save()
         
@@ -754,7 +773,7 @@ class MedicineReminderViewSet(viewsets.ModelViewSet):
     def today(self, request):
         """Get today's reminders."""
         reminder_service = ReminderService()
-        data = reminder_service.get_today_reminders(request.user)
+        data = reminder_service.get_today_reminders(self.get_acting_patient())
         
         # Serialize the reminders
         reminders_data = ReminderLogSerializer(
@@ -781,7 +800,7 @@ class MedicineReminderViewSet(viewsets.ModelViewSet):
         hours = int(request.query_params.get('hours', 24))
         
         reminder_service = ReminderService()
-        reminders = reminder_service.get_upcoming_reminders(request.user, hours)
+        reminders = reminder_service.get_upcoming_reminders(self.get_acting_patient(), hours)
         
         serializer = ReminderLogSerializer(reminders, many=True)
         
@@ -798,7 +817,7 @@ class MedicineReminderViewSet(viewsets.ModelViewSet):
         days = int(request.query_params.get('days', 7))
         
         reminder_service = ReminderService()
-        stats = reminder_service.get_adherence_stats(request.user, days)
+        stats = reminder_service.get_adherence_stats(self.get_acting_patient(), days)
         
         return Response({
             'success': True,
@@ -810,7 +829,7 @@ class MedicineReminderViewSet(viewsets.ModelViewSet):
 # REMINDER LOG VIEWS
 # =============================================================================
 
-class ReminderLogViewSet(viewsets.ModelViewSet):
+class ReminderLogViewSet(HelperMedicationAccessMixin, viewsets.ModelViewSet):
     """
     ViewSet for reminder logs.
     
@@ -835,8 +854,9 @@ class ReminderLogViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Return only current user's reminder logs."""
+        patient = self.get_acting_patient()
         return ReminderLog.objects.filter(
-            reminder__user=self.request.user
+            reminder__user=patient
         ).select_related('reminder').order_by('-scheduled_date', '-scheduled_time')
     
     def list(self, request, *args, **kwargs):
@@ -971,7 +991,7 @@ class ReminderLogViewSet(viewsets.ModelViewSet):
 # QUICK DATA VIEW
 # =============================================================================
 
-class QuickMedicineDataView(views.APIView):
+class QuickMedicineDataView(HelperMedicationAccessMixin, views.APIView):
     """
     Get all data needed for medicine home screen in one call.
     
@@ -983,7 +1003,7 @@ class QuickMedicineDataView(views.APIView):
     
     def get(self, request):
         """Get all medicine screen data."""
-        user = request.user
+        user = self.get_acting_patient()
         
         prescription_service = PrescriptionService()
         reminder_service = ReminderService()

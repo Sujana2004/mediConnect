@@ -86,6 +86,7 @@ const normalizeProfileResponse = (apiData) => {
   // apiData is the value of response.data.data (the nested data key)
   const userData = apiData.user || apiData;
   const patientProfile = apiData.profile || {};
+  const familyHistory = patientProfile.family_history;
 
   return {
     id: userData.id,
@@ -115,14 +116,18 @@ const normalizeProfileResponse = (apiData) => {
     // Nested health profile mapped from PatientProfile model fields
     health_profile: {
       blood_group: patientProfile.blood_group || '',
-      height: patientProfile.height_cm || null,
-      weight: patientProfile.weight_kg || null,
+      height: patientProfile.height_cm ?? patientProfile.height ?? null,
+      weight: patientProfile.weight_kg ?? patientProfile.weight ?? null,
       bmi: patientProfile.bmi || null,
       allergies: patientProfile.allergies || [],
       chronic_conditions: patientProfile.chronic_conditions || [],
       current_medications: patientProfile.current_medications || [],
       past_surgeries: patientProfile.past_surgeries || [],
-      family_history: patientProfile.family_history || [],
+      family_history: Array.isArray(familyHistory)
+        ? familyHistory
+        : familyHistory && typeof familyHistory === 'object'
+          ? Object.entries(familyHistory).map(([relation, details]) => `${relation}: ${details}`)
+          : [],
       emergency_contact_name: patientProfile.emergency_contact_name || '',
       emergency_contact_phone: patientProfile.emergency_contact_phone || '',
       emergency_contact_relation: patientProfile.emergency_contact_relation || '',
@@ -197,9 +202,18 @@ const buildPersonalUpdatePayload = (formData) => {
 const buildHealthUpdatePayload = (formData) => {
   const payload = {};
 
-  if (formData.blood_group !== undefined) payload.blood_group = formData.blood_group;
-  if (formData.height !== undefined && formData.height !== null) payload.height_cm = formData.height;
-  if (formData.weight !== undefined && formData.weight !== null) payload.weight_kg = formData.weight;
+  if (formData.blood_group !== undefined && formData.blood_group !== null && formData.blood_group !== '') {
+    payload.blood_group = formData.blood_group;
+  }
+
+  if (formData.height !== undefined && formData.height !== null && Number.isFinite(Number(formData.height))) {
+    payload.height_cm = Number(formData.height);
+  }
+
+  if (formData.weight !== undefined && formData.weight !== null && Number.isFinite(Number(formData.weight))) {
+    payload.weight_kg = Number(formData.weight);
+  }
+
   if (formData.allergies !== undefined) payload.allergies = formData.allergies;
   if (formData.chronic_conditions !== undefined) payload.chronic_conditions = formData.chronic_conditions;
   if (formData.current_medications !== undefined) payload.current_medications = formData.current_medications;
@@ -1060,7 +1074,6 @@ const Profile = () => {
 
   // Modals
   const [showEditPersonal, setShowEditPersonal] = useState(false);
-  const [showEditHealth, setShowEditHealth] = useState(false);
   const [showHelperModal, setShowHelperModal] = useState(false);
   const [editingHelper, setEditingHelper] = useState(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
@@ -1146,29 +1159,9 @@ const Profile = () => {
     }
   };
 
-  // API: Update health info
-  const handleUpdateHealthInfo = async (formData) => {
-    setIsSaving(true);
-    try {
-      const payload = buildHealthUpdatePayload(formData);
-      // Health fields are part of the same profile update endpoint
-      const response = await authService.updateProfile(payload);
-      const rawData = unwrapResponse(response);
-      const normalized = normalizeProfileResponse(rawData);
-
-      setProfile(prev => ({
-        ...prev,
-        ...normalized,
-      }));
-
-      toast.success(t('profile.healthUpdateSuccess', 'Health information updated'));
-      setShowEditHealth(false);
-    } catch (err) {
-      toast.error(err.response?.data?.message || t('profile.updateError', 'Failed to update'));
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const handleOpenHealthRecordsEditor = useCallback(() => {
+    navigate('/patient/health-records?tab=vitals');
+  }, [navigate]);
 
   // API: Upload photo
   const handlePhotoUpload = async (file) => {
@@ -1364,7 +1357,7 @@ const Profile = () => {
         <InfoSection
           title={t('profile.healthInfo', 'Health Information')}
           icon={Heart}
-          onEdit={() => setShowEditHealth(true)}
+          onEdit={handleOpenHealthRecordsEditor}
           iconBg="bg-pink-50"
           iconColor="text-pink-600"
         >
@@ -1504,14 +1497,6 @@ const Profile = () => {
         onClose={() => setShowEditPersonal(false)}
         profile={profile}
         onSave={handleUpdatePersonalInfo}
-        isSaving={isSaving}
-      />
-
-      <EditHealthInfoModal
-        isOpen={showEditHealth}
-        onClose={() => setShowEditHealth(false)}
-        healthProfile={profile?.health_profile}
-        onSave={handleUpdateHealthInfo}
         isSaving={isSaving}
       />
 

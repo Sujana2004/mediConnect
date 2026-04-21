@@ -10,8 +10,9 @@ from django.utils import timezone
 from django.db import transaction
 from .models import (
     PatientProfile, DoctorProfile, AdminProfile,
-    FamilyHelper, DoctorAvailability, DoctorLeave, OTP
+    FamilyHelper, OTP
 )
+from apps.appointments.models import DoctorSchedule, ScheduleException
 from .firebase_auth import verify_firebase_token, get_phone_from_token
 
 User = get_user_model()
@@ -105,14 +106,28 @@ class UserSerializer(serializers.ModelSerializer):
 class PatientProfileSerializer(serializers.ModelSerializer):
     """
     Serializer for Patient Profile.
+    Includes health data from HealthProfile for complete patient view.
     """
     user = UserSerializer(read_only=True)
     age = serializers.SerializerMethodField()
+    
+    blood_group = serializers.SerializerMethodField()
+    height_cm = serializers.SerializerMethodField()
+    weight_kg = serializers.SerializerMethodField()
+    bmi = serializers.SerializerMethodField()
+    chronic_conditions = serializers.SerializerMethodField()
+    allergies = serializers.SerializerMethodField()
+    current_medications = serializers.SerializerMethodField()
+    family_history = serializers.SerializerMethodField()
+    emergency_contact_name = serializers.SerializerMethodField()
+    emergency_contact_phone = serializers.SerializerMethodField()
+    emergency_contact_relation = serializers.SerializerMethodField()
     
     class Meta:
         model = PatientProfile
         fields = [
             'id', 'user', 'age',
+            'blood_group', 'height_cm', 'weight_kg', 'bmi',
             'chronic_conditions', 'allergies', 'current_medications',
             'past_surgeries', 'family_history',
             'emergency_contact_name', 'emergency_contact_phone',
@@ -123,13 +138,82 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = [
-            'id', 'user', 'age',
+            'id', 'user', 'age', 'blood_group', 'height_cm', 'weight_kg', 'bmi',
             'total_appointments', 'total_consultations',
             'created_at', 'updated_at'
         ]
     
     def get_age(self, obj):
         return obj.age
+    
+    def get_blood_group(self, obj):
+        try:
+            return getattr(obj.user.health_profile, 'blood_group', 'unknown')
+        except:
+            return 'unknown'
+    
+    def get_height_cm(self, obj):
+        try:
+            value = getattr(obj.user.health_profile, 'height_cm', None)
+            return float(value) if value else None
+        except:
+            return None
+    
+    def get_weight_kg(self, obj):
+        try:
+            value = getattr(obj.user.health_profile, 'weight_kg', None)
+            return float(value) if value else None
+        except:
+            return None
+    
+    def get_bmi(self, obj):
+        try:
+            hp = obj.user.health_profile
+            return hp.get_bmi()
+        except:
+            return None
+
+    def get_chronic_conditions(self, obj):
+        try:
+            return obj.user.health_profile.chronic_conditions or []
+        except:
+            return []
+
+    def get_allergies(self, obj):
+        try:
+            return obj.user.health_profile.allergies or []
+        except:
+            return []
+
+    def get_current_medications(self, obj):
+        try:
+            return obj.user.health_profile.current_medications or []
+        except:
+            return []
+
+    def get_family_history(self, obj):
+        try:
+            return obj.user.health_profile.family_history or {}
+        except:
+            return {}
+
+    def get_emergency_contact_name(self, obj):
+        try:
+            return obj.user.health_profile.emergency_contact_name
+        except:
+            return ''
+
+    def get_emergency_contact_phone(self, obj):
+        try:
+            return obj.user.health_profile.emergency_contact_phone
+        except:
+            return ''
+
+    def get_emergency_contact_relation(self, obj):
+        try:
+            return obj.user.health_profile.emergency_contact_relation
+        except:
+            return ''
 
 
 class PatientRegistrationSerializer(serializers.Serializer):
@@ -233,34 +317,43 @@ class PatientRegistrationSerializer(serializers.Serializer):
         user.set_unusable_password()
         user.save()
         
-        # Update patient profile (created by signal)
+        # Update patient profile and health profile (created by signals)
         patient_profile = user.patient_profile
-        patient_profile.emergency_contact_name = emergency_contact_name
-        patient_profile.emergency_contact_phone = emergency_contact_phone
         patient_profile.is_literate = is_literate
         patient_profile.needs_voice_assistance = needs_voice_assistance
-        patient_profile.save()
+        patient_profile.save(update_fields=['is_literate', 'needs_voice_assistance', 'updated_at'])
+
+        try:
+            from apps.health_records.models import HealthProfile
+            health_profile, _ = HealthProfile.objects.get_or_create(user=user)
+            health_profile.emergency_contact_name = emergency_contact_name
+            health_profile.emergency_contact_phone = emergency_contact_phone
+            health_profile.save(update_fields=['emergency_contact_name', 'emergency_contact_phone', 'updated_at'])
+        except Exception:
+            pass
         
         return user
 
 
-class PatientUpdateSerializer(serializers.ModelSerializer):
+class PatientUpdateSerializer(serializers.Serializer):
     """
     Serializer for updating patient profile.
+    Handles sync with HealthProfile for health-related data.
     """
-    # User fields
-    first_name = serializers.CharField(max_length=100, required=False)
-    last_name = serializers.CharField(max_length=100, required=False)
+    first_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     email = serializers.EmailField(required=False, allow_null=True)
     date_of_birth = serializers.DateField(required=False, allow_null=True)
     gender = serializers.ChoiceField(
         choices=User.Gender.choices,
-        required=False
+        required=False,
+        allow_blank=True
     )
     profile_photo = serializers.ImageField(required=False, allow_null=True)
     preferred_language = serializers.ChoiceField(
         choices=User.Language.choices,
-        required=False
+        required=False,
+        allow_blank=True
     )
     address = serializers.CharField(required=False, allow_blank=True)
     village = serializers.CharField(max_length=100, required=False, allow_blank=True)
@@ -277,22 +370,72 @@ class PatientUpdateSerializer(serializers.ModelSerializer):
     )
     fcm_token = serializers.CharField(max_length=500, required=False, allow_blank=True)
     
-    class Meta:
-        model = PatientProfile
-        fields = [
-            # User fields
-            'first_name', 'last_name', 'email', 'date_of_birth', 'gender',
-            'profile_photo', 'preferred_language',
-            'address', 'village', 'mandal', 'district', 'pincode',
-            'latitude', 'longitude', 'fcm_token',
-            # Patient profile fields
-            'chronic_conditions', 'allergies', 'current_medications',
-            'past_surgeries', 'family_history',
-            'emergency_contact_name', 'emergency_contact_phone',
-            'emergency_contact_relation',
-            'has_insurance', 'insurance_provider', 'insurance_id',
-            'is_literate', 'needs_voice_assistance', 'needs_large_text'
-        ]
+    blood_group = serializers.CharField(required=False, allow_blank=True)
+    height_cm = serializers.DecimalField(
+        max_digits=5, decimal_places=2,
+        required=False, allow_null=True
+    )
+    weight_kg = serializers.DecimalField(
+        max_digits=5, decimal_places=2,
+        required=False, allow_null=True
+    )
+    
+    chronic_conditions = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+    allergies = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+    current_medications = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+    past_surgeries = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+    family_history = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+    emergency_contact_name = serializers.CharField(required=False, allow_blank=True)
+    emergency_contact_phone = serializers.CharField(required=False, allow_blank=True)
+    emergency_contact_relation = serializers.CharField(required=False, allow_blank=True)
+    
+    has_insurance = serializers.BooleanField(required=False)
+    insurance_provider = serializers.CharField(required=False, allow_blank=True)
+    insurance_id = serializers.CharField(required=False, allow_blank=True)
+    is_literate = serializers.BooleanField(required=False)
+    needs_voice_assistance = serializers.BooleanField(required=False)
+    needs_large_text = serializers.BooleanField(required=False)
+
+    def validate_blood_group(self, value):
+        if value in [None, '']:
+            return value
+
+        valid_groups = {
+            'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'unknown'
+        }
+        if value not in valid_groups:
+            raise serializers.ValidationError("Invalid blood group value")
+
+        return value
+
+    def validate_height_cm(self, value):
+        if value is None:
+            return value
+        if value < 30 or value > 300:
+            raise serializers.ValidationError("Height must be between 30 and 300 cm")
+        return value
+
+    def validate_weight_kg(self, value):
+        if value is None:
+            return value
+        if value < 1 or value > 500:
+            raise serializers.ValidationError("Weight must be between 1 and 500 kg")
+        return value
     
     @transaction.atomic
     def update(self, instance, validated_data):
@@ -305,9 +448,43 @@ class PatientUpdateSerializer(serializers.ModelSerializer):
             'latitude', 'longitude', 'fcm_token'
         ]
         
+        health_fields = [
+            'blood_group', 'height_cm', 'weight_kg',
+            'chronic_conditions', 'allergies', 'current_medications',
+            'family_history', 'emergency_contact_name',
+            'emergency_contact_phone', 'emergency_contact_relation'
+        ]
+        
+        patient_profile_fields = [
+            'past_surgeries',
+            'has_insurance', 'insurance_provider', 'insurance_id',
+            'is_literate', 'needs_voice_assistance', 'needs_large_text'
+        ]
+        
+        health_data = {}
+        patient_data = {}
+        
         for field in user_fields:
             if field in validated_data:
                 setattr(user, field, validated_data.pop(field))
+        
+        for field in health_fields:
+            if field in validated_data:
+                value = validated_data.pop(field)
+                if field == 'blood_group' and value in [None, '']:
+                    continue
+
+                if value not in [None, '']:
+                    health_data[field] = value
+        
+        for field in patient_profile_fields:
+            if field in validated_data:
+                value = validated_data.pop(field)
+                if field in ['has_insurance', 'is_literate', 'needs_voice_assistance', 'needs_large_text']:
+                    if value is not None:
+                        patient_data[field] = value
+                elif value not in [None, '']:
+                    patient_data[field] = value
         
         user.is_profile_complete = all([
             user.first_name,
@@ -318,12 +495,32 @@ class PatientUpdateSerializer(serializers.ModelSerializer):
         
         user.save()
         
-        for attr, value in validated_data.items():
+        for attr, value in patient_data.items():
             setattr(instance, attr, value)
         
         instance.save()
         
+        self._sync_to_health_profile(user, health_data)
+        
         return instance
+    
+    def _sync_to_health_profile(self, user, health_data):
+        """Sync health data to HealthProfile."""
+        if not health_data:
+            return
+        
+        try:
+            from apps.health_records.models import HealthProfile
+            health_profile, _ = HealthProfile.objects.get_or_create(user=user)
+            
+            for field, value in health_data.items():
+                setattr(health_profile, field, value)
+            
+            health_profile.save(update_fields=list(health_data.keys()) + ['updated_at'])
+        except Exception as e:
+            raise serializers.ValidationError({
+                'health_profile': f'Failed to sync health profile data: {str(e)}'
+            })
 
 
 # ============================================
@@ -334,13 +531,13 @@ class DoctorAvailabilitySerializer(serializers.ModelSerializer):
     """
     Serializer for Doctor Availability.
     """
-    day_name = serializers.CharField(
-        source='get_day_of_week_display',
-        read_only=True
-    )
+    day_name = serializers.CharField(source='get_day_name', read_only=True)
+    is_available = serializers.BooleanField(source='is_active', required=False)
+    slot_duration = serializers.IntegerField(source='slot_duration_minutes', required=False)
+    max_appointments = serializers.IntegerField(source='max_patients_per_slot', required=False)
     
     class Meta:
-        model = DoctorAvailability
+        model = DoctorSchedule
         fields = [
             'id', 'day_of_week', 'day_name',
             'start_time', 'end_time',
@@ -364,7 +561,7 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
     availabilities = DoctorAvailabilitySerializer(
         many=True, 
         read_only=True,
-        source='user.availabilities'
+        source='user.schedules'
     )
     
     class Meta:
@@ -410,7 +607,7 @@ class DoctorPublicSerializer(serializers.ModelSerializer):
     availabilities = DoctorAvailabilitySerializer(
         many=True, 
         read_only=True,
-        source='user.availabilities'
+        source='user.schedules'
     )
     
     class Meta:
@@ -634,13 +831,27 @@ class DoctorLeaveSerializer(serializers.ModelSerializer):
     """
     Serializer for Doctor Leave.
     """
+    date = serializers.DateField(source='exception_date')
+    is_full_day = serializers.SerializerMethodField()
+
     class Meta:
-        model = DoctorLeave
+        model = ScheduleException
         fields = [
             'id', 'date', 'reason', 'is_full_day',
             'start_time', 'end_time', 'created_at'
         ]
         read_only_fields = ['id', 'created_at']
+
+    def get_is_full_day(self, obj):
+        return obj.exception_type == 'leave'
+
+    def _is_full_day(self):
+        value = self.initial_data.get('is_full_day', True)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() in ['1', 'true', 'yes', 'on']
+        return bool(value)
     
     def validate_date(self, value):
         if value < timezone.now().date():
@@ -650,7 +861,7 @@ class DoctorLeaveSerializer(serializers.ModelSerializer):
         return value
     
     def validate(self, attrs):
-        is_full_day = attrs.get('is_full_day', True)
+        is_full_day = self._is_full_day()
         start_time = attrs.get('start_time')
         end_time = attrs.get('end_time')
         
@@ -665,6 +876,11 @@ class DoctorLeaveSerializer(serializers.ModelSerializer):
                 })
         
         return attrs
+
+    def create(self, validated_data):
+        is_full_day = self._is_full_day()
+        validated_data['exception_type'] = 'leave' if is_full_day else 'modified'
+        return super().create(validated_data)
 
 
 # ============================================

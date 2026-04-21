@@ -753,20 +753,72 @@ class ReminderService:
         try:
             # Get family helpers
             from apps.users.models import FamilyHelper
+            from apps.notifications.services import get_notification_service
+            from apps.notifications.constants import NotificationType, NotificationPriority
+            from apps.notifications.services.fcm_service import FCMService
+            from apps.notifications.models import DeviceToken
             
             helpers = FamilyHelper.objects.filter(
                 patient=user,
                 is_active=True
             )
             
+            if not helpers.exists():
+                return
+
+            notification_service = get_notification_service()
+
             for helper in helpers:
-                # Send notification to helper
                 title = f"💊 Medicine Reminder for {user.get_full_name()}"
                 body = f"{reminder.medicine_name} - {reminder.dosage}"
-                
-                # Logic to send notification to helper
-                # This depends on how helpers are notified in your system
-                pass
+                helper_user = helper.helper_user
+
+                if not helper_user:
+                    continue
+
+                # Create in-app/push notification through the unified notification service.
+                notification_service.send_notification(
+                    user=helper_user,
+                    notification_type=NotificationType.MEDICINE_REMINDER,
+                    title=title,
+                    body=body,
+                    priority=NotificationPriority.HIGH,
+                    data={
+                        'type': 'medicine_reminder_family_helper',
+                        'patient_id': str(user.id),
+                        'patient_name': user.get_full_name(),
+                        'helper_id': helper.id,
+                        'reminder_log_id': str(reminder_log.id),
+                        'reminder_id': str(reminder.id),
+                        'medicine_name': reminder.medicine_name,
+                    },
+                    action_url='/patient/medicines',
+                    related_object_type='medicine_reminder',
+                    related_object_id=str(reminder.id),
+                )
+
+                # Best-effort direct FCM push for helper device tokens.
+                tokens = DeviceToken.objects.filter(
+                    user=helper_user,
+                    is_active=True,
+                ).values_list('fcm_token', flat=True)
+
+                if tokens:
+                    fcm_service = FCMService()
+                    for token in tokens:
+                        fcm_service.send_notification(
+                            token=token,
+                            title=title,
+                            body=body,
+                            data={
+                                'type': 'medicine_reminder_family_helper',
+                                'patient_id': str(user.id),
+                                'patient_name': user.get_full_name(),
+                                'reminder_log_id': str(reminder_log.id),
+                                'reminder_id': str(reminder.id),
+                                'medicine_name': reminder.medicine_name,
+                            },
+                        )
         except ImportError:
             pass
         except Exception as e:

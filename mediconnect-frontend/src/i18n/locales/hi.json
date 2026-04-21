@@ -66,7 +66,8 @@
     "enabled": "सक्षम",
     "disabled": "अक्षम",
     "on": "चालू",
-    "off": "बंद"
+    "off": "बंद",
+    "notifications": "सूचनाएं"
   },
 
   "auth": {
@@ -232,7 +233,8 @@
     "consultations": "परामर्श",
     "prescriptions": "पर्चे",
     "schedule": "अनुसूची",
-    "profile": "प्रोफाइल"
+    "profile": "प्रोफाइल",
+    "bookAppointment": "अपॉइंटमेंट बुक करें"
   },
 
   "home": {
@@ -264,7 +266,24 @@
     "inConsultation": "परामर्श में",
     "nextPatient": "अगला रोगी",
     "callNext": "अगले रोगी को बुलाएं",
-    "noWaitingPatients": "कोई रोगी प्रतीक्षारत नहीं"
+    "noWaitingPatients": "कोई रोगी प्रतीक्षारत नहीं",
+    "goodafternoon": "शुभ दोपहर",
+    "welcomeMessage": "आज हम आपकी कैसे मदद कर सकते हैं?",
+    "searchDoctors": "डॉक्टर, विशेषज्ञता खोजें...",
+    "find-doctor": "डॉक्टर खोजें",
+    "book-appointment": "अपॉइंटमेंट बुक करें",
+    "appointments": "मेरे अपॉइंटमेंट",
+    "symptoms": "लक्षण जांचें",
+    "medicines": "दवाइयाँ",
+    "emergency": "आपातकाल",
+    "noAppointments": "कोई आगामी अपॉइंटमेंट नहीं",
+    "noAppointmentsDesc": "शुरू करने के लिए किसी डॉक्टर के साथ अपॉइंटमेंट बुक करें",
+    "findDoctor": "डॉक्टर खोजें",
+    "healthSummary": "स्वास्थ्य सारांश",
+    "quickAccess": "त्वरित पहुंच",
+    "healthAssistant": "AI सहायक",
+    "askAnything": "स्वास्थ्य प्रश्न पूछें",
+    "symptomChecker": "लक्षण जांच"
   },
 
   "symptoms": {
@@ -415,7 +434,8 @@
     "eveningSlots": "शाम",
     "verified": "सत्यापित डॉक्टर",
     "consultNow": "अभी परामर्श करें",
-    "scheduleForLater": "बाद के लिए निर्धारित करें"
+    "scheduleForLater": "बाद के लिए निर्धारित करें",
+    "patientRecords": "रोगी रिकॉर्ड"
   },
 
   "appointments": {
@@ -673,6 +693,14 @@
     "breakTime": "ब्रेक समय",
     "leaves": "अवकाश",
     "addLeave": "अवकाश जोड़ें"
+  },
+
+  "profile": {
+    "title": "प्रोफाइल"
+  },
+
+  "doctor": {
+    "patientRecords": "रोगी रिकॉर्ड"
   },
 
   "emergency": {

@@ -161,14 +161,14 @@ const PatientRegister = () => {
   const todayDate = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const genderOptions = useMemo(() => [
-    { value: '', label: t('common.select') },
-    { value: 'male', label: t('registration.male') },
-    { value: 'female', label: t('registration.female') },
-    { value: 'other', label: t('registration.other') }
+    { value: '', label: t('common.select', 'Select Gender') },
+    { value: 'male', label: t('registration.male', 'Male') },
+    { value: 'female', label: t('registration.female', 'Female') },
+    { value: 'other', label: t('registration.other', 'Other') }
   ], [t]);
 
   const bloodGroupOptions = useMemo(() => [
-    { value: '', label: t('common.select') },
+    { value: '', label: t('common.select', 'Select Blood Group') },
     ...BLOOD_GROUP_VALUES.map(bg => ({ value: bg, label: bg }))
   ], [t]);
 
@@ -199,9 +199,9 @@ const PatientRegister = () => {
   // Validate phone number
   const validatePhone = useCallback((phoneNumber) => {
     const cleaned = (phoneNumber || '').replace(/\D/g, '');
-    if (!cleaned) return t('auth.phoneRequired');
-    if (cleaned.length !== PHONE_LENGTH) return t('auth.invalidPhone');
-    if (!/^[6-9]/.test(cleaned)) return t('auth.invalidPhone');
+    if (!cleaned) return t('auth.phoneRequired', 'phone number is required');
+    if (cleaned.length !== PHONE_LENGTH) return t('auth.invalidPhone', 'invalid phone number');
+    if (!/^[6-9]/.test(cleaned)) return t('auth.invalidPhone', 'invalid phone number');
     return '';
   }, [t]);
 
@@ -223,7 +223,7 @@ const PatientRegister = () => {
       setCanResend(false);
       toast.success(t('auth.otpSent', { phone: `+91 ${phone}` }));
     } else {
-      setPhoneError(result.error || t('errors.somethingWrong'));
+      setPhoneError(result.error || t('errors.somethingWrong', 'Something went wrong. Please try again.'));
     }
   }, [phone, validatePhone, sendPhoneOTP, t]);
 
@@ -284,11 +284,11 @@ const PatientRegister = () => {
         setIsVerifying(false);
         setCurrentStep(2);
       } else {
-        setOtpError(verifyResult.message || t('auth.invalidOTP'));
+        setOtpError(verifyResult.message || t('auth.invalidOTP', 'Invalid OTP. Please try again.'));
         setIsVerifying(false);
       }
     } catch (error) {
-      setOtpError(error.message || t('auth.invalidOTP'));
+      setOtpError(error.message || t('auth.invalidOTP', 'Invalid OTP. Please try again.'));
       setIsVerifying(false);
     }
   }, [otp, t]);
@@ -311,7 +311,7 @@ const PatientRegister = () => {
       setCanResend(false);
       toast.success(t('auth.otpSent', { phone: `+91 ${phone}` }));
     } else {
-      toast.error(result.error || t('errors.somethingWrong'));
+      toast.error(result.error || t('errors.somethingWrong', 'Something went wrong. Please try again.'));
     }
   }, [canResend, phone, sendPhoneOTP, t]);
 
@@ -369,7 +369,7 @@ const PatientRegister = () => {
     // Final submission on step 3
     const patientData = buildPatientData(data);
 
-    logger.log('📤 Submitting patient data:', patientData);
+    logger.log(' Submitting patient data:', patientData);
 
     // Check if we have a verified Firebase token
     if (!verifiedFirebaseToken) {
@@ -390,7 +390,7 @@ const PatientRegister = () => {
     } else {
       const errorLower = (result.error || '').toLowerCase();
 
-      logger.log('❌ Registration error:', result.error);
+      logger.log(' Registration error:', result.error);
 
       // Check if user already exists - redirect to login
       // The extractErrorMessage in authStore formats field errors as "phone: message"
@@ -405,7 +405,7 @@ const PatientRegister = () => {
         errorLower.includes('duplicate') ||
         errorLower.includes('phone: ') // Django field-level error for phone
       ) {
-        toast.error(t('auth.userAlreadyExists') || 'This phone number is already registered. Please login instead.');
+        toast.error(t('auth.userAlreadyExists', 'This phone number is already registered. Please login instead.'));
         navigate('/login', {
           state: { phone },
           replace: true
@@ -426,12 +426,12 @@ const PatientRegister = () => {
         setOtpSent(false);
         setOtp('');
         setVerifiedFirebaseToken(null);
-        toast.error(t('auth.sessionExpired') || 'Session expired. Please verify your phone again.');
+        toast.error(t('auth.sessionExpired', 'Session expired. Please verify your phone again.'));
         return;
       }
 
       // Generic error
-      toast.error(result.error || t('errors.somethingWrong'));
+      toast.error(result.error || t('errors.somethingWrong', 'Something went wrong. Please try again.'));
     }
   }, [currentStep, trigger, buildPatientData, verifiedFirebaseToken, registerNewPatient, t, navigate, phone]);
 
@@ -473,11 +473,11 @@ const PatientRegister = () => {
   const getStepInfo = useCallback(() => {
     switch (currentStep) {
       case 1:
-        return { subtitle: t('auth.verifyPhoneSubtitle'), icon: Shield };
+        return { subtitle: t('auth.verifyPhoneSubtitle', 'Verify your phone number'), icon: Shield };
       case 2:
-        return { subtitle: t('registration.basicInfoSubtitle'), icon: User };
+        return { subtitle: t('registration.basicInfoSubtitle', 'Basic Information'), icon: User };
       case 3:
-        return { subtitle: t('registration.additionalInfoSubtitle'), icon: Heart };
+        return { subtitle: t('registration.additionalInfoSubtitle', 'Additional Information'), icon: Heart };
       default:
         return { subtitle: '', icon: Users };
     }
@@ -685,18 +685,18 @@ const PatientRegister = () => {
                 {t('registration.patientRegistration')}
               </h1>
               <p className="text-gray-400 mt-1 text-sm">
-                {stepInfo.subtitle} • {t('common.step')} {currentStep}/{TOTAL_STEPS}
+                {stepInfo.subtitle} • {t('common.step', 'step')} {currentStep}/{TOTAL_STEPS}
               </p>
             </div>
 
             {/* Mobile step counter */}
             <div className="lg:hidden flex items-center justify-between mb-4">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                {t('common.step')} {currentStep} / {TOTAL_STEPS}
+                {t('common.step', 'step')} {currentStep} / {TOTAL_STEPS}
               </span>
               {currentStep === 3 && (
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
-                  {t('common.optional')}
+                  {t('common.optional', 'optional')}
                 </span>
               )}
             </div>
@@ -721,7 +721,7 @@ const PatientRegister = () => {
                         <>
                           <div className="text-center mb-2">
                             <p className="text-sm text-gray-400">
-                              {t('auth.phoneVerificationDesc')}
+                              {t('auth.phoneVerificationDesc', 'Enter your phone number to receive a one-time password (OTP) for verification.')}
                             </p>
                           </div>
 
@@ -729,8 +729,8 @@ const PatientRegister = () => {
                             value={phone}
                             onChange={handlePhoneChange}
                             error={phoneError || error}
-                            label={t('auth.phoneNumber')}
-                            placeholder={t('auth.enterPhone')}
+                            label={t('auth.phoneNumber', 'Phone Number')}
+                            placeholder={t('auth.enterPhone', 'Enter Phone Number')}
                             autoFocus
                             size="lg"
                           />
@@ -744,7 +744,7 @@ const PatientRegister = () => {
                             rightIcon={<ArrowRight size={18} />}
                             className="!bg-gradient-to-r !from-emerald-600 !to-teal-600 hover:!from-emerald-700 hover:!to-teal-700 !shadow-lg !shadow-emerald-500/20 !rounded-xl sm:!rounded-2xl !py-3.5 sm:!py-4 !text-sm sm:!text-base !font-bold"
                           >
-                            {t('auth.sendOTP')}
+                            {t('auth.sendOTP', 'Send OTP')}
                           </Button>
                         </>
                       ) : (
@@ -767,14 +767,14 @@ const PatientRegister = () => {
                               onClick={handlePhoneEdit}
                               className="!text-emerald-600 hover:!bg-emerald-100 !rounded-lg !font-semibold !text-xs sm:!text-sm flex-shrink-0"
                             >
-                              {t('common.edit')}
+                              {t('common.edit', 'Edit')}
                             </Button>
                           </div>
 
                           {/* OTP Input */}
                           <div className="py-2">
                             <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-3 sm:mb-4 text-center">
-                              {t('auth.enterOTP')}
+                              {t('auth.enterOTP', 'Enter OTP')}
                             </label>
                             <OTPInput
                               value={otp}
@@ -785,7 +785,7 @@ const PatientRegister = () => {
                               autoFocus
                             />
                             <p className="text-[11px] text-gray-400 text-center mt-3">
-                              {t('auth.otpSentTo', { phone: `+91 ${phone}` })}
+                              {t('auth.otpSentTo', `OTP sent to {phone}`, { phone: `+91 ${phone}` })}
                             </p>
                           </div>
 
@@ -799,7 +799,7 @@ const PatientRegister = () => {
                             disabled={otp.length !== OTP_LENGTH}
                             className="!bg-gradient-to-r !from-emerald-600 !to-teal-600 hover:!from-emerald-700 hover:!to-teal-700 !shadow-lg !shadow-emerald-500/20 !rounded-xl sm:!rounded-2xl !py-3.5 sm:!py-4 !font-bold disabled:!opacity-40"
                           >
-                            {t('auth.verifyAndContinue')}
+                            {t('auth.verifyAndContinue', 'Verify & Continue')}
                           </Button>
 
                           {/* Resend OTP */}
@@ -811,7 +811,7 @@ const PatientRegister = () => {
                                 disabled={isLoading}
                                 className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm hover:underline transition-all disabled:opacity-50"
                               >
-                                {t('auth.resendOTP')}
+                                {t('auth.resendOTP', 'Resend OTP')}
                               </button>
                             ) : resendTimer > 0 ? (
                               <div className="flex items-center justify-center gap-2.5">
@@ -819,7 +819,7 @@ const PatientRegister = () => {
                                   <span className="text-xs font-bold text-emerald-600">{resendTimer}</span>
                                 </div>
                                 <p className="text-sm text-gray-400">
-                                  {t('auth.resendIn', { seconds: resendTimer })}
+                                  {t('auth.resendIn', `Resend in {seconds} seconds`, { seconds: resendTimer })}
                                 </p>
                               </div>
                             ) : null}
@@ -842,7 +842,7 @@ const PatientRegister = () => {
                             <Input
                               {...field}
                               label={t('registration.firstName')}
-                              placeholder={t('registration.firstNamePlaceholder')}
+                              placeholder={t('registration.firstNamePlaceholder', 'Enter First Name')}
                               error={errors.first_name?.message}
                               required
                               autoFocus
@@ -857,7 +857,7 @@ const PatientRegister = () => {
                             <Input
                               {...field}
                               label={t('registration.lastName')}
-                              placeholder={t('registration.lastNamePlaceholder')}
+                              placeholder={t('registration.lastNamePlaceholder', 'Enter Last Name')}
                               error={errors.last_name?.message}
                             />
                           )}
@@ -872,6 +872,7 @@ const PatientRegister = () => {
                             {...field}
                             type="date"
                             label={t('registration.dateOfBirth')}
+                            placeholder={t('registration.dateOfBirthPlaceholder', 'Select Date of Birth')}
                             error={errors.date_of_birth?.message}
                             max={todayDate}
                           />
@@ -885,7 +886,7 @@ const PatientRegister = () => {
                           render={({ field }) => (
                             <Select
                               {...field}
-                              label={t('registration.gender')}
+                              label={t('registration.gender', 'Gender')}
                               options={genderOptions}
                               error={errors.gender?.message}
                             />
@@ -897,7 +898,7 @@ const PatientRegister = () => {
                           render={({ field }) => (
                             <Select
                               {...field}
-                              label={t('registration.preferredLanguage')}
+                              label={t('registration.preferredLanguage', 'Preferred Language')}
                               options={LANGUAGE_OPTIONS}
                               error={errors.preferred_language?.message}
                             />
@@ -914,7 +915,7 @@ const PatientRegister = () => {
                           leftIcon={<ArrowLeft size={16} />}
                           className="!rounded-xl !font-semibold"
                         >
-                          {t('common.back')}
+                          {t('common.back', 'Back')}
                         </Button>
                         <Button
                           type="submit"
@@ -922,7 +923,7 @@ const PatientRegister = () => {
                           rightIcon={<ArrowRight size={16} />}
                           className="!bg-gradient-to-r !from-emerald-600 !to-teal-600 hover:!from-emerald-700 hover:!to-teal-700 !shadow-lg !shadow-emerald-500/20 !rounded-xl !font-bold"
                         >
-                          {t('common.next')}
+                          {t('common.next', 'Next')}
                         </Button>
                       </div>
                     </div>
@@ -934,7 +935,7 @@ const PatientRegister = () => {
                       {/* Optional badge */}
                       <div className="hidden lg:flex items-center justify-center">
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-100">
-                          {t('common.optional')}
+                          {t('common.optional', 'optional')}
                         </span>
                       </div>
 
@@ -946,8 +947,8 @@ const PatientRegister = () => {
                           render={({ field }) => (
                             <Input
                               {...field}
-                              label={t('registration.village')}
-                              placeholder={t('registration.villagePlaceholder')}
+                              label={t('registration.village', 'Village')}
+                              placeholder={t('registration.villagePlaceholder', 'Enter Village')}
                               leftIcon={<MapPin size={16} />}
                             />
                           )}
@@ -958,8 +959,8 @@ const PatientRegister = () => {
                           render={({ field }) => (
                             <Input
                               {...field}
-                              label={t('registration.district')}
-                              placeholder={t('registration.districtPlaceholder')}
+                              label={t('registration.district', 'District')}
+                              placeholder={t('registration.districtPlaceholder', 'Enter District')}
                             />
                           )}
                         />
@@ -971,7 +972,7 @@ const PatientRegister = () => {
                         render={({ field }) => (
                           <Select
                             {...field}
-                            label={t('registration.bloodGroup')}
+                            label={t('registration.bloodGroup', 'Blood Group')}
                             options={bloodGroupOptions}
                           />
                         )}
@@ -983,7 +984,7 @@ const PatientRegister = () => {
                           <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-100 flex items-center justify-center">
                             <Phone size={14} className="text-red-600" />
                           </div>
-                          {t('registration.emergencyContact')}
+                          {t('registration.emergencyContact', 'Emergency Contact')}
                         </h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                           <Controller
@@ -992,8 +993,8 @@ const PatientRegister = () => {
                             render={({ field }) => (
                               <Input
                                 {...field}
-                                label={t('registration.emergencyContactName')}
-                                placeholder={t('registration.emergencyContactNamePlaceholder')}
+                                label={t('registration.emergencyContactName', 'Emergency Contact Name')}
+                                placeholder={t('registration.emergencyContactNamePlaceholder', 'Enter Emergency Contact Name')}
                                 className="bg-white/70"
                               />
                             )}
@@ -1006,8 +1007,8 @@ const PatientRegister = () => {
                                 {...field}
                                 type="tel"
                                 inputMode="numeric"
-                                label={t('registration.emergencyContactPhone')}
-                                placeholder="9876543210"
+                                label={t('registration.emergencyContactPhone', 'Emergency Contact Phone')}
+                                placeholder={t('registration.emergencyContactPhonePlaceholder', 'Enter Emergency Contact Phone')}
                                 error={errors.emergency_contact_phone?.message}
                                 maxLength={PHONE_LENGTH}
                                 onChange={handleEmergencyPhoneChange(field)}
@@ -1024,7 +1025,7 @@ const PatientRegister = () => {
                           <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-100 flex items-center justify-center">
                             <Volume2 size={14} className="text-blue-600" />
                           </div>
-                          {t('registration.accessibilityOptions')}
+                          {t('registration.accessibilityOptions', 'Accessibility Options')}
                         </h3>
                         <div className="space-y-2">
                           <Controller
@@ -1046,7 +1047,7 @@ const PatientRegister = () => {
                                   </div>
                                 </div>
                                 <span className="text-gray-700 font-medium text-sm">
-                                  {t('registration.isLiterate')}
+                                  {t('registration.isLiterate', 'Is Literate')}
                                 </span>
                               </label>
                             )}
@@ -1070,7 +1071,7 @@ const PatientRegister = () => {
                                   </div>
                                 </div>
                                 <span className="text-gray-700 font-medium text-sm">
-                                  {t('registration.needsVoiceAssistance')}
+                                  {t('registration.needsVoiceAssistance', 'Needs Voice Assistance')}
                                 </span>
                               </label>
                             )}
@@ -1087,7 +1088,7 @@ const PatientRegister = () => {
                           leftIcon={<ArrowLeft size={16} />}
                           className="!rounded-xl !font-semibold order-2 sm:order-1"
                         >
-                          {t('common.back')}
+                          {t('common.back', 'Back')}
                         </Button>
                         <Button
                           type="button"
@@ -1095,7 +1096,7 @@ const PatientRegister = () => {
                           onClick={handleSkip}
                           className="order-3 sm:order-2 !text-gray-400 hover:!text-gray-600"
                         >
-                          {t('common.skipForNow')}
+                          {t('common.skipForNow', 'Skip for Now')}
                         </Button>
                         <Button
                           type="submit"
@@ -1116,19 +1117,19 @@ const PatientRegister = () => {
             {/* Login Link */}
             <div className="mt-6 sm:mt-8 text-center">
               <p className="text-gray-400 text-xs sm:text-sm">
-                {t('auth.alreadyHaveAccount')}{' '}
+                {t('auth.alreadyHaveAccount', 'Already have an account?')}{' '}
                 <Link
                   to="/login"
                   className="text-emerald-600 font-bold hover:text-emerald-700 hover:underline transition-all"
                 >
-                  {t('auth.login')}
+                  {t('auth.login', 'Login')}
                 </Link>
               </p>
             </div>
 
             {/* Mobile copyright */}
             <p className="lg:hidden mt-6 text-center text-[10px] text-gray-300">
-              © {new Date().getFullYear()} {t('common.appName')}
+              © {new Date().getFullYear()} {t('common.appName','MediConnect')}. {t('common.allRightsReserved', 'All rights reserved.')}
             </p>
           </div>
         </div>
